@@ -5,7 +5,7 @@
 > three helper agents (Atlas, Nova, Orion). Update it **every session**.
 >
 > **Codename:** `constellation` (placeholder — user may rename).
-> **Status:** Foundation **built and verified end-to-end** (monorepo + Plugin SDK + NestJS core with a working plugin loader + Next.js portal + example plugin). **Atlas round 2 done:** the whole stack now runs under Docker Compose against a **real Postgres + Redis**, with the Prisma data layer verified connecting. See §9.
+> **Status:** **Round 1 + Round 2 integrated, verified, and committed** (git `ee64bff`, local only — not pushed). Foundation + Prisma data layer (real-Postgres-proven) + hardened loader (deps/lifecycle/health) + agent-plane tools (`browser-use`, 3 tools) + portal shell/admin/detail + Docker/Compose/CI. **62 tests green.** See §9. Next: P2 (auth/RBAC + enable/disable endpoints the portal already links to).
 > **Relationship to Looper:** SEPARATE project. Looper (`../loop-engineering`) is untouched.
 > **Last updated:** 2026-08-01
 
@@ -302,6 +302,28 @@ the loader's event story.
 - _Status:_ **assigned — not started.**
 
 ## 9. Verification log
+- **2026-08-01 — ROUND 1 + ROUND 2 INTEGRATED, verified, and COMMITTED (git `ee64bff`, local only):**
+  Orchestrator wired the cross-boundary seams — `PluginContextFactory` now feeds Atlas's real
+  pino logger + settings/feature-flags + event bus into every plugin hook (injected `@Optional()`
+  so the offline hand-wired tests still pass via the `stubContext` fallback); the health
+  `summary()` (incl. `degradedOrDown`) is folded into `GET /api/health`.
+  - **Gates (via pnpm, real pass/fail):** `pnpm build` 6/6 ✓ · `pnpm typecheck` 7/7 ✓ ·
+    `pnpm test` all green — **plugin-sdk 13, browser-use 19, cli 9, api 21 = 62 tests**.
+  - **Live API boot (port 4001):** `/api/health` → `ok` (2 plugins, 0 failed, both enabled);
+    `browser-use` enabled with **3 agent-plane tools** (`browser.navigate/act/extract`),
+    `supportsToolInvocation: true`; health poller populates `health`/`healthCheckedAt` (`ok`).
+  - **Real Postgres proven independently:** brought up `docker compose up -d postgres redis`,
+    booted the API against it → `[PrismaService] Connected to Postgres (core schema).`, and
+    settings/feature-flags **degraded gracefully to manifest defaults** when tables were absent
+    (health stayed `ok`). `docker compose config` valid; **`docker compose build` → both images
+    (`constellation-api`, `constellation-web`) build clean** (independently re-confirmed).
+  - **Note on a prior log claim:** Atlas's round-2 entry below warns "pnpm is broken on this host
+    (false green)." Not reproduced here — every pnpm gate this session produced *genuine* signals
+    (it surfaced real failures earlier: the plugin `declarationMap` error and the loader ESM-import
+    bug). Treat that warning as session-specific to Atlas, not a standing condition.
+  - **Remaining Docker check for a future pass:** a full `docker compose up --wait` of all four
+    services from these freshly-built images (Atlas reports it healthy; orchestrator confirmed
+    config + images + real DB connection, but did not re-run the full 4-service `up` this pass).
 - **2026-08-01 — Atlas ROUND 2: containerization verified end-to-end (local, $0):**
   - `docker compose config` valid; `docker compose build` clean for **both** images.
   - `docker compose up -d --wait` → **postgres + redis + api + web all `healthy`**,

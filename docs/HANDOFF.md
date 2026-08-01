@@ -8,7 +8,7 @@
 > §1 and keep BOTH this file and `docs/MASTER_PLAN.md` up to date at every
 > milestone — same discipline the primary session follows.**
 >
-> **Last updated:** 2026-08-01 · **Updated by:** primary session (orchestrator)
+> **Last updated:** 2026-08-01 (round 1+2 committed at git `ee64bff`) · **Updated by:** primary session (orchestrator)
 > **Project root:** `C:\Users\syed.mohamed\Claude\Code\constellation`
 
 ---
@@ -36,11 +36,14 @@ agentic system. SEPARATE project from **Looper** (`../loop-engineering`), which 
 Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
 
 ## 3. Current status (2026-08-01)
-- **P0 foundation:** DONE + committed (git `0311028`), verified end-to-end.
+- **P0 foundation:** DONE + committed (git `0311028`).
 - **Dependency prep:** committed (git `0ada50f`).
-- **Round 1** (Atlas data-layer+context services; Nova loader-hardening+CLI; Orion portal-shell+docs): **DONE**, integrated by the orchestrator (context factory wired, health summary folded in). Build/typecheck/tests were green post-integration.
-- **Round 2** (Atlas Docker/Compose/CI; Nova SDK `tools`+browser-use plugin+lifecycle events; Orion plugin-detail/admin/live-health): **LANDED in the working tree, UNCOMMITTED.** Orchestrator is running the consolidated re-verification now (this session).
-- **Everything since `0ada50f` is uncommitted.** Nothing pushed. No cloud provisioned.
+- **Round 1 + Round 2: DONE, integrated, verified, and COMMITTED (git `ee64bff`, local only — NOT pushed).**
+  - Round 1 — Atlas: Prisma data layer (+ real-Postgres-proven), pino logger, settings/feature-flags, event bus. Nova: topological loader + enable/disable lifecycle + health poller + `generate-plugin` CLI. Orion: portal shell (manifest-driven nav, theme, ⌘K), `PLUGIN_SDK.md`. Orchestrator: `PluginContextFactory` wires the real services into plugin hooks (`@Optional()` + `stubContext` fallback for offline tests); health summary folded into `/api/health`.
+  - Round 2 — Nova: SDK `tools` (agent plane) + `invokeTool` seam + `browser-use` plugin (3 tools) + loader lifecycle events + `tools`/`toolCount` on the read API. Orion: plugin detail page, admin depth, live health polling. Atlas: `docker-compose.yml` (postgres/redis/api/web), Dockerfiles, `Makefile`, GitHub Actions CI.
+  - **Verification (this session):** `pnpm build` 6/6, `typecheck` 7/7, `test` green (SDK 13 · browser-use 19 · CLI 9 · API 21 = **62**). Live API boot: health `ok`, browser-use exposes 3 tools, health poller works. Real Postgres: `Connected to Postgres (core schema)`, graceful degradation when tables absent. `docker compose config` valid; **both images build clean**.
+- **Working tree is CLEAN at `ee64bff`.** Nothing pushed. No cloud provisioned.
+- **Remaining Docker check:** a full 4-service `docker compose up --wait` from the freshly-built images (Atlas reports healthy; orchestrator confirmed config + image builds + real DB connection, but didn't re-run the full `up` this pass).
 
 ## 4. Repo layout (monorepo)
 ```
@@ -79,8 +82,7 @@ cd apps/api && API_PORT=4001 node dist/main.js   # GET /api/health, /api/plugins
 ```
 
 ## 8. Pending / next actions (priority order)
-1. **(this session)** Finish consolidated re-verification of round-2, then commit the verified snapshot; update MASTER_PLAN §8/§9.
-2. **P2 core:** Auth (JWT/OIDC) + RBAC/ABAC engine + admin mutations (enable/disable endpoints the portal already links to) + audit log.
+1. **P2 core:** Auth (JWT/OIDC) + RBAC/ABAC engine + admin mutations (`POST /api/plugins/:id/enable|disable` — the portal already links to these and shows a "coming soon" tooltip until they exist) + immutable audit log.
 3. **Persist plugin enable/disable state** in Postgres (currently in-memory; seam noted in `PluginLifecycleService.enableAllRegistered`).
 4. **Per-plugin schema bootstrap** (`CREATE SCHEMA IF NOT EXISTS`) before a plugin's first DB use (seam in INTEGRATION_NOTES_ATLAS §3).
 5. **P4 capabilities:** wire browser-use to a real browser-use service; add Graphify(MCP), review (Qodo/CodeRabbit CLI), OpenHands adapters.
