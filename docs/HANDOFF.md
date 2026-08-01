@@ -78,6 +78,13 @@ Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
      `powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 4001 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }"`
      then re-check the port is FREE before booting.
   5. **Background API boots die when their shell closes** — launch with `exec node dist/main.js`.
+  6. **Host-blocked pnpm/CI checks are still runnable — don't defer them.** Reproduce CI in a
+     throwaway container instead:
+     `docker run --rm -v "//c/Users/syed.mohamed/Claude/Code/constellation:/src:ro" node:22-bookworm-slim bash -c '...'`
+     — inside, `tar`-copy only manifests + lockfile (**exclude `node_modules`**, or the copy takes
+     >10min), `corepack prepare pnpm@9.12.3 --activate`, then run the real gate. This is how
+     `pnpm install --frozen-lockfile` was proven on 2026-08-02. Note: single-**file** `-v` mounts
+     misbehave on this Windows host (mount the directory instead).
 
 - **Known follow-ups (not blockers):** plugin READ endpoints are `@Public` for P2 (module list isn't sensitive; harden to authed + httpOnly-cookie tokens later); portal token is in-memory+localStorage (XSS caveat noted in code); no committed `prisma/migrations` history yet (Docker entrypoint uses `db push`); a viewer (non-admin) user isn't seeded so the 403 UI path is unit-tested, not live-clicked.
 - **Remaining Docker check:** a full 4-service `docker compose up --wait` from the freshly-built images (Atlas reports healthy; orchestrator confirmed config + image builds + real DB connection, but didn't re-run the full `up` this pass).

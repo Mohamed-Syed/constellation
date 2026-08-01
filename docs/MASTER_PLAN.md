@@ -401,7 +401,12 @@ w/o the brain must not crash, verify before done).
   - **Real bug caught and fixed during integration:** `pnpm-lock.yaml` had **no importer for the new
     `plugins/graphify` workspace** (turbo: `Workspace 'plugins/graphify' not found in lockfile`).
     CI's `pnpm install --frozen-lockfile` would have failed on the first push. Added the importer
-    (deps identical to `plugins/browser-use`); the warning is gone.
+    (deps identical to `plugins/browser-use`); the warning is gone. **Proven with a real
+    `pnpm install --frozen-lockfile`** — not runnable on this host (broken pnpm), so it was run in
+    CI's exact image (`node:22-bookworm-slim`, corepack `pnpm@9.12.3`, manifests+lockfile copied
+    into a throwaway container): **712 packages resolved, no `ERR_PNPM_OUTDATED_LOCKFILE`, done in
+    16s.** This is the definitive lockfile gate and it now passes; the probe script was deleted.
+    **Reusable trick:** any host-blocked pnpm/CI check can be run this way instead of being deferred.
   - **Three environment traps confirmed (now in HANDOFF §3) — all three can produce FALSE GREENS:**
     (1) `pnpm` is broken on this host (mangled corepack path) — Atlas's round-2 warning was right and
     it IS a standing condition, contrary to the 2026-08-01 note below; (2) plain `turbo run build`
