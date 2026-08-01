@@ -8,7 +8,7 @@
 > §1 and keep BOTH this file and `docs/MASTER_PLAN.md` up to date at every
 > milestone — same discipline the primary session follows.**
 >
-> **Last updated:** 2026-08-01 (P2 committed at git `14137d8`) · **Updated by:** primary session (orchestrator)
+> **Last updated:** 2026-08-02 (P3+P4 committed at git `a07dd25`) · **Updated by:** clau_partner (orchestrator)
 > **Project root:** `C:\Users\syed.mohamed\Claude\Code\constellation`
 
 ---
@@ -35,7 +35,7 @@ tools — Grafana/Langflow/Open WebUI/Coolify — via SSO+proxy) and an **agent 
 agentic system. SEPARATE project from **Looper** (`../loop-engineering`), which is untouched.
 Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
 
-## 3. Current status (2026-08-01)
+## 3. Current status (2026-08-02)
 - **P0 foundation:** DONE + committed (git `0311028`).
 - **Dependency prep:** committed (git `0ada50f`).
 - **Round 1 + Round 2: DONE, integrated, verified, and COMMITTED (git `ee64bff`, local only — NOT pushed).**
@@ -43,7 +43,42 @@ Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
   - Round 2 — Nova: SDK `tools` (agent plane) + `invokeTool` seam + `browser-use` plugin (3 tools) + loader lifecycle events + `tools`/`toolCount` on the read API. Orion: plugin detail page, admin depth, live health polling. Atlas: `docker-compose.yml` (postgres/redis/api/web), Dockerfiles, `Makefile`, GitHub Actions CI.
   - **Verification (this session):** `pnpm build` 6/6, `typecheck` 7/7, `test` green (SDK 13 · browser-use 19 · CLI 9 · API 21 = **62**). Live API boot: health `ok`, browser-use exposes 3 tools, health poller works. Real Postgres: `Connected to Postgres (core schema)`, graceful degradation when tables absent. `docker compose config` valid; **both images build clean**.
 - **P2 DONE, verified, COMMITTED (git `14137d8`, local only):** JWT auth (`@nestjs/jwt`+bcrypt, global `JwtAuthGuard`, `@Public`/`@CurrentUser`, OIDC-ready `TOKEN_VERIFIER` seam, admin/viewer seed) + RBAC/ABAC (`@RequirePermissions`+`PermissionsGuard` on SDK helpers) + audit (`AuditService`, `GET /api/audit`) + `POST /api/plugins/:id/enable|disable` (guarded `core:plugin:manage`, audited, **state persists across restart**) + auth portal (login, gating, role-aware nav, wired buttons). **74 tests.** Verified live vs real Postgres (login→JWT, /me, 401/deny, audit rows, restart-persistence). See §9.
-- **Working tree CLEAN at `14137d8`.** Nothing pushed. No cloud provisioned. **VPS deferred** — prove everything locally first (user decision 2026-08-01).
+- **P3 + P4 (first slice) DONE, verified, COMMITTED (git `a07dd25`, local only) — 2026-08-02, clau_partner:**
+  - **Atlas — OIDC/SSO auth seam:** `OidcJwtVerifier` (JWKS-backed) + `CompositeTokenVerifier`
+    (local JWT first, OIDC when `OIDC_ISSUER_URL` is set), bound to the existing `TOKEN_VERIFIER`
+    token in `AuthModule` — guards/controllers unchanged. Logs `SSO not configured — local JWT
+    verification only` and degrades cleanly when unset. Plus `infra/` configs (Caddy reverse proxy,
+    Prometheus, Loki, Grafana datasources) and `docker-compose.federation.yml`.
+  - **Nova — agent-plane tool invocation:** `PluginToolService` (resolve + permission-check before
+    running plugin code) and `POST /api/plugins/:id/invoke` with **two-layer authz** (route-level
+    `core:plugin:manage` + the tool's own manifest `permission`). Every attempt audited **including
+    denials**; args/results deliberately never logged. New third capability plugin
+    **`plugins/graphify`** (`graph.query` / `graph.related` / `graph.ingest` over MCP JSON-RPC),
+    unconfigured-safe.
+  - **Orion — portal federation UX:** `/tools` federated tile page, `federated-tool-tile`,
+    `plugin-tools-panel` (tool-invoke UI), `session-guard`, `federated-api`/`federated-tools` libs.
+  - **Orchestrator wiring:** `config/modules.yaml` federated registry + `core/federation`
+    (`GET /api/federation/modules | /:id | /status`) mounted in `AppModule`; **fixed the
+    `pnpm-lock.yaml` missing `plugins/graphify` importer** (turbo warned "workspace not found in
+    lockfile" — CI's `--frozen-lockfile` would have failed).
+  - **Gates:** build **7/7** · typecheck **8/8** · test **169** (sdk 13, cli 9, browser-use 25,
+    api 95, graphify 27) — all run `--force --concurrency=1`. Live boot + real-Postgres pass. See §9.
+- **Working tree CLEAN at `a07dd25`** (plus this doc update). Nothing pushed. No cloud provisioned. **VPS deferred** — prove everything locally first (user decision 2026-08-01).
+- **⚠️ ENVIRONMENT GOTCHAS (confirmed again 2026-08-02 — read before verifying):**
+  1. **`pnpm` is broken on this host.** `corepack enable && pnpm install` dies with
+     `MODULE_NOT_FOUND` on a mangled `C:\c\Users\...\corepack\dist\pnpm.js` path. Use
+     **`./node_modules/.bin/turbo run build|typecheck|test`** instead. Deps are already installed.
+  2. **Turbo caching lies.** A plain `turbo run build` reported `7 successful … FULL TURBO` from
+     cache on code that had never been built. **Always pass `--force`.**
+  3. **Run gates with `--concurrency=1`.** A parallel `--force` run failed `@constellation/web#build`
+     spuriously; the same build passes alone and serialized. Parallel failures here are collisions,
+     not real errors — re-check serialized before chasing a phantom bug.
+  4. **Killing the stale port squatter:** `taskkill //PID` fails under git-bash and the PID from
+     `netstat` can be stale. What works:
+     `powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 4001 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }"`
+     then re-check the port is FREE before booting.
+  5. **Background API boots die when their shell closes** — launch with `exec node dist/main.js`.
+
 - **Known follow-ups (not blockers):** plugin READ endpoints are `@Public` for P2 (module list isn't sensitive; harden to authed + httpOnly-cookie tokens later); portal token is in-memory+localStorage (XSS caveat noted in code); no committed `prisma/migrations` history yet (Docker entrypoint uses `db push`); a viewer (non-admin) user isn't seeded so the 403 UI path is unit-tested, not live-clicked.
 - **Remaining Docker check:** a full 4-service `docker compose up --wait` from the freshly-built images (Atlas reports healthy; orchestrator confirmed config + image builds + real DB connection, but didn't re-run the full `up` this pass).
 
@@ -73,14 +108,22 @@ constellation/
 - **Orchestrator only:** `docs/MASTER_PLAN.md`, cross-boundary wiring (e.g. `plugin-context.factory.ts` pulling Atlas services), `docs/HANDOFF.md`, all installs, all git commits.
 
 ## 7. How to verify (the standard pass)
+> **`pnpm` is BROKEN on this host — see the gotchas in §3.** Use turbo directly, always
+> `--force` (cache reports false greens) and `--concurrency=1` (parallel runs fail spuriously).
 ```bash
 cd C:/Users/syed.mohamed/Claude/Code/constellation
-corepack enable && pnpm install
-pnpm --filter @constellation/api exec prisma generate   # needed before api build
-pnpm build && pnpm typecheck && pnpm test
-# live boot (port 4000 is often occupied locally by a stray gateway — use 4001):
-cd apps/api && API_PORT=4001 node dist/main.js   # GET /api/health, /api/plugins
-# full stack: docker compose up -d --build   (or: make up)
+cd apps/api && ./node_modules/.bin/prisma generate && cd ../..   # needed before the api build
+./node_modules/.bin/turbo run build     --force --concurrency=1   # expect 7/7
+./node_modules/.bin/turbo run typecheck --force --concurrency=1   # expect 8/8
+./node_modules/.bin/turbo run test      --force --concurrency=1   # expect 169 tests
+# live boot — FIRST free port 4001 (a stale dist/main.js has squatted it twice and served old code):
+powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 4001 -State Listen | ForEach-Object { Stop-Process -Id \$_.OwningProcess -Force }"
+cd apps/api && API_PORT=4001 exec node dist/main.js   # GET /api/health, /api/plugins, /api/federation/status
+# real Postgres (disposable local container only):
+docker compose up -d postgres
+cd apps/api && DATABASE_URL="postgresql://constellation:constellation@localhost:5432/constellation" \
+  PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=1 ./node_modules/.bin/prisma db push --accept-data-loss
+# ...boot with DATABASE_URL + JWT_SECRET set, then: docker compose down --volumes
 ```
 
 ## 8. Pending / next actions (priority order)
@@ -91,9 +134,15 @@ cd apps/api && API_PORT=4001 node dist/main.js   # GET /api/health, /api/plugins
 2. ~~**P2 core:** auth + RBAC/ABAC + audit + protected enable/disable~~ **DONE (git `14137d8`).** Core follow-ups: seed a non-admin viewer user; committed `prisma/migrations` history (replace `db push`); httpOnly-cookie token hardening; consider auth on plugin reads.
 3. **Persist plugin enable/disable state** in Postgres (currently in-memory; seam noted in `PluginLifecycleService.enableAllRegistered`).
 4. **Per-plugin schema bootstrap** (`CREATE SCHEMA IF NOT EXISTS`) before a plugin's first DB use (seam in INTEGRATION_NOTES_ATLAS §3).
-5. **P4 capabilities:** wire browser-use to a real browser-use service; add Graphify(MCP), review (Qodo/CodeRabbit CLI), OpenHands adapters.
-6. **P3 portal federation:** SSO (Keycloak/Authentik) + reverse proxy + `modules.yaml`; embed Grafana/Langflow/Open WebUI/Coolify tiles.
+5. ~~**P4 capabilities**~~ **first slice DONE (`a07dd25`):** tool-invoke endpoint + `graphify`
+   capability plugin. Remaining: wire browser-use to a real browser-use service; point `graphify`
+   at a live MCP server; add review (Qodo/CodeRabbit CLI) + OpenHands adapters.
+6. ~~**P3 portal federation**~~ **first slice DONE (`a07dd25`):** `config/modules.yaml` +
+   `/api/federation/*` + `/tools` tiles + the OIDC/composite verifier seam. Remaining: actually
+   stand up Keycloak + Caddy from `docker-compose.federation.yml` and prove a real SSO round-trip
+   and a proxied, embedded Grafana tile end-to-end (configs exist but are UNRUN).
 7. **P5 deploy:** VPS via Coolify — BLOCKED on user: provider + monthly budget.
+
 
 ## 9. Open questions for the user
 - VPS provider (Hetzner?) + monthly budget → to cost P5. (Codename `constellation` and ORM `Prisma` are already decided.)

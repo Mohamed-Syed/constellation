@@ -5,9 +5,9 @@
 > three helper agents (Atlas, Nova, Orion). Update it **every session**.
 >
 > **Codename:** `constellation` (placeholder — user may rename).
-> **Status:** **Round 1 + 2 + P2 done, integrated, verified, committed** (git `14137d8`, local only — not pushed). Foundation + Prisma data layer + hardened loader + agent-plane tools (`browser-use`) + portal + Docker/CI + **JWT auth + RBAC/ABAC + audit + protected plugin mutations + auth portal** (all real-Postgres-proven). **74 tests green.** See §9. Next: P3 (portal federation: SSO + reverse proxy + Grafana/Langflow/Open WebUI/Coolify tiles) and/or P4 (real agent-capability wiring). VPS deferred (prove locally first).
+> **Status:** **Round 1 + 2 + P2 + the first P3/P4 slice done, integrated, verified, committed** (git `a07dd25`, local only — not pushed). Foundation + Prisma data layer + hardened loader + agent-plane tools + portal + Docker/CI + JWT auth/RBAC/audit (all real-Postgres-proven) + **OIDC/SSO verifier seam, `POST /api/plugins/:id/invoke` tool invocation, the `graphify` capability plugin, and portal federation (`config/modules.yaml` + `/api/federation/*` + `/tools` tiles)**. **169 tests green.** See §9. Next: **the BRAIN round** (§8, `docs/BRAIN.md`) — user's top priority. Then: prove a real Keycloak+Caddy SSO round-trip (configs exist, UNRUN). VPS deferred (prove locally first).
 > **Relationship to Looper:** SEPARATE project. Looper (`../loop-engineering`) is untouched.
-> **Last updated:** 2026-08-01
+> **Last updated:** 2026-08-02 (clau_partner)
 
 ---
 
@@ -338,7 +338,27 @@ context factory). Everyone builds to the **shared API contract** below.
 - [ ] Token storage: in-memory + `localStorage` fallback with a documented XSS caveat (httpOnly-cookie hardening is a later item). Degrade gracefully if the auth API is down. Ownership: `apps/web/**`, `docs/*` (not MASTER_PLAN). Verify: `pnpm --filter @constellation/web build` + `typecheck` clean; login flow + gated routes render.
 - _Status:_ **assigned — not started.**
 
-### 🧠 BRAIN ROUND — Memory & Knowledge Graph (Graphify) — ASSIGNED, top priority (user 2026-08-02)
+### P3+P4 ROUND — OIDC/SSO seam + agent-plane tool invocation + portal federation — ✅ DONE (`a07dd25`, 2026-08-02, clau_partner)
+Built by the three agents in disjoint lanes, integrated/verified/committed by the orchestrator.
+
+- [x] 🏛️ **Atlas:** `OidcJwtVerifier` (JWKS) + `CompositeTokenVerifier` bound to `TOKEN_VERIFIER`
+  in `AuthModule` — local JWT first, OIDC when `OIDC_ISSUER_URL` is set; controllers/guards
+  untouched (the P2 seam paid off exactly as designed). `infra/` configs (Caddy, Prometheus,
+  Loki, Grafana datasources) + `docker-compose.federation.yml`. **Configs are UNRUN — no real
+  Keycloak/Caddy round-trip has been proven yet.**
+- [x] ⭐ **Nova:** `PluginToolService` + `POST /api/plugins/:id/invoke` with two-layer authz
+  (route `core:plugin:manage` + the tool's own manifest `permission`); denials and failures are
+  audited, args/results never logged. New `plugins/graphify` capability (graph.query/related/
+  ingest over MCP JSON-RPC), unconfigured-safe.
+- [x] 🌌 **Orion:** `/tools` federated tile page, `federated-tool-tile`, `plugin-tools-panel`
+  (tool-invoke UI), `session-guard`, `federated-api`/`federated-tools`.
+- [x] 🎛️ **Orchestrator:** `config/modules.yaml` + `core/federation` module
+  (`GET /api/federation/modules|/:id|/status`) mounted in `AppModule`; **repaired `pnpm-lock.yaml`**
+  (missing `plugins/graphify` importer — turbo warned, CI `--frozen-lockfile` would have failed).
+- _Status:_ **DONE, verified, committed `a07dd25` (local only).** Details in §9.
+
+
+### 🧠 BRAIN ROUND — Memory & Knowledge Graph (Graphify) — NEXT UP, top priority (user 2026-08-02)
 Give the platform a persistent, queryable memory. Engine = **Graphify** (knowledge graph over
 MCP, local, $0). **Full design in [`docs/BRAIN.md`](BRAIN.md)** — read it first; the honest scope
 call (adopt Graphify; skip PAUL/SEED/Railway for now; Obsidian optional) and the interface/REST/MCP
@@ -356,6 +376,50 @@ w/o the brain must not crash, verify before done).
 - _Status:_ **assigned — not started.** (Verify bar in `docs/BRAIN.md` §7.)
 
 ## 9. Verification log
+- **2026-08-02 — P3+P4 FIRST SLICE integrated, verified, COMMITTED (git `a07dd25`, local only) — clau_partner:**
+  Integrated the in-flight batch from all three lanes (Atlas OIDC/composite verifier + infra configs;
+  Nova `PluginToolService` + `/invoke` + `graphify` plugin; Orion `/tools` + tool-invoke UI) and wired
+  the seams: `config/modules.yaml` + `core/federation` mounted in `AppModule`; confirmed the composite
+  verifier is bound to `TOKEN_VERIFIER`; confirmed the invoke route is guarded + audited.
+  - **Gates (all `--force --concurrency=1`, via turbo — pnpm is broken on this host):**
+    `build` **7/7** · `typecheck` **8/8** · `test` **169** (sdk 13, cli 9, browser-use 25,
+    **api 95**, graphify 27) — up from the 74 baseline.
+  - **Live boot (:4001, no DB):** all new routes mapped (`/api/plugins/:id/invoke`,
+    `/api/federation/modules|/:id|/status`); 3 plugins registered + enabled (browser-use, graphify,
+    hello-world); `Loaded 7 federated module(s) … (4 visible tile(s))`;
+    `CompositeTokenVerifier: SSO not configured — local JWT verification only`;
+    `/api/plugins` shows `toolCount` 3/3/0; **invoke without a token → 401**.
+  - **Live vs REAL Postgres** (disposable local container; standing local-dev consent used for the
+    Prisma push; container **and volume torn down after**): admin seeded; `POST /api/auth/login` →
+    JWT; `/api/auth/me` → `admin` / `platform:admin`; `GET /api/federation/modules` → **401 unauthed,
+    full list authed**; `/api/federation/status` → `{total:7, enabled:6, tiles:4}`;
+    `POST /api/plugins/graphify/invoke` (`graph.query`) → 201 with the honest
+    `ok:false, "graphify is not configured"` envelope (a completed call, not an HTTP error, as
+    designed); an **undeclared** tool → **404** listing the declared tools; `GET /api/audit` shows
+    all three rows — `auth.login`, `plugin.tool.invoke`, **`plugin.tool.denied`** (denials really
+    are audited).
+  - **Real bug caught and fixed during integration:** `pnpm-lock.yaml` had **no importer for the new
+    `plugins/graphify` workspace** (turbo: `Workspace 'plugins/graphify' not found in lockfile`).
+    CI's `pnpm install --frozen-lockfile` would have failed on the first push. Added the importer
+    (deps identical to `plugins/browser-use`); the warning is gone.
+  - **Three environment traps confirmed (now in HANDOFF §3) — all three can produce FALSE GREENS:**
+    (1) `pnpm` is broken on this host (mangled corepack path) — Atlas's round-2 warning was right and
+    it IS a standing condition, contrary to the 2026-08-01 note below; (2) plain `turbo run build`
+    reported `7 successful … FULL TURBO` **from cache on never-built code** — always `--force`;
+    (3) a `--force` run at default concurrency spuriously failed `@constellation/web#build`, which
+    passes alone and serialized — use `--concurrency=1`.
+  - **Ops lesson (2nd occurrence):** a stale `node dist/main.js` was squatting :4001 again.
+    `taskkill //PID` does not work under git-bash and the netstat PID was stale; the reliable kill is
+    `Get-NetTCPConnection -LocalPort 4001 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }`.
+    Also: a background boot dies with its shell unless launched via `exec node dist/main.js`.
+  - **Secret/PII sweep before commit:** clean — only env-var *names* (`BROWSER_USE_API_KEY`,
+    `GRAPHIFY_API_KEY`) and test fixtures; no real credentials, no `syed.mohamed`/employer identity
+    in any tracked file; `.env` still untracked.
+  - **NOT yet proven (honest gap):** `docker-compose.federation.yml` and the `infra/` Caddy/Keycloak/
+    Grafana configs have **never been run**. No real SSO round-trip, no proxied/embedded tile.
+    The federation surface is verified as far as the API + portal go; the actual federated stack is
+    still on paper.
+
 - **2026-08-01 — P2 (auth + RBAC + audit + protected mutations + auth portal) DONE, integrated, verified, COMMITTED (git `14137d8`, local only):**
   Built by managed subagents (Atlas auth/rbac/audit + Prisma User/Role/UserRole; Nova enable/disable
   endpoints + `PluginInstallation` persistence + boot-from-DB state; Orion login/gating/role-aware
