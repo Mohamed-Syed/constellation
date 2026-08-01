@@ -2,10 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Activity, ClipboardList, Lock, Search, ShieldCheck, Users } from "lucide-react";
+import { Activity, ClipboardList, Loader2, Lock, Search, ShieldCheck, Users } from "lucide-react";
 
 import type { PlatformHealth, PluginState, PluginSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { getPlugins } from "@/lib/api";
+import { disablePlugin, enablePlugin } from "@/lib/plugin-actions";
+import { hasAnyPermission } from "@/lib/permissions";
+import { useAuth } from "@/components/auth/auth-provider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +29,9 @@ import {
   stateBadgeVariant,
   stateLabel,
 } from "@/components/modules/plugin-state";
+
+/** Either permission unlocks plugin enable/disable — matches `lib/nav.ts`'s Admin nav gate. */
+const MANAGE_PLUGINS_PERMISSIONS = ["core:plugin:manage", "platform:admin"];
 
 type StateFilter = "all" | PluginState;
 type HealthFilter = "all" | "ok" | "degraded" | "down" | "unknown";
@@ -89,14 +96,65 @@ function HealthPill({ plugin }: { plugin: PluginSummary }) {
 
 export function AdminConsole({
   health,
-  plugins,
+  plugins: initialPlugins,
 }: {
   health: PlatformHealth | null;
   plugins: PluginSummary[];
 }) {
+  const { token, permissions } = useAuth();
+  const canManagePlugins = hasAnyPermission(permissions, MANAGE_PLUGINS_PERMISSIONS);
+
   const [query, setQuery] = React.useState("");
   const [stateFilter, setStateFilter] = React.useState<StateFilter>("all");
   const [healthFilter, setHealthFilter] = React.useState<HealthFilter>("all");
+
+  // Local, mutable copy so enable/disable can update optimistically. Re-seed
+  // whenever the SSR/parent snapshot changes (e.g. a client-side nav refetch).
+  const [plugins, setPlugins] = React.useState(initialPlugins);
+  React.useEffect(() => setPlugins(initialPlugins), [initialPlugins]);
+
+  const [pendingIds, setPendingIds] = React.useState<Set<string>>(new Set());
+  const [rowErrors, setRowErrors] = React.useState<Record<string, string>>({});
+
+  const handleToggle = React.useCallback(
+    async (plugin: PluginSummary) => {
+      const goingToEnable = plugin.state !== "enabled";
+      const previousSnapshot = plugins;
+
+      setRowErrors((prev) => {
+        if (!(plugin.id in prev)) return prev;
+        const next = { ...prev };
+        delete next[plugin.id];
+        return next;
+      });
+      setPendingIds((prev) => new Set(prev).add(plugin.id));
+      // Optimistic update: flip the state immediately.
+      setPlugins((prev) =>
+        prev.map((p) => (p.id === plugin.id ? { ...p, state: (goingToEnable ? "enabled" : "disabled") as PluginState } : p)),
+      );
+
+      const outcome = goingToEnable ? await enablePlugin(plugin.id, token) : await disablePlugin(plugin.id, token);
+
+      if (outcome.ok) {
+        // Adopt the server's canonical summary for this row, then refetch
+        // the full list so any downstream effects (dependents, health)
+        // settle. A failed/empty refetch just keeps what we already applied.
+        setPlugins((prev) => prev.map((p) => (p.id === plugin.id ? outcome.plugin : p)));
+        const fresh = await getPlugins(token ?? undefined);
+        if (fresh.length > 0) setPlugins(fresh);
+      } else {
+        // Revert to the pre-optimistic snapshot and surface the error inline.
+        setPlugins(previousSnapshot);
+        setRowErrors((prev) => ({ ...prev, [plugin.id]: outcome.message }));
+      }
+      setPendingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(plugin.id);
+        return next;
+      });
+    },
+    [plugins, token],
+  );
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -114,8 +172,10 @@ export function AdminConsole({
       <header className="mb-8">
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Admin</h1>
         <p className="mt-2 text-neutral-500 dark:text-neutral-400">
-          Platform administration. Gated behind RBAC once auth ships — every panel below is a preview of the
-          roadmap phase P2.
+          Platform administration.{" "}
+          {canManagePlugins
+            ? "You hold core:plugin:manage — enable/disable is live below."
+            : "Enable/disable requires the core:plugin:manage permission; you have read-only access."}
         </p>
       </header>
 
@@ -214,7 +274,13 @@ export function AdminConsole({
                         </td>
                         <td className="px-4 py-3 text-neutral-500 dark:text-neutral-400">{plugin.permissions.length}</td>
                         <td className="px-4 py-3 text-right">
-                          <PluginActions plugin={plugin} />
+                          <PluginActions
+                            plugin={plugin}
+                            canManage={canManagePlugins}
+                            pending={pendingIds.has(plugin.id)}
+                            error={rowErrors[plugin.id]}
+                            onToggle={() => void handleToggle(plugin)}
+                          />
                         </td>
                       </tr>
                     );
@@ -265,29 +331,56 @@ function FilterSelect({
 }
 
 /**
- * Enable/disable controls. The mutating endpoints (`POST /api/plugins/:id/enable|disable`)
- * land with the admin + RBAC layer in P2 and are NOT implemented yet, so the
- * buttons are intentionally disabled with a "coming soon" tooltip. We do NOT
- * invent endpoints (per the round-2 spec). The icons render so the affordance
- * is visible and the transition to real wiring is a one-line change later.
+ * Enable/disable controls (Orion P2 task 3), wired to
+ * `POST /api/plugins/:id/enable|disable` with the caller's bearer token.
+ * Only rendered as functional buttons when the user holds
+ * `core:plugin:manage`/`platform:admin` — everyone else sees a read-only
+ * lock affordance instead, matching the nav gate in `lib/nav.ts`.
  */
-function PluginActions({ plugin }: { plugin: PluginSummary }) {
+function PluginActions({
+  plugin,
+  canManage,
+  pending,
+  error,
+  onToggle,
+}: {
+  plugin: PluginSummary;
+  canManage: boolean;
+  pending: boolean;
+  error?: string;
+  onToggle: () => void;
+}) {
   const isEnabled = plugin.state === "enabled";
-  return (
-    <div className="flex items-center justify-end gap-1" title="Enable / disable ships with the admin + RBAC layer (P2)">
-      <Button
-        variant="ghost"
-        size="sm"
-        disabled
-        aria-disabled="true"
-        className="cursor-not-allowed opacity-50"
+
+  if (!canManage) {
+    return (
+      <span
+        className="inline-flex items-center justify-end gap-1.5 text-xs text-neutral-400 dark:text-neutral-500"
+        title="Requires the core:plugin:manage permission"
       >
         <Lock className="size-3.5" />
+        Read-only
+      </span>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <Button
+        variant={isEnabled ? "outline" : "default"}
+        size="sm"
+        disabled={pending}
+        aria-busy={pending}
+        onClick={onToggle}
+      >
+        {pending ? <Loader2 className="size-3.5 animate-spin" /> : null}
         {isEnabled ? "Disable" : "Enable"}
       </Button>
-      <span className="text-[10px] uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
-        coming soon
-      </span>
+      {error ? (
+        <span role="alert" className="max-w-[180px] text-right text-[11px] text-rose-600 dark:text-rose-400">
+          {error}
+        </span>
+      ) : null}
     </div>
   );
 }

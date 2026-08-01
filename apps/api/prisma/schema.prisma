@@ -78,6 +78,59 @@ model FeatureFlag {
   @@schema("core")
 }
 
+/// A platform user. Local password auth today (bcrypt hash); the `authProvider`
+/// + `externalId` pair is reserved so an OIDC/SSO login can later attach to
+/// (or create) the same user record without a schema change — see
+/// `core/auth/token-verifier.ts` for the pluggable verification seam this
+/// backs.
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  /// bcrypt hash. Null for a user provisioned purely via an external IdP
+  /// (no local password login for that account).
+  passwordHash String?
+  authProvider String     @default("local")
+  externalId   String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  roles        UserRole[]
+
+  @@unique([authProvider, externalId])
+  @@map("users")
+  @@schema("core")
+}
+
+/// A named bundle of permission strings (see the SDK's `permissions.ts` for
+/// the colon-scoped format + wildcard matching). Roles are assigned to users
+/// via `UserRole`; a user's effective permissions are the union of all their
+/// roles' `permissions`.
+model Role {
+  id          String     @id @default(cuid())
+  name        String     @unique
+  description String?
+  permissions String[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  users       UserRole[]
+
+  @@map("roles")
+  @@schema("core")
+}
+
+/// User <-> Role many-to-many join.
+model UserRole {
+  id        String   @id @default(cuid())
+  userId    String
+  roleId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, roleId])
+  @@map("user_roles")
+  @@schema("core")
+}
+
 /// Immutable-by-convention audit trail. Nothing in the app updates or
 /// deletes rows here (enforcement lands with the RBAC/audit workstream in
 /// P2); for now this is the write target for anything worth recording.

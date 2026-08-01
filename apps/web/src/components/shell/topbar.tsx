@@ -1,6 +1,7 @@
 "use client";
 
-import { Menu, Search, User } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { LogOut, Menu, Search, User } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { useAuth } from "@/components/auth/auth-provider";
 
 interface TopbarProps {
   onOpenMobileNav: () => void;
@@ -19,6 +21,14 @@ interface TopbarProps {
 }
 
 export function Topbar({ onOpenMobileNav, onOpenCommandPalette }: TopbarProps) {
+  const router = useRouter();
+  const { user, logout } = useAuth();
+
+  function handleLogout() {
+    logout();
+    router.replace("/login");
+  }
+
   return (
     <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 border-b border-neutral-200 bg-white/80 px-4 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/80">
       <Button variant="ghost" size="icon" className="md:hidden" onClick={onOpenMobileNav} aria-label="Open navigation">
@@ -45,11 +55,18 @@ export function Topbar({ onOpenMobileNav, onOpenCommandPalette }: TopbarProps) {
               <User className="size-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Account</DropdownMenuLabel>
+          <DropdownMenuContent align="end" className="min-w-[14rem]">
+            <DropdownMenuLabel className="truncate">{user?.email ?? "Account"}</DropdownMenuLabel>
+            {user?.roles && user.roles.length > 0 ? (
+              <p className="truncate px-2 pb-1.5 text-xs text-neutral-500 dark:text-neutral-400">
+                {user.roles.join(", ")}
+              </p>
+            ) : null}
             <DropdownMenuSeparator />
-            <DropdownMenuItem disabled>Profile (coming with auth — P2)</DropdownMenuItem>
-            <DropdownMenuItem disabled>Sign out (coming with auth — P2)</DropdownMenuItem>
+            <DropdownMenuItem onSelect={handleLogout} className="text-rose-600 focus:text-rose-600 dark:text-rose-400">
+              <LogOut className="size-4" />
+              Sign out
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

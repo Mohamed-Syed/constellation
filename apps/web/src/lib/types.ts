@@ -136,6 +136,30 @@ export interface PluginDetail {
   supportsToolInvocation: boolean;
 }
 
+/**
+ * Auth shapes — mirror the "shared API contract (P2)" in
+ * `docs/MASTER_PLAN.md` §8, hand-tracked for the same reason as the plugin
+ * types above (the portal doesn't build against `apps/api` or the SDK).
+ */
+
+/** Basic identity embedded in the login response. */
+export interface AuthUser {
+  id: string;
+  email: string;
+  roles: string[];
+}
+
+/** Shape returned by `POST /api/auth/login`. */
+export interface LoginResponse {
+  accessToken: string;
+  user: AuthUser;
+}
+
+/** Shape returned by `GET /api/auth/me` — identity plus the effective, flattened permission set. */
+export interface AuthMe extends AuthUser {
+  permissions: string[];
+}
+
 /** Shape returned by `GET /api/health` (`HealthController.health`). */
 export interface PlatformHealth {
   status: "ok" | "degraded";

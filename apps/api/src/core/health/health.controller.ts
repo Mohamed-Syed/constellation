@@ -1,6 +1,7 @@
 import { Controller, Get } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { PLATFORM_VERSION } from "@constellation/plugin-sdk";
+import { Public } from "../auth/public.decorator.js";
 import { PluginRegistryService } from "../plugins/plugin-registry.service.js";
 
 @ApiTags("health")
@@ -8,6 +9,7 @@ import { PluginRegistryService } from "../plugins/plugin-registry.service.js";
 export class HealthController {
   constructor(private readonly registry: PluginRegistryService) {}
 
+  @Public()
   @Get()
   health() {
     const plugins = this.registry.all();

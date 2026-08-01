@@ -1,4 +1,5 @@
 import type { PluginSummary } from "./types";
+import { hasAnyPermission } from "./permissions";
 
 /** A single, portal-ready nav entry (core or plugin-contributed). */
 export interface FlatNavItem {
@@ -66,4 +67,19 @@ export function buildNavGroups(plugins: PluginSummary[]): NavGroups {
 /** Flatten all groups into one ordered list — used by the command palette. */
 export function flattenNavGroups(groups: NavGroups): FlatNavItem[] {
   return [...groups.platform, ...groups.modules, ...groups.system];
+}
+
+/** Permissions that unlock the "Admin" nav entry (either satisfies it — see MASTER_PLAN §8 P2 ROUND). */
+const ADMIN_NAV_PERMISSIONS = ["core:plugin:manage", "platform:admin"];
+
+/**
+ * Role-aware nav (Orion P2 task 2): hide the "Admin" item unless the caller
+ * holds `core:plugin:manage` or `platform:admin`. Applied client-side only
+ * (see `AppShell`) — this is a UX nicety, not the security boundary; the
+ * admin page itself and its mutations are guarded server-side.
+ */
+export function filterNavForPermissions(groups: NavGroups, permissions: readonly string[]): NavGroups {
+  const canSeeAdmin = hasAnyPermission(permissions, ADMIN_NAV_PERMISSIONS);
+  if (canSeeAdmin) return groups;
+  return { ...groups, system: groups.system.filter((item) => item.id !== "core-admin") };
 }

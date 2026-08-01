@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import type { PluginDetail, PluginSummary } from "@/lib/types";
+import { useAuth } from "@/components/auth/auth-provider";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
 
@@ -23,6 +24,10 @@ interface LiveState<T> {
 }
 
 function useLiveList<T>(path: string, intervalMs: number): LiveState<T> {
+  // Attach the bearer token (if we have one) so this keeps working the
+  // moment these read routes get RBAC-guarded; harmless no-op while they're
+  // still public (see the note in lib/api.ts).
+  const { token } = useAuth();
   const [state, setState] = React.useState<LiveState<T>>({
     data: null,
     loading: true,
@@ -32,7 +37,10 @@ function useLiveList<T>(path: string, intervalMs: number): LiveState<T> {
 
   const load = React.useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
+      const res = await fetch(`${API_BASE}${path}`, {
+        cache: "no-store",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as T[];
       setState({ data, loading: false, error: false, lastUpdated: Date.now() });
@@ -45,7 +53,7 @@ function useLiveList<T>(path: string, intervalMs: number): LiveState<T> {
         lastUpdated: prev.lastUpdated,
       }));
     }
-  }, [path]);
+  }, [path, token]);
 
   React.useEffect(() => {
     let active = true;
@@ -72,6 +80,7 @@ export function useLivePluginDetail(
   id: string | undefined,
   intervalMs = 15000,
 ): LiveState<PluginDetail> & { notFound: boolean } {
+  const { token } = useAuth();
   const [state, setState] = React.useState<LiveState<PluginDetail>>({
     data: null,
     loading: true,
@@ -83,7 +92,10 @@ export function useLivePluginDetail(
   const load = React.useCallback(async () => {
     if (!id) return;
     try {
-      const res = await fetch(`${API_BASE}/plugins/${encodeURIComponent(id)}`, { cache: "no-store" });
+      const res = await fetch(`${API_BASE}/plugins/${encodeURIComponent(id)}`, {
+        cache: "no-store",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       if (res.status === 404) {
         setNotFound(true);
         setState((prev) => ({ ...prev, loading: false, error: false }));
@@ -101,7 +113,7 @@ export function useLivePluginDetail(
         lastUpdated: prev.lastUpdated,
       }));
     }
-  }, [id]);
+  }, [id, token]);
 
   React.useEffect(() => {
     let active = true;
