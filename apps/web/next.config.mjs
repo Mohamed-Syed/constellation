@@ -1,0 +1,12 @@
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+  async rewrites() {
+    // Proxy /api/* to the NestJS core in dev so the portal and API share an origin.
+    const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
+    const base = api.replace(/\/api$/, "");
+    return [{ source: "/api/:path*", destination: `${base}/api/:path*` }];
+  },
+};
+
+export default nextConfig;

@@ -1,0 +1,33 @@
+{
+  "manifestVersion": 1,
+  "id": "hello-world",
+  "name": "Hello World",
+  "version": "0.1.0",
+  "description": "Reference plugin demonstrating the Constellation Plugin SDK.",
+  "author": "Constellation",
+  "license": "MIT",
+  "minPlatformVersion": "0.1.0",
+  "permissions": ["hello-world:greeting:read"],
+  "requiredServices": [],
+  "navigation": [
+    {
+      "id": "hello-world-home",
+      "label": "Hello World",
+      "path": "/hello-world",
+      "icon": "sparkles",
+      "order": 50,
+      "requiresPermissions": ["hello-world:greeting:read"]
+    }
+  ],
+  "routes": [
+    { "method": "GET", "path": "/greeting", "requiresPermissions": ["hello-world:greeting:read"] }
+  ],
+  "featureFlags": [
+    { "key": "friendly-tone", "description": "Use a warmer greeting.", "default": true }
+  ],
+  "settings": [
+    { "key": "greetingName", "label": "Who to greet", "type": "string", "default": "World" }
+  ],
+  "entry": "dist/index.js",
+  "healthCheck": "/health"
+}
