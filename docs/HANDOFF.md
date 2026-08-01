@@ -8,7 +8,7 @@
 > §1 and keep BOTH this file and `docs/MASTER_PLAN.md` up to date at every
 > milestone — same discipline the primary session follows.**
 >
-> **Last updated:** 2026-08-01 (round 1+2 committed at git `ee64bff`) · **Updated by:** primary session (orchestrator)
+> **Last updated:** 2026-08-01 (P2 committed at git `14137d8`) · **Updated by:** primary session (orchestrator)
 > **Project root:** `C:\Users\syed.mohamed\Claude\Code\constellation`
 
 ---
@@ -42,8 +42,9 @@ Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
   - Round 1 — Atlas: Prisma data layer (+ real-Postgres-proven), pino logger, settings/feature-flags, event bus. Nova: topological loader + enable/disable lifecycle + health poller + `generate-plugin` CLI. Orion: portal shell (manifest-driven nav, theme, ⌘K), `PLUGIN_SDK.md`. Orchestrator: `PluginContextFactory` wires the real services into plugin hooks (`@Optional()` + `stubContext` fallback for offline tests); health summary folded into `/api/health`.
   - Round 2 — Nova: SDK `tools` (agent plane) + `invokeTool` seam + `browser-use` plugin (3 tools) + loader lifecycle events + `tools`/`toolCount` on the read API. Orion: plugin detail page, admin depth, live health polling. Atlas: `docker-compose.yml` (postgres/redis/api/web), Dockerfiles, `Makefile`, GitHub Actions CI.
   - **Verification (this session):** `pnpm build` 6/6, `typecheck` 7/7, `test` green (SDK 13 · browser-use 19 · CLI 9 · API 21 = **62**). Live API boot: health `ok`, browser-use exposes 3 tools, health poller works. Real Postgres: `Connected to Postgres (core schema)`, graceful degradation when tables absent. `docker compose config` valid; **both images build clean**.
-- **Working tree is CLEAN at `ee64bff`.** Nothing pushed. No cloud provisioned.
-- **P2 IN PROGRESS (managed subagents):** Auth (JWT/`@nestjs/jwt`+bcrypt) + RBAC/ABAC + audit + protected enable/disable endpoints + login UI. Full spec + shared API contract in `MASTER_PLAN.md §8 "P2 ROUND"`. Auth deps pre-installed. Orchestrator wires permission guards onto Nova's endpoints at integration (friends stay decoupled). VPS deferred — prove everything locally first (user decision 2026-08-01).
+- **P2 DONE, verified, COMMITTED (git `14137d8`, local only):** JWT auth (`@nestjs/jwt`+bcrypt, global `JwtAuthGuard`, `@Public`/`@CurrentUser`, OIDC-ready `TOKEN_VERIFIER` seam, admin/viewer seed) + RBAC/ABAC (`@RequirePermissions`+`PermissionsGuard` on SDK helpers) + audit (`AuditService`, `GET /api/audit`) + `POST /api/plugins/:id/enable|disable` (guarded `core:plugin:manage`, audited, **state persists across restart**) + auth portal (login, gating, role-aware nav, wired buttons). **74 tests.** Verified live vs real Postgres (login→JWT, /me, 401/deny, audit rows, restart-persistence). See §9.
+- **Working tree CLEAN at `14137d8`.** Nothing pushed. No cloud provisioned. **VPS deferred** — prove everything locally first (user decision 2026-08-01).
+- **Known follow-ups (not blockers):** plugin READ endpoints are `@Public` for P2 (module list isn't sensitive; harden to authed + httpOnly-cookie tokens later); portal token is in-memory+localStorage (XSS caveat noted in code); no committed `prisma/migrations` history yet (Docker entrypoint uses `db push`); a viewer (non-admin) user isn't seeded so the 403 UI path is unit-tested, not live-clicked.
 - **Remaining Docker check:** a full 4-service `docker compose up --wait` from the freshly-built images (Atlas reports healthy; orchestrator confirmed config + image builds + real DB connection, but didn't re-run the full `up` this pass).
 
 ## 4. Repo layout (monorepo)
@@ -83,7 +84,7 @@ cd apps/api && API_PORT=4001 node dist/main.js   # GET /api/health, /api/plugins
 ```
 
 ## 8. Pending / next actions (priority order)
-1. **P2 core:** Auth (JWT/OIDC) + RBAC/ABAC engine + admin mutations (`POST /api/plugins/:id/enable|disable` — the portal already links to these and shows a "coming soon" tooltip until they exist) + immutable audit log.
+1. ~~**P2 core:** auth + RBAC/ABAC + audit + protected enable/disable~~ **DONE (git `14137d8`).** Next within core: seed a non-admin viewer user; add committed `prisma/migrations` history (replace `db push`); httpOnly-cookie token hardening; consider auth on plugin reads.
 3. **Persist plugin enable/disable state** in Postgres (currently in-memory; seam noted in `PluginLifecycleService.enableAllRegistered`).
 4. **Per-plugin schema bootstrap** (`CREATE SCHEMA IF NOT EXISTS`) before a plugin's first DB use (seam in INTEGRATION_NOTES_ATLAS §3).
 5. **P4 capabilities:** wire browser-use to a real browser-use service; add Graphify(MCP), review (Qodo/CodeRabbit CLI), OpenHands adapters.

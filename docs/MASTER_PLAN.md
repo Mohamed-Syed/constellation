@@ -5,7 +5,7 @@
 > three helper agents (Atlas, Nova, Orion). Update it **every session**.
 >
 > **Codename:** `constellation` (placeholder — user may rename).
-> **Status:** **Round 1 + Round 2 integrated, verified, and committed** (git `ee64bff`, local only — not pushed). Foundation + Prisma data layer (real-Postgres-proven) + hardened loader (deps/lifecycle/health) + agent-plane tools (`browser-use`, 3 tools) + portal shell/admin/detail + Docker/Compose/CI. **62 tests green.** See §9. Next: P2 (auth/RBAC + enable/disable endpoints the portal already links to).
+> **Status:** **Round 1 + 2 + P2 done, integrated, verified, committed** (git `14137d8`, local only — not pushed). Foundation + Prisma data layer + hardened loader + agent-plane tools (`browser-use`) + portal + Docker/CI + **JWT auth + RBAC/ABAC + audit + protected plugin mutations + auth portal** (all real-Postgres-proven). **74 tests green.** See §9. Next: P3 (portal federation: SSO + reverse proxy + Grafana/Langflow/Open WebUI/Coolify tiles) and/or P4 (real agent-capability wiring). VPS deferred (prove locally first).
 > **Relationship to Looper:** SEPARATE project. Looper (`../loop-engineering`) is untouched.
 > **Last updated:** 2026-08-01
 
@@ -339,6 +339,24 @@ context factory). Everyone builds to the **shared API contract** below.
 - _Status:_ **assigned — not started.**
 
 ## 9. Verification log
+- **2026-08-01 — P2 (auth + RBAC + audit + protected mutations + auth portal) DONE, integrated, verified, COMMITTED (git `14137d8`, local only):**
+  Built by managed subagents (Atlas auth/rbac/audit + Prisma User/Role/UserRole; Nova enable/disable
+  endpoints + `PluginInstallation` persistence + boot-from-DB state; Orion login/gating/role-aware
+  nav/wired buttons). Orchestrator integration: plugin **reads `@Public`**, **mutations guarded**
+  `core:plugin:manage` + audited; replaced Atlas's temporary hardcoded health bypass with a real
+  `@Public()` on the health controller (+ updated its now-stale guard test); added `ADMIN_*` /
+  health-poll vars to `.env.example`.
+  - **Gates:** `pnpm build` 6/6 · `typecheck` 7/7 · `test` **74** (sdk 13, cli 9, browser-use 19, **api 33** — +12 auth/rbac guard tests).
+  - **Live vs REAL Postgres** (disposable local container; user consented to the Prisma schema-push
+    gate for local dev DBs only; container + volume torn down after): `Connected to Postgres`, admin
+    **seeded**; `POST /api/auth/login` → JWT; `GET /api/auth/me` → correct roles/permissions
+    (`admin`/`platform:admin`); `POST …/plugins/hello-world/disable` **→ 401 without a token, →
+    `disabled` with the admin token** (RBAC enforced); `GET /api/audit` shows `auth.login` +
+    `plugin.disable`; **disabled state SURVIVES an API restart** (DB persistence). 403-deny path
+    covered by the 7 permissions-guard unit tests.
+  - **Ops lesson recorded:** a stale `dist/main.js` from an earlier run was squatting on :4001 and
+    served old code (all `/api/auth/*` 404'd) until killed — always confirm the PID on the port is
+    the freshly-built one before trusting a smoke test. (Also killed two leftover `next dev` procs.)
 - **2026-08-01 — ROUND 1 + ROUND 2 INTEGRATED, verified, and COMMITTED (git `ee64bff`, local only):**
   Orchestrator wired the cross-boundary seams — `PluginContextFactory` now feeds Atlas's real
   pino logger + settings/feature-flags + event bus into every plugin hook (injected `@Optional()`
