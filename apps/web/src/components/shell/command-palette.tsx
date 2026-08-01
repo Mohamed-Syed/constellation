@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Boxes, Moon, RefreshCw, Sun } from "lucide-react";
+import { Boxes, Moon, RefreshCw, Sparkles, Sun } from "lucide-react";
 
 import {
   CommandDialog,
@@ -86,6 +86,18 @@ export function CommandPalette({ navGroups, plugins, open, onOpenChange }: Comma
               >
                 <Boxes className="size-4 text-neutral-500 dark:text-neutral-400" />
                 {p.name} · overview
+              </CommandItem>
+            ))}
+            {/* P4: jump to a plugin's Tools tab from ⌘K. */}
+            {plugins.map((p) => (
+              <CommandItem
+                key={`tools-${p.id}`}
+                value={`open ${p.name} ${p.id} tools agent capabilities invoke`}
+                keywords={[p.id, "tools", "agent", "invoke"]}
+                onSelect={() => go(`/modules/${p.id}?tab=tools`)}
+              >
+                <Sparkles className="size-4 text-neutral-500 dark:text-neutral-400" />
+                {p.name} · tools
               </CommandItem>
             ))}
           </CommandGroup>

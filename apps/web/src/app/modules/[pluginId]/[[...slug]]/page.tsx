@@ -9,10 +9,12 @@ import { PluginDetailView } from "@/components/modules/plugin-detail-view";
 
 interface PageProps {
   params: Promise<{ pluginId: string; slug?: string[] }>;
+  searchParams: Promise<{ tab?: string }>;
 }
 
-export default async function PluginMountPage({ params }: PageProps) {
+export default async function PluginMountPage({ params, searchParams }: PageProps) {
   const { pluginId } = await params;
+  const { tab } = await searchParams;
 
   // OR2-1: render the FULL manifest. `getPluginDetail` degrades to `null` if the
   // core is unreachable, and the server component handles it as a 404 so the
@@ -59,7 +61,7 @@ export default async function PluginMountPage({ params }: PageProps) {
           </Button>
         </div>
       </div>
-      <PluginDetailView plugin={plugin} />
+      <PluginDetailView plugin={plugin} defaultTab={tab === "tools" ? "tools" : undefined} />
     </>
   );
 }

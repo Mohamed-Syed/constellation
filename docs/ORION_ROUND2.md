@@ -78,3 +78,90 @@ Edited:
   `docs/MASTER_PLAN.md`. The `plugins/browser-use` lockfile warning during turbo
   runs is Nova's round-2 work, outside Orion's ownership — untouched.
 - Nothing committed/pushed (per standing rule).
+
+---
+
+## Round 3 — P3/P4 portal UI (federated tools, Tools tab + invoke, session polish, admin depth)
+
+> Scope: P3 portal federation (federated tool tiles from `modules.yaml`) + P4
+> (agent-plane Tools tab + invoke form, session/login polish, admin depth). All
+> work inside `apps/web/**` + `docs/*` (never `docs/MASTER_PLAN.md`). No `git`,
+> no `pnpm install`/`pnpm add`, no `shadcn` CLI (web deps already installed).
+> Build/typecheck via `./node_modules/.bin/turbo` (pnpm is broken on this host).
+
+### Assumed / documented-but-not-yet-built backend contracts (degraded gracefully)
+These endpoints/features do not exist in `apps/api` yet (confirmed by reading the
+controller + grepping the api tree). The UI is built to the documented shape and
+degrades when they 404 / are absent — **no endpoints were invented**:
+- `POST /api/plugins/:id/tools/:toolName/invoke` — the controller's `toDetail()`
+  explicitly notes "invoking a tool is a separate, permission-checked route (later
+  round)". The Tools-tab invoke form POSTs here; on 404 it flips to a disabled
+  "coming soon" state. Permission is enforced client-side against the tool's
+  declared `permission` (server remains the real boundary, later).
+- `modules.yaml` federated catalog — no backend endpoint exists yet. The portal
+  reads it from `NEXT_PUBLIC_FEDERATED_MODULES_URL` (remote) or
+  `apps/web/public/modules.yaml` (local). Both are best-effort; an absent/invalid
+  file yields an empty catalog rather than throwing. Parsed with a small
+  dependency-free YAML reader scoped to the `tools:` list (js-yaml is NOT
+  installed and was deliberately not added — the rules forbid new deps).
+
+### Files added (all under `apps/web/**`)
+- `src/lib/federated-tools.ts` — types (`FederatedTool`, `FederatedCatalog`,
+  `FederatedToolStatus`) + a scoped, dependency-free YAML parser for the
+  `tools:` block (tolerates missing/extra keys, block scalars, quoted values).
+- `src/lib/federated-api.ts` — `getFederatedTools()` (remote→local fallback,
+  never throws; returns `source: "none"` when unconfigured).
+- `src/components/modules/federated-tool-tile.tsx` — `FederatedToolTile` (card;
+  opens `url` in a new tab when live/openable, else a non-interactive placeholder).
+- `src/app/tools/page.tsx` — new `/tools` route: grouped federated catalog with
+  empty/degraded states + source footnote.
+- `apps/web/public/modules.yaml` — sample catalog (Grafana/Langflow/Open WebUI/
+  Coolify/OpenHands/Graphify) so the surface is populated by default.
+- `src/components/modules/plugin-tools-panel.tsx` — `PluginToolsPanel`: renders
+  each declared agent-plane tool with a JSON `args` textarea + Invoke button wired
+  to the documented invoke route; degrades to "coming soon" on 404, shows
+  permission gating, renders the result/error.
+- `src/components/shell/session-guard.tsx` — `SessionGuard`: polls `/api/auth/me`
+  every 60s; on 401/403 logs out + redirects to `/login`; on unreachable shows a
+  non-blocking banner and flags `apiUnreachable` (no forced logout).
+
+### Files edited (all under `apps/web/**`)
+- `src/lib/icons.ts` — added `MessagesSquare` + `Share2` (used by `modules.yaml`).
+- `src/lib/nav.ts` — added a "Tools" core platform nav entry (`/tools`, `Boxes`).
+- `src/lib/tool-invoke.ts` — `invokeTool()` + `canInvokeTool()` (invoke contract).
+- `src/components/modules/plugin-detail-view.tsx` — replaced the inline Tools tab
+  with `<PluginToolsPanel>`; added `defaultTab` prop (honors `?tab=tools`).
+- `src/components/admin/admin-console.tsx` — added a "Federated tools" summary
+  card to `PlatformSummary` + a `FederationReadiness` section (source + live
+  status counts); accepts a `federated` prop.
+- `src/app/admin/page.tsx` — fetches `getFederatedTools()` and passes to console.
+- `src/components/auth/auth-provider.tsx` — exposed `setApiUnreachable` on context.
+- `src/components/providers.tsx` — wrapped children in `SessionGuard`.
+- `src/app/login/page.tsx` — inline "session ended / unreachable" hint when bounced
+  with a `?redirect` after expiry.
+- `src/app/modules/[pluginId]/[[...slug]]/page.tsx` — reads `searchParams.tab` and
+  passes `defaultTab` (supports the ⌘K "plugin · tools" jump).
+- `src/components/shell/command-palette.tsx` — ⌘K now jumps to any plugin's Tools
+  tab (`<name> · tools`) in addition to its overview.
+- `.env.example` — documented `NEXT_PUBLIC_FEDERATED_MODULES_URL`.
+
+### Verification (real runs)
+- **Build:** `./node_modules/.bin/turbo run build --filter=@constellation/web`
+  → **1 successful**. New route `/tools` compiles alongside the existing routes.
+- **Typecheck:** `./node_modules/.bin/turbo run typecheck --filter=@constellation/web`
+  → **1 successful** (`tsc --noEmit` clean).
+- **Live degradation (API down):** started `next dev` with `NEXT_PUBLIC_API_URL`
+  pointed at a dead port. All routes returned **200** with friendly empty states —
+  no 500s: `/tools` → empty catalog card; `/admin` → platform summary with
+  "Federated tools: —" + "Not configured"; `/modules/<id>` → "Module unavailable";
+  the Tools tab form renders "Coming soon" because the invoke route 404s.
+- **Live with API up:** `/tools` renders the 6 sample tiles grouped by category,
+  links open in a new tab; `/admin` shows `Federated tools: N/M live`; ⌘K lists
+  each plugin's `· tools` jump.
+
+### What was NOT done (by design)
+- No `POST /api/plugins/:id/tools/:toolName/invoke` endpoint was created (Atlas/
+  Nova lane, later round) — the form degrades to "coming soon" on 404.
+- No `GET /api/federated-tools` endpoint — catalog is read from `modules.yaml`
+  (remote or local). The remote URL is an accepted seam for a future overlay.
+- No `git`/install/CI changes. Nothing committed or pushed (standing rule).

@@ -114,6 +114,69 @@ make psql      # psql shell on the platform database
 Both images build from the **monorepo root** context (workspace packages plus
 the pnpm lockfile live there) and both run as the **non-root** `node` user.
 
+## Portal federation & SSO (P3, opt-in)
+
+The platform **federates** heavyweight tools instead of reimplementing them
+(decisions C5/C7): Grafana, Prometheus, Loki, Open WebUI, Langflow and
+Keycloak run as their own containers behind one reverse proxy, so the portal
+shows them as tiles on a single origin with a single session.
+
+Two pieces make this work, and both are **data, not code**:
+
+- **`config/modules.yaml`** — the federated module registry. Each entry
+  becomes a portal tile and a proxy route. Adding a tool means adding an
+  entry here; the core is never rewritten. Served at
+  `GET /api/federation/modules` (authenticated).
+- **`infra/caddy/Caddyfile`** — the reverse proxy that puts `/api`, `/auth`,
+  `/tools/*` and the portal on one origin.
+
+### Running it
+
+The federated stack is **heavy** (several GB of RAM, slow first pull), so it
+is opt-in behind both a separate compose file *and* a compose profile — a
+plain `docker compose up` never starts it:
+
+```bash
+make fed-config     # validate base + federation config
+make fed-up         # start everything
+make fed-health     # probe each endpoint through the proxy
+make fed-down       # stop (volumes preserved)
+make fed-clean      # stop + delete federation volumes
+```
+
+Everything then lives under `http://localhost:8080`:
+
+| Path              | Service                        |
+|-------------------|--------------------------------|
+| `/`               | Next.js portal                 |
+| `/api/*`          | NestJS core API                |
+| `/auth/*`         | Keycloak (SSO)                 |
+| `/tools/grafana`  | Grafana dashboards             |
+| `/tools/chat`     | Open WebUI                     |
+| `/tools/langflow` | Langflow flow builder          |
+
+> ⚠️ **Dev defaults only.** Keycloak runs in `start-dev` with an in-memory
+> database (realm config does *not* survive `fed-down`), there is no TLS, and
+> every admin password defaults to `changeme`. Set real values in `.env`
+> before exposing this to anything but localhost.
+
+### Enabling SSO
+
+Single sign-on is **off by default** and the platform behaves exactly as it
+did before P3 — local JWT login only. Point the API at an OIDC issuer to
+switch it on:
+
+```bash
+OIDC_ISSUER_URL=http://localhost:8081/auth/realms/constellation
+OIDC_AUDIENCE=constellation
+```
+
+The API then runs two token verifiers in order: the platform's own JWT first
+(fast, offline, no IdP dependency), then OIDC. Local logins keep working
+throughout, so SSO can be switched on — or back off — without locking anyone
+out. Only asymmetric algorithms are accepted, and `iss`/`aud`/`exp`/`nbf` are
+all enforced; see `apps/api/src/core/auth/oidc-jwt-verifier.service.ts`.
+
 ## Tech
 
 TypeScript · NestJS · Next.js (App Router) · TailwindCSS · Zod · pnpm + Turborepo.

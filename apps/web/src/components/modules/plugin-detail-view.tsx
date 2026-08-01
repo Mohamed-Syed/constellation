@@ -8,7 +8,6 @@ import {
   Plug,
   Route,
   Settings2,
-  Sparkles,
   Wrench,
 } from "lucide-react";
 
@@ -26,6 +25,7 @@ import {
   stateBadgeVariant,
   stateLabel,
 } from "@/components/modules/plugin-state";
+import { PluginToolsPanel } from "@/components/modules/plugin-tools-panel";
 
 function SectionHeading({ icon: Icon, title, count }: { icon: React.ElementType; title: string; count?: number }) {
   return (
@@ -73,8 +73,10 @@ function lastCheckedLabel(iso: string | null | undefined): string {
   return `last checked ${d.toLocaleTimeString()}`;
 }
 
-export function PluginDetailView({ plugin }: { plugin: PluginDetail }) {
+export function PluginDetailView({ plugin, defaultTab }: { plugin: PluginDetail; defaultTab?: "overview" | "access" | "behavior" | "tools" }) {
   const Icon = resolveIcon(plugin.navigation?.[0]?.icon);
+  const initialTab =
+    defaultTab && (defaultTab !== "tools" || plugin.tools.length > 0) ? defaultTab : "overview";
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
@@ -110,7 +112,7 @@ export function PluginDetailView({ plugin }: { plugin: PluginDetail }) {
       ) : null}
 
       {/* Tabs */}
-      <Tabs defaultValue="overview" className="mt-6">
+      <Tabs defaultValue={initialTab} className="mt-6">
         <TabsList aria-label="Plugin detail sections">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="access">Access</TabsTrigger>
@@ -332,47 +334,10 @@ export function PluginDetailView({ plugin }: { plugin: PluginDetail }) {
           </div>
         </TabsContent>
 
-        {/* Tools: agent-plane capabilities */}
+        {/* Tools: agent-plane capabilities + invoke form */}
         {plugin.tools.length > 0 ? (
           <TabsContent value="tools">
-            <Card>
-              <CardHeader className="flex-row items-center gap-3 space-y-0">
-                <span className="flex size-9 items-center justify-center rounded-lg bg-accent/10 text-accent">
-                  <Sparkles className="size-4" />
-                </span>
-                <div>
-                  <CardTitle className="text-base">Agent-plane tools</CardTitle>
-                  <CardDescription>
-                    Callable capabilities this plugin exposes to the agent plane.
-                    {plugin.supportsToolInvocation
-                      ? " Runtime implements the invoke seam."
-                      : " Runtime does not implement invokeTool yet."}
-                  </CardDescription>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <ul className="space-y-3">
-                  {plugin.tools.map((t) => (
-                    <li key={t.name} className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
-                      <div className="flex items-center gap-2">
-                        <code className="font-mono text-sm font-medium text-neutral-800 dark:text-neutral-200">{t.name}</code>
-                        <Badge variant="neutral" className="font-mono text-[10px]">
-                          {t.permission}
-                        </Badge>
-                      </div>
-                      {t.description ? (
-                        <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">{t.description}</p>
-                      ) : null}
-                      {Object.keys(t.inputSchema ?? {}).length > 0 ? (
-                        <pre className="mt-2 overflow-x-auto rounded-md bg-neutral-100 p-2 text-xs text-neutral-600 dark:bg-neutral-800/60 dark:text-neutral-300">
-                          {JSON.stringify(t.inputSchema, null, 2)}
-                        </pre>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
+            <PluginToolsPanel plugin={plugin} />
           </TabsContent>
         ) : null}
       </Tabs>

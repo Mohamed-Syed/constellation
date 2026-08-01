@@ -1,0 +1,116 @@
+{
+  "manifestVersion": 1,
+  "id": "graphify",
+  "name": "Graphify",
+  "version": "0.1.0",
+  "description": "Agent-plane capability: grounded codebase/docs knowledge graph via an MCP server. Gives agents durable memory and 'how things connect' queries.",
+  "author": "Nova",
+  "repository": "https://github.com/Graphify-Labs/graphify",
+  "license": "UNLICENSED",
+  "minPlatformVersion": "0.1.0",
+  "dependencies": [],
+  "requiredServices": [],
+  "permissions": [
+    "graphify:query",
+    "graphify:ingest"
+  ],
+  "navigation": [
+    {
+      "id": "graphify-home",
+      "label": "Knowledge Graph",
+      "path": "/graphify",
+      "order": 110,
+      "requiresPermissions": []
+    }
+  ],
+  "routes": [],
+  "featureFlags": [],
+  "settings": [
+    {
+      "key": "baseUrl",
+      "label": "Graphify MCP server URL",
+      "type": "string",
+      "description": "Base URL of a Graphify MCP server speaking Streamable HTTP JSON-RPC (e.g. http://localhost:8787/mcp). Falls back to the GRAPHIFY_MCP_URL env var.",
+      "default": ""
+    },
+    {
+      "key": "apiKey",
+      "label": "Graphify API key",
+      "type": "secret",
+      "description": "Optional bearer token for the MCP server. Prefer the GRAPHIFY_API_KEY env var over storing a secret in settings.",
+      "default": ""
+    },
+    {
+      "key": "timeoutMs",
+      "label": "Request timeout (ms)",
+      "type": "number",
+      "description": "How long to wait for an MCP tools/call before aborting.",
+      "default": 60000
+    }
+  ],
+  "jobs": [],
+  "tools": [
+    {
+      "name": "graph.query",
+      "description": "Ask a natural-language question against the knowledge graph and get a grounded answer with source references.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string",
+            "description": "Natural-language question, e.g. \"which modules depend on the plugin SDK?\"."
+          },
+          "limit": {
+            "type": "number",
+            "description": "Maximum number of results/references to return."
+          }
+        },
+        "required": ["question"],
+        "additionalProperties": false
+      },
+      "permission": "graphify:query"
+    },
+    {
+      "name": "graph.related",
+      "description": "Find entities connected to a given entity in the graph (callers, dependents, related docs).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "entity": {
+            "type": "string",
+            "description": "Entity name or identifier, e.g. a symbol, file path, or module id."
+          },
+          "depth": {
+            "type": "number",
+            "description": "How many hops to traverse from the entity (default 1)."
+          }
+        },
+        "required": ["entity"],
+        "additionalProperties": false
+      },
+      "permission": "graphify:query"
+    },
+    {
+      "name": "graph.ingest",
+      "description": "Index a repository or document set into the knowledge graph. Write operation — separately permissioned from reads.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "description": "Repository URL or absolute path to ingest."
+          },
+          "ref": {
+            "type": "string",
+            "description": "Optional git ref/branch to index."
+          }
+        },
+        "required": ["source"],
+        "additionalProperties": false
+      },
+      "permission": "graphify:ingest"
+    }
+  ],
+  "entry": "dist/index.js",
+  "translations": []
+}

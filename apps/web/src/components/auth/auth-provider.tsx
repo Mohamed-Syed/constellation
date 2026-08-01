@@ -28,6 +28,8 @@ interface AuthContextValue {
   apiUnreachable: boolean;
   login: (email: string, password: string) => Promise<LoginOutcome>;
   logout: () => void;
+  /** Lets a session monitor flag the API as unreachable without a full logout. */
+  setApiUnreachable: (value: boolean) => void;
 }
 
 const AuthContext = React.createContext<AuthContextValue | null>(null);
@@ -108,8 +110,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [token]);
 
   const value = React.useMemo<AuthContextValue>(
-    () => ({ status, user, permissions, token, apiUnreachable, login, logout }),
-    [status, user, permissions, token, apiUnreachable, login, logout],
+    () => ({ status, user, permissions, token, apiUnreachable, login, logout, setApiUnreachable }),
+    [status, user, permissions, token, apiUnreachable, login, logout, setApiUnreachable],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

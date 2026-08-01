@@ -3,7 +3,7 @@
   "id": "browser-use",
   "name": "browser-use",
   "version": "0.1.0",
-  "description": "Agent-plane capability: LLM-driven browser automation. Exposes navigate/act/extract tools backed by a browser-use HTTP service.",
+  "description": "Agent-plane capability: LLM-driven browser automation. Exposes navigate/act/extract tools backed by the browser-use task API (cloud or self-hosted).",
   "author": "Nova",
   "repository": "https://github.com/browser-use/browser-use",
   "license": "UNLICENSED",
@@ -29,31 +29,57 @@
   "settings": [
     {
       "key": "baseUrl",
-      "label": "browser-use service URL",
+      "label": "browser-use base URL",
       "type": "string",
-      "description": "Base URL of the browser-use HTTP service. Overrides the BROWSER_USE_URL env var when set.",
+      "description": "Base URL of the browser-use API. Defaults to the hosted cloud (https://api.browser-use.com); point this at a self-hosted server to override. Falls back to the BROWSER_USE_URL env var.",
+      "default": ""
+    },
+    {
+      "key": "apiKey",
+      "label": "browser-use API key",
+      "type": "secret",
+      "description": "Sent as the X-Browser-Use-API-Key header. Prefer the BROWSER_USE_API_KEY env var over storing a secret in settings.",
       "default": ""
     },
     {
       "key": "timeoutMs",
-      "label": "Request timeout (ms)",
+      "label": "Task timeout (ms)",
       "type": "number",
-      "description": "How long to wait for the browser-use service before aborting a tool call.",
-      "default": 60000
+      "description": "Total budget for a tool call, including polling the task to completion.",
+      "default": 180000
+    },
+    {
+      "key": "pollIntervalMs",
+      "label": "Poll interval (ms)",
+      "type": "number",
+      "description": "How often to poll GET /api/v2/tasks/{id} while a task is running.",
+      "default": 2000
     }
   ],
   "jobs": [],
   "tools": [
     {
       "name": "browser.navigate",
-      "description": "Open a URL in a browser session and return the resulting page title and URL.",
+      "description": "Open a URL in a browser-use session and report the final URL and page title.",
       "inputSchema": {
         "type": "object",
         "properties": {
-          "url": { "type": "string", "description": "Absolute http(s) URL to open." },
-          "sessionId": { "type": "string", "description": "Reuse an existing browser session." }
+          "url": {
+            "type": "string",
+            "description": "Absolute http(s) URL to open (sent as startUrl)."
+          },
+          "then": {
+            "type": "string",
+            "description": "Optional follow-up instruction to perform after the page loads."
+          },
+          "maxSteps": {
+            "type": "number",
+            "description": "Cap on agent steps for this task."
+          }
         },
-        "required": ["url"],
+        "required": [
+          "url"
+        ],
         "additionalProperties": false
       },
       "permission": "browser:navigate"
@@ -68,9 +94,18 @@
             "type": "string",
             "description": "Natural-language action, e.g. \"click the Sign in button\"."
           },
-          "sessionId": { "type": "string", "description": "Browser session to act in." }
+          "startUrl": {
+            "type": "string",
+            "description": "Optional URL to start from."
+          },
+          "maxSteps": {
+            "type": "number",
+            "description": "Cap on agent steps for this task."
+          }
         },
-        "required": ["instruction"],
+        "required": [
+          "instruction"
+        ],
         "additionalProperties": false
       },
       "permission": "browser:act"
@@ -81,17 +116,32 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "query": { "type": "string", "description": "What to extract, e.g. \"all product names and prices\"." },
-          "schema": { "type": "object", "description": "Optional JSON Schema the result should conform to." },
-          "sessionId": { "type": "string", "description": "Browser session to extract from." }
+          "query": {
+            "type": "string",
+            "description": "What to extract, e.g. \"all product names and prices\"."
+          },
+          "startUrl": {
+            "type": "string",
+            "description": "Optional URL to extract from."
+          },
+          "structuredOutput": {
+            "type": "string",
+            "description": "Optional JSON-schema string the result should conform to."
+          },
+          "maxSteps": {
+            "type": "number",
+            "description": "Cap on agent steps for this task."
+          }
         },
-        "required": ["query"],
+        "required": [
+          "query"
+        ],
         "additionalProperties": false
       },
       "permission": "browser:extract"
     }
   ],
   "entry": "dist/index.js",
-  "healthCheck": "/health",
+  "healthCheck": "/api/v2/me",
   "translations": []
 }

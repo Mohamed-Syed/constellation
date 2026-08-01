@@ -1,0 +1,87 @@
+# ---------------------------------------------------------------------------
+# Constellation — reverse proxy (P3 portal federation).
+#
+# Puts the portal, the API, and every federated tool behind ONE origin. That
+# is what makes federation work: same-origin means one session cookie, no
+# CORS holes, and iframe embedding that browsers don't block.
+#
+# Routing (first match wins — order matters):
+#   /api/*    → NestJS core
+#   /auth/*   → Keycloak (SSO)
+#   /tools/*  → federated tools, paths mirroring config/modules.yaml
+#   /*        → Next.js portal (catch-all, must be last)
+#
+# Local default is HTTP on :8080. For a real host, replace the site address
+# with your domain and Caddy provisions TLS automatically.
+# ---------------------------------------------------------------------------
+
+{
+	# Local dev: no automatic HTTPS (no public domain to validate against).
+	auto_https off
+	admin off
+}
+
+:80 {
+	log {
+		output stdout
+		format console
+	}
+
+	# --- Security headers applied to everything we serve ---
+	header {
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# NOTE: no X-Frame-Options / frame-ancestors DENY here on purpose —
+		# the portal embeds Grafana/Langflow/Open WebUI as tiles, and a global
+		# deny would break exactly the federation this file exists to enable.
+		-Server
+	}
+
+	# --- Core API ---
+	handle /api/* {
+		reverse_proxy api:4000
+	}
+
+	# --- Identity provider (SSO) ---
+	# Keycloak needs the original host/proto to build correct issuer URLs and
+	# redirect_uris; getting this wrong is the classic "invalid redirect_uri"
+	# and infinite-loop failure mode.
+	handle /auth/* {
+		reverse_proxy keycloak:8080 {
+			header_up Host {host}
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Forwarded-Host {host}
+			header_up X-Forwarded-Port {server_port}
+		}
+	}
+
+	# --- Federated tools (paths mirror config/modules.yaml) ---
+
+	# Grafana is served under a sub-path, so it must be told its root URL;
+	# the compose profile sets GF_SERVER_ROOT_URL + GF_SERVER_SERVE_FROM_SUB_PATH.
+	handle /tools/grafana/* {
+		reverse_proxy grafana:3000
+	}
+
+	# Grafana's live/websocket endpoint.
+	handle /tools/grafana/api/live/* {
+		reverse_proxy grafana:3000
+	}
+
+	handle_path /tools/prometheus/* {
+		reverse_proxy prometheus:9090
+	}
+
+	handle_path /tools/chat/* {
+		reverse_proxy open-webui:8080
+	}
+
+	handle_path /tools/langflow/* {
+		reverse_proxy langflow:7860
+	}
+
+	# --- Portal (catch-all — must remain the LAST handler) ---
+	handle {
+		reverse_proxy web:3000
+	}
+}

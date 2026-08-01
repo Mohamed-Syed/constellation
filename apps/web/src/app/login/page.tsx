@@ -59,6 +59,13 @@ function LoginForm() {
           </span>
           <h1 className="text-xl font-semibold tracking-tight">Sign in to Constellation</h1>
           <p className="text-sm text-neutral-500 dark:text-neutral-400">The single pane of glass over every module.</p>
+          {searchParams.get("redirect") && apiUnreachable ? (
+            <p className="mt-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">
+              Your session ended and the API is currently unreachable. Sign in again once it&apos;s back.
+            </p>
+          ) : searchParams.get("redirect") ? (
+            <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">Welcome back — sign in to continue where you left off.</p>
+          ) : null}
         </div>
 
         <Card>

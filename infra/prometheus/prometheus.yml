@@ -1,0 +1,34 @@
+# ---------------------------------------------------------------------------
+# Constellation — Prometheus scrape config (P3 observability tile).
+#
+# Deliberately minimal: scrape Prometheus itself plus the core API. The API
+# does not expose /metrics yet (that's a P5 OpenTelemetry item), so its job
+# is defined but will show the target as DOWN until the endpoint exists.
+# That is expected and honest — better than pretending we have metrics.
+# ---------------------------------------------------------------------------
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    platform: constellation
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Core NestJS API. Expected DOWN until a /metrics endpoint is added (P5).
+  - job_name: constellation-api
+    metrics_path: /api/metrics
+    static_configs:
+      - targets: ["api:4000"]
+        labels:
+          service: core-api
+
+  - job_name: grafana
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["grafana:3000"]
+        labels:
+          service: grafana

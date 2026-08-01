@@ -2,9 +2,10 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Activity, ClipboardList, Loader2, Lock, Search, ShieldCheck, Users } from "lucide-react";
+import { Activity, Boxes, ClipboardList, Loader2, Lock, Search, ShieldCheck, Users } from "lucide-react";
 
 import type { PlatformHealth, PluginState, PluginSummary } from "@/lib/types";
+import type { FederatedCatalog } from "@/lib/federated-tools";
 import { cn } from "@/lib/utils";
 import { getPlugins } from "@/lib/api";
 import { disablePlugin, enablePlugin } from "@/lib/plugin-actions";
@@ -29,6 +30,7 @@ import {
   stateBadgeVariant,
   stateLabel,
 } from "@/components/modules/plugin-state";
+import { federatedStatusLabel, federatedStatusVariant } from "@/components/modules/federated-tool-tile";
 
 /** Either permission unlocks plugin enable/disable — matches `lib/nav.ts`'s Admin nav gate. */
 const MANAGE_PLUGINS_PERMISSIONS = ["core:plugin:manage", "platform:admin"];
@@ -36,7 +38,8 @@ const MANAGE_PLUGINS_PERMISSIONS = ["core:plugin:manage", "platform:admin"];
 type StateFilter = "all" | PluginState;
 type HealthFilter = "all" | "ok" | "degraded" | "down" | "unknown";
 
-function PlatformSummary({ health }: { health: PlatformHealth | null }) {
+function PlatformSummary({ health, federated }: { health: PlatformHealth | null; federated: FederatedCatalog }) {
+  const liveFederated = federated.tools.filter((t) => t.status === "live").length;
   const cards = [
     {
       label: "Platform status",
@@ -55,6 +58,12 @@ function PlatformSummary({ health }: { health: PlatformHealth | null }) {
       value: health?.plugins.failed ?? "—",
       icon: ShieldCheck,
       tone: (health?.plugins.failed ?? 0) > 0 ? ("danger" as const) : ("success" as const),
+    },
+    {
+      label: "Federated tools",
+      value: federated.tools.length === 0 ? "—" : `${liveFederated}/${federated.tools.length} live`,
+      icon: Boxes,
+      tone: federated.tools.length === 0 ? ("neutral" as const) : liveFederated > 0 ? ("success" as const) : ("warning" as const),
     },
     {
       label: "Uptime",
@@ -97,9 +106,11 @@ function HealthPill({ plugin }: { plugin: PluginSummary }) {
 export function AdminConsole({
   health,
   plugins: initialPlugins,
+  federated,
 }: {
   health: PlatformHealth | null;
   plugins: PluginSummary[];
+  federated: FederatedCatalog;
 }) {
   const { token, permissions } = useAuth();
   const canManagePlugins = hasAnyPermission(permissions, MANAGE_PLUGINS_PERMISSIONS);
@@ -180,7 +191,7 @@ export function AdminConsole({
       </header>
 
       <div className="mb-8">
-        <PlatformSummary health={health} />
+        <PlatformSummary health={health} federated={federated} />
       </div>
 
       <Card>
@@ -291,7 +302,65 @@ export function AdminConsole({
           )}
         </CardContent>
       </Card>
+
+      <div className="mt-8">
+        <FederationReadiness catalog={federated} />
+      </div>
     </div>
+  );
+}
+
+/**
+ * Federation readiness (P3 portal federation depth). Shows the federated tool
+ * catalog's live status and where it was sourced from. SSO + reverse proxy are a
+ * later P3 item, so this is a read-only posture view — no invented endpoints.
+ */
+function FederationReadiness({ catalog }: { catalog: FederatedCatalog }) {
+  const sourceLabel =
+    catalog.source === "remote"
+      ? "Remote (NEXT_PUBLIC_FEDERATED_MODULES_URL)"
+      : catalog.source === "local"
+        ? "Local (apps/web/public/modules.yaml)"
+        : "Not configured";
+
+  const byStatus = catalog.tools.reduce<Record<string, number>>((acc, t) => {
+    acc[t.status] = (acc[t.status] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Federated tools</CardTitle>
+        <CardDescription>
+          Heavyweight platforms surfaced as tiles on the <Link href="/tools" className="text-accent hover:underline">Tools</Link> page. SSO + reverse proxy are a later P3 item.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-neutral-400 dark:text-neutral-500">Source</p>
+            <p className="mt-0.5 font-medium">{sourceLabel}</p>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-wide text-neutral-400 dark:text-neutral-500">Tools</p>
+            <p className="mt-0.5 font-medium">{catalog.tools.length}</p>
+          </div>
+          {catalog.tools.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {Object.entries(byStatus).map(([status, count]) => (
+                <Badge key={status} variant={federatedStatusVariant(status as FederatedCatalog["tools"][number]["status"])}>
+                  {count} {federatedStatusLabel(status as FederatedCatalog["tools"][number]["status"]).toLowerCase()}
+                </Badge>
+              ))}
+            </div>
+          ) : null}
+        </div>
+        {catalog.note ? (
+          <p className="mt-3 text-xs text-neutral-400 dark:text-neutral-500">{catalog.note}</p>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
 

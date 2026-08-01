@@ -4,8 +4,10 @@ import { JwtModule, type JwtModuleOptions } from "@nestjs/jwt";
 import { AdminSeedService } from "./admin-seed.service.js";
 import { AuthController } from "./auth.controller.js";
 import { AuthService } from "./auth.service.js";
+import { CompositeTokenVerifier } from "./composite-token-verifier.service.js";
 import { JwtAuthGuard } from "./jwt-auth.guard.js";
 import { LocalJwtVerifier } from "./local-jwt-verifier.service.js";
+import { OidcJwtVerifier } from "./oidc-jwt-verifier.service.js";
 import { TOKEN_VERIFIER } from "./token-verifier.js";
 
 const DEV_JWT_SECRET_FALLBACK = "constellation-dev-secret-change-me";
@@ -45,7 +47,11 @@ if (!process.env.JWT_SECRET) {
     AuthService,
     AdminSeedService,
     LocalJwtVerifier,
-    { provide: TOKEN_VERIFIER, useExisting: LocalJwtVerifier },
+    OidcJwtVerifier,
+    // The bound verifier is the composite: local JWT first (fast, offline),
+    // then OIDC when `OIDC_ISSUER_URL` is configured. Guards and controllers
+    // are unchanged — they still only know the `TOKEN_VERIFIER` interface.
+    { provide: TOKEN_VERIFIER, useClass: CompositeTokenVerifier },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
   ],
   exports: [TOKEN_VERIFIER, JwtModule],

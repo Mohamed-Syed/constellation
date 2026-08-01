@@ -26,6 +26,7 @@ export interface NavGroups {
 const CORE_PLATFORM: FlatNavItem[] = [
   { id: "core-dashboard", label: "Dashboard", href: "/", icon: "LayoutDashboard", order: 0 },
   { id: "core-modules", label: "Modules", href: "/modules", icon: "Blocks", order: 10 },
+  { id: "core-tools", label: "Tools", href: "/tools", icon: "Boxes", order: 20 },
 ];
 
 const CORE_SYSTEM: FlatNavItem[] = [

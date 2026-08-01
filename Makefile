@@ -7,9 +7,13 @@
 # ---------------------------------------------------------------------------
 
 COMPOSE ?= docker compose
+# P3 federation overlay: base stack + federated tools, gated behind the
+# "federation" compose profile so nothing extra starts by accident.
+FED_COMPOSE ?= docker compose -f docker-compose.yml -f docker-compose.federation.yml --profile federation
 
 .DEFAULT_GOAL := help
-.PHONY: help up down logs migrate config build restart ps psql redis-cli health clean
+.PHONY: help up down logs migrate config build restart ps psql redis-cli health clean \
+        fed-config fed-up fed-down fed-clean fed-ps fed-logs fed-health
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -63,3 +67,44 @@ psql: ## Open a psql shell on the platform database
 
 redis-cli: ## Open a redis-cli shell
 	$(COMPOSE) exec redis redis-cli
+
+# ---------------------------------------------------------------------------
+# P3 — portal federation (Keycloak SSO, Caddy proxy, Grafana/Prometheus/Loki,
+# Open WebUI, Langflow). Opt-in: these targets are the ONLY way this stack
+# starts, and it is heavy (several GB of RAM — expect a slow first pull).
+# ---------------------------------------------------------------------------
+
+fed-config: ## Validate the base + federation compose configuration
+	$(FED_COMPOSE) config
+
+fed-up: ## Start the base stack PLUS all federated tools (heavy)
+	$(FED_COMPOSE) up -d
+	@echo ""
+	@echo "  one origin  -> http://localhost:$${PROXY_HOST_PORT:-8080}"
+	@echo "    portal       /"
+	@echo "    api          /api/health"
+	@echo "    keycloak     /auth        (admin: $${KEYCLOAK_ADMIN:-admin})"
+	@echo "    grafana      /tools/grafana"
+	@echo "    open webui   /tools/chat"
+	@echo "    langflow     /tools/langflow"
+	@echo ""
+	@echo "  first boot takes a few minutes; watch with 'make fed-ps'."
+
+fed-down: ## Stop the federation stack (volumes PRESERVED)
+	$(FED_COMPOSE) down --remove-orphans
+
+fed-clean: ## Stop it and DELETE all federation volumes (destructive)
+	$(FED_COMPOSE) down --remove-orphans --volumes
+
+fed-ps: ## Show federation container status and health
+	$(FED_COMPOSE) ps
+
+fed-logs: ## Tail logs from the federation services
+	$(FED_COMPOSE) logs -f --tail=100
+
+fed-health: ## Probe every federated endpoint through the reverse proxy
+	@base="http://localhost:$${PROXY_HOST_PORT:-8080}"; \
+	for path in /api/health /auth/health/ready /tools/grafana/api/health /tools/chat/health /tools/langflow/health; do \
+		code=$$(curl -s -o /dev/null -w '%{http_code}' "$$base$$path" || echo "---"); \
+		printf '  %-34s %s\n' "$$path" "$$code"; \
+	done

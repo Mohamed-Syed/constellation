@@ -98,6 +98,28 @@ jobs:
       - name: Validate compose file
         run: docker compose config --quiet
 
+      # P3: the federation overlay must also stay syntactically valid. Config
+      # validation only — the federated stack itself (Keycloak, Grafana, Loki,
+      # Langflow, Open WebUI) is far too heavy to boot on a CI runner.
+      - name: Validate federation overlay
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.federation.yml config --quiet
+          docker compose -f docker-compose.yml -f docker-compose.federation.yml \
+            --profile federation config --quiet
+
+      # Guard the opt-in gate: without the profile, the overlay must resolve
+      # to exactly the 4 base services. If someone drops `profiles:` from a
+      # federated service, `docker compose up` would silently start it.
+      - name: Assert federation services are opt-in
+        run: |
+          services=$(docker compose -f docker-compose.yml -f docker-compose.federation.yml \
+            config --services | sort | tr '\n' ' ')
+          echo "resolved without profile: $services"
+          if [ "$services" != "api postgres redis web " ]; then
+            echo "::error::Federation services leaked into the default stack: $services"
+            exit 1
+          fi
+
       # Proves the deploy path stays green, not just the workspace build.
       # No push — images stay local to the runner.
       - name: Build images
