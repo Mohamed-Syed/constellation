@@ -338,6 +338,23 @@ context factory). Everyone builds to the **shared API contract** below.
 - [ ] Token storage: in-memory + `localStorage` fallback with a documented XSS caveat (httpOnly-cookie hardening is a later item). Degrade gracefully if the auth API is down. Ownership: `apps/web/**`, `docs/*` (not MASTER_PLAN). Verify: `pnpm --filter @constellation/web build` + `typecheck` clean; login flow + gated routes render.
 - _Status:_ **assigned — not started.**
 
+### 🧠 BRAIN ROUND — Memory & Knowledge Graph (Graphify) — ASSIGNED, top priority (user 2026-08-02)
+Give the platform a persistent, queryable memory. Engine = **Graphify** (knowledge graph over
+MCP, local, $0). **Full design in [`docs/BRAIN.md`](BRAIN.md)** — read it first; the honest scope
+call (adopt Graphify; skip PAUL/SEED/Railway for now; Obsidian optional) and the interface/REST/MCP
+surface live there. Same rules as every round (no git/installs by friends beyond their lane, boot
+w/o the brain must not crash, verify before done).
+
+- 🏛️ **Atlas:** `graphify` sidecar service in `docker-compose.yml` (`pip install graphifyy`,
+  `graphify watch /corpus`, `python -m graphify.serve` MCP port), mount corpus (`docs/` + `brain/`),
+  shared `graphify-out` volume, `make brain` target.
+- ⭐ **Nova:** `apps/api/src/core/memory` — `BrainService` + `GraphifyAdapter` + REST
+  (`/api/brain/remember|query|graph|stats`, guarded by the P2 RBAC guards) + new
+  `core:brain:read|write` permissions in the SDK + a `memory` capability; seed `brain/README.md`.
+- 🌌 **Orion:** portal **"Brain"** nav + page — force-directed `graph.json` view + "ask the brain"
+  box calling `POST /api/brain/query`, rendering the grounded answer + provenance.
+- _Status:_ **assigned — not started.** (Verify bar in `docs/BRAIN.md` §7.)
+
 ## 9. Verification log
 - **2026-08-01 — P2 (auth + RBAC + audit + protected mutations + auth portal) DONE, integrated, verified, COMMITTED (git `14137d8`, local only):**
   Built by managed subagents (Atlas auth/rbac/audit + Prisma User/Role/UserRole; Nova enable/disable

@@ -84,7 +84,11 @@ cd apps/api && API_PORT=4001 node dist/main.js   # GET /api/health, /api/plugins
 ```
 
 ## 8. Pending / next actions (priority order)
-1. ~~**P2 core:** auth + RBAC/ABAC + audit + protected enable/disable~~ **DONE (git `14137d8`).** Next within core: seed a non-admin viewer user; add committed `prisma/migrations` history (replace `db push`); httpOnly-cookie token hardening; consider auth on plugin reads.
+1. **🧠 THE BRAIN (Memory & Knowledge Graph) — TOP PRIORITY (user, 2026-08-02).** Native memory
+   subsystem powered by **Graphify** (knowledge graph over MCP, local, $0). **Full design +
+   lane split + verify bar in `docs/BRAIN.md`; workstream in `MASTER_PLAN.md §8 "BRAIN ROUND"`.**
+   Adopt Graphify; skip PAUL/SEED/Railway for now (build-methodology / host, not the brain).
+2. ~~**P2 core:** auth + RBAC/ABAC + audit + protected enable/disable~~ **DONE (git `14137d8`).** Core follow-ups: seed a non-admin viewer user; committed `prisma/migrations` history (replace `db push`); httpOnly-cookie token hardening; consider auth on plugin reads.
 3. **Persist plugin enable/disable state** in Postgres (currently in-memory; seam noted in `PluginLifecycleService.enableAllRegistered`).
 4. **Per-plugin schema bootstrap** (`CREATE SCHEMA IF NOT EXISTS`) before a plugin's first DB use (seam in INTEGRATION_NOTES_ATLAS §3).
 5. **P4 capabilities:** wire browser-use to a real browser-use service; add Graphify(MCP), review (Qodo/CodeRabbit CLI), OpenHands adapters.
