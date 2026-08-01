@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+# One in-flight run per ref; a new push cancels the previous run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+  TURBO_TELEMETRY_DISABLED: "1"
+  # `prisma generate` runs during the API build. prisma.config.ts falls back
+  # to a placeholder when this is unset, but being explicit keeps the log
+  # clean and documents that CI never talks to a real database.
+  DATABASE_URL: postgresql://ci:ci@localhost:5432/constellation_ci?schema=core
+
+jobs:
+  build:
+    name: install / build / typecheck / test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # pnpm must be on PATH before setup-node so setup-node's built-in pnpm
+      # cache resolver can find the store path.
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          # Matches "packageManager": "pnpm@9.12.3" in package.json.
+          version: 9.12.3
+          run_install: false
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # Explicit store cache on top of setup-node's: keyed on the lockfile so
+      # a dependency change invalidates it, with a prefix fallback for
+      # partial reuse.
+      - name: Resolve pnpm store path
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Cache turbo build outputs
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      # Build first: typecheck and test both depend on the SDK's emitted
+      # d.ts files (turbo.json declares dependsOn ^build).
+      - name: Build
+        run: pnpm build
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+  docker:
+    name: docker compose build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Validate compose file
+        run: docker compose config --quiet
+
+      # Proves the deploy path stays green, not just the workspace build.
+      # No push — images stay local to the runner.
+      - name: Build images
+        run: docker compose build

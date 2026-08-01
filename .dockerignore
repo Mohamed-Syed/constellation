@@ -1,0 +1,59 @@
+# Constellation — root build context ignore (shared by both Dockerfiles).
+# Keeps the context small AND prevents host-built artifacts / secrets from
+# leaking into an image. node_modules in particular MUST be excluded: the
+# host's pnpm store links are invalid inside Linux containers.
+
+# dependencies
+node_modules
+**/node_modules
+.pnpm-store
+
+# build output
+dist
+**/dist
+.next
+**/.next
+out
+**/out
+build
+**/build
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+# turbo / tooling caches
+.turbo
+**/.turbo
+coverage
+**/coverage
+.nyc_output
+
+# vcs & CI
+.git
+.gitignore
+.github
+
+# env & secrets — NEVER bake these into an image
+.env
+.env.*
+!.env.example
+
+# docker's own files (not needed inside the build)
+docker-compose*.yml
+**/Dockerfile
+.dockerignore
+**/.dockerignore
+Makefile
+
+# docs & editor noise
+docs
+*.md
+!README.md
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# local data
+data
+tmp
+*.log

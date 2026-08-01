@@ -21,6 +21,17 @@ export interface HealthResult {
   checks?: Record<string, "ok" | "down">;
 }
 
+/**
+ * Result of an agent-plane tool invocation. Deliberately a discriminated
+ * envelope rather than a bare value: a tool failing (bad args, upstream
+ * service down, not configured) is an *expected* condition the agent must be
+ * able to read and reason about, NOT an exception that should mark the plugin
+ * unhealthy. Runtimes should return `{ ok: false, error }` instead of throwing.
+ */
+export type ToolResult<T = unknown> =
+  | { ok: true; data: T }
+  | { ok: false; error: string };
+
 export interface Plugin {
   /**
    * Called once when the plugin is first installed (before first enable).
@@ -50,6 +61,19 @@ export interface Plugin {
    * Default (if omitted): the core reports "ok" as long as the plugin loaded.
    */
   health?(ctx: PluginContext): Promise<HealthResult> | HealthResult;
+
+  /**
+   * AGENT PLANE seam: invoke one of the tools this plugin declares in its
+   * manifest's `tools` array. The core resolves `name` against the manifest
+   * and checks the tool's `permission` BEFORE dispatching here, so a runtime
+   * can trust that `name` is one it declared — but it must still validate
+   * `args` itself (the manifest's `inputSchema` is opaque data to the core).
+   *
+   * Returns a `ToolResult` envelope; prefer `{ ok: false, error }` over
+   * throwing for expected failures (unconfigured service, upstream 500, bad
+   * args) so a failing call doesn't mark the plugin unhealthy.
+   */
+  invokeTool?(name: string, args: Record<string, unknown>, ctx: PluginContext): Promise<ToolResult> | ToolResult;
 }
 
 /**
@@ -72,6 +96,15 @@ export interface LoadedPlugin {
   dir: string;
   /** Populated when state === "failed". */
   error?: string;
+  /**
+   * Result of the most recent `health()` poll. Undefined until the first poll
+   * runs (or forever, for a plugin that never reaches "enabled"). A plugin
+   * that throws/times out on `health()` gets a synthetic `{ status: "down" }`
+   * here — this never affects `state`, which stays the lifecycle state.
+   */
+  health?: HealthResult;
+  /** ISO timestamp of the most recent health poll, paired with `health`. */
+  healthCheckedAt?: string;
 }
 
 /**

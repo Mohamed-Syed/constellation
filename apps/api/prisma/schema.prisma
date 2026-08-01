@@ -1,0 +1,98 @@
+// Constellation — core Prisma schema.
+//
+// This file owns ONLY the platform's `core` Postgres schema. Per C8 (locked
+// decision), every plugin owns its OWN Postgres schema and runs its OWN
+// migrations against it — this schema must never grow plugin-specific
+// tables. See `apps/api/src/core/database/README.md` for the full
+// per-plugin schema/migration story.
+//
+// `multiSchema` (preview since Prisma 4.3, stable in later releases) lets a
+// single Prisma schema map models onto multiple Postgres schemas. Today only
+// `core` is declared here; a plugin using Prisma for its own schema owns a
+// wholly separate `schema.prisma` + migration history under its own package.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Prisma 7: the connection URL is no longer declared here. The CLI reads
+  // it from `prisma.config.ts`; the running app resolves its own connection
+  // in `core/database/prisma.service.ts` (fails soft with no DB).
+  // Every Postgres schema Prisma is allowed to see. Only `core` is modeled
+  // by this file; the rest are created/owned by individual plugins.
+  schemas = ["core"]
+}
+
+/// A plugin's install record: identity, version, lifecycle state, and
+/// enable/disable toggle. The plugin loader's in-memory registry is the
+/// source of truth for a running process; this table is the durable record
+/// that survives restarts and drives "should this plugin even be loaded".
+model PluginInstallation {
+  id          String   @id @default(cuid())
+  pluginId    String   @unique
+  version     String
+  /// Mirrors the SDK's `PluginState` union (validated | registered | enabled
+  /// | disabled | failed), kept as a plain string here so this table never
+  /// needs a migration when the SDK adds a state.
+  state       String
+  enabled     Boolean  @default(false)
+  installedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("plugin_installations")
+  @@schema("core")
+}
+
+/// A single settings value, namespaced per plugin (pluginId = "core" for
+/// platform-level settings). Backs `SettingsService` / the SDK's
+/// `PluginConfig.get`. Falls back to the plugin manifest's declared
+/// `settings[].default` when no row exists — see SettingsService.
+model Setting {
+  id        String   @id @default(cuid())
+  pluginId  String
+  key       String
+  /// Stored as JSON so any manifest-declared setting type (string, number,
+  /// boolean, secret, select, json) round-trips without a schema change.
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@unique([pluginId, key])
+  @@map("settings")
+  @@schema("core")
+}
+
+/// A feature flag override, namespaced per plugin. Backs `FeatureFlagService`
+/// / the SDK's `PluginConfig.isFeatureEnabled`. Falls back to the manifest's
+/// `featureFlags[].default` when no row exists.
+model FeatureFlag {
+  id        String   @id @default(cuid())
+  pluginId  String
+  key       String
+  enabled   Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+
+  @@unique([pluginId, key])
+  @@map("feature_flags")
+  @@schema("core")
+}
+
+/// Immutable-by-convention audit trail. Nothing in the app updates or
+/// deletes rows here (enforcement lands with the RBAC/audit workstream in
+/// P2); for now this is the write target for anything worth recording.
+model AuditLog {
+  id         String   @id @default(cuid())
+  /// Plugin that produced the event, or "core" for platform actions.
+  pluginId   String
+  /// Actor's user id, if any (system/background actions leave this null).
+  actorId    String?
+  action     String
+  /// Free-form structured detail about what happened.
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([pluginId, createdAt])
+  @@map("audit_logs")
+  @@schema("core")
+}

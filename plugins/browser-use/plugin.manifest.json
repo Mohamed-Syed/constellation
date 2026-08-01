@@ -1,0 +1,97 @@
+{
+  "manifestVersion": 1,
+  "id": "browser-use",
+  "name": "browser-use",
+  "version": "0.1.0",
+  "description": "Agent-plane capability: LLM-driven browser automation. Exposes navigate/act/extract tools backed by a browser-use HTTP service.",
+  "author": "Nova",
+  "repository": "https://github.com/browser-use/browser-use",
+  "license": "UNLICENSED",
+  "minPlatformVersion": "0.1.0",
+  "dependencies": [],
+  "requiredServices": [],
+  "permissions": [
+    "browser:navigate",
+    "browser:act",
+    "browser:extract"
+  ],
+  "navigation": [
+    {
+      "id": "browser-use-home",
+      "label": "Browser",
+      "path": "/browser-use",
+      "order": 100,
+      "requiresPermissions": []
+    }
+  ],
+  "routes": [],
+  "featureFlags": [],
+  "settings": [
+    {
+      "key": "baseUrl",
+      "label": "browser-use service URL",
+      "type": "string",
+      "description": "Base URL of the browser-use HTTP service. Overrides the BROWSER_USE_URL env var when set.",
+      "default": ""
+    },
+    {
+      "key": "timeoutMs",
+      "label": "Request timeout (ms)",
+      "type": "number",
+      "description": "How long to wait for the browser-use service before aborting a tool call.",
+      "default": 60000
+    }
+  ],
+  "jobs": [],
+  "tools": [
+    {
+      "name": "browser.navigate",
+      "description": "Open a URL in a browser session and return the resulting page title and URL.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": { "type": "string", "description": "Absolute http(s) URL to open." },
+          "sessionId": { "type": "string", "description": "Reuse an existing browser session." }
+        },
+        "required": ["url"],
+        "additionalProperties": false
+      },
+      "permission": "browser:navigate"
+    },
+    {
+      "name": "browser.act",
+      "description": "Perform a natural-language action in the current browser session (click, type, scroll, submit).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instruction": {
+            "type": "string",
+            "description": "Natural-language action, e.g. \"click the Sign in button\"."
+          },
+          "sessionId": { "type": "string", "description": "Browser session to act in." }
+        },
+        "required": ["instruction"],
+        "additionalProperties": false
+      },
+      "permission": "browser:act"
+    },
+    {
+      "name": "browser.extract",
+      "description": "Extract structured data from the current page given a natural-language query and optional JSON schema.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string", "description": "What to extract, e.g. \"all product names and prices\"." },
+          "schema": { "type": "object", "description": "Optional JSON Schema the result should conform to." },
+          "sessionId": { "type": "string", "description": "Browser session to extract from." }
+        },
+        "required": ["query"],
+        "additionalProperties": false
+      },
+      "permission": "browser:extract"
+    }
+  ],
+  "entry": "dist/index.js",
+  "healthCheck": "/health",
+  "translations": []
+}

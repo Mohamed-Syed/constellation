@@ -5,7 +5,7 @@
 > three helper agents (Atlas, Nova, Orion). Update it **every session**.
 >
 > **Codename:** `constellation` (placeholder — user may rename).
-> **Status:** Foundation **built and verified end-to-end** (monorepo + Plugin SDK + NestJS core with a working plugin loader + Next.js portal + example plugin). See §9.
+> **Status:** Foundation **built and verified end-to-end** (monorepo + Plugin SDK + NestJS core with a working plugin loader + Next.js portal + example plugin). **Atlas round 2 done:** the whole stack now runs under Docker Compose against a **real Postgres + Redis**, with the Prisma data layer verified connecting. See §9.
 > **Relationship to Looper:** SEPARATE project. Looper (`../loop-engineering`) is untouched.
 > **Last updated:** 2026-08-01
 
@@ -128,9 +128,13 @@ File ownership: **Atlas** = `apps/api/src/core/{database,settings,logging,events
   connection module, and the **per-plugin schema + migration** mechanism (each plugin owns a schema).
 - [ ] A2. Real `PluginContext` backends: structured logger (pino/Nest), config service (settings +
   feature flags from DB), scoped event bus.
-- [ ] A3. Dockerize: `docker-compose.yml` (api + web + postgres + redis) for local; Dockerfiles.
-- [ ] A4. CI: GitHub Actions (install, build, typecheck, test) — design only until repo is created.
-- _Status:_ **not started.**
+- [x] A3. Dockerize: `docker-compose.yml` (api + web + postgres + redis) for local; Dockerfiles.
+  — **done in round 2, verified running.** See §8 "Atlas — ROUND 2" and §9.
+- [x] A4. CI: GitHub Actions (install, build, typecheck, test) — design only until repo is created.
+  — **done in round 2** (`.github/workflows/ci.yml`); still unrun against GitHub (no remote yet).
+- _Status:_ **A3 + A4 complete (round 2). A1 + A2 code landed in round 1 — left unticked for the
+  orchestrator to confirm during its integration pass; the round-2 Compose run does prove A1's
+  Prisma layer connects to a real Postgres.**
 
 ### ⭐ Nova — Plugin SDK maturation & agent capabilities
 - [ ] N1. Harden the SDK: dependency-order resolution in the loader (topological by
@@ -148,7 +152,172 @@ File ownership: **Atlas** = `apps/api/src/core/{database,settings,logging,events
 - [ ] O4. Docs: `docs/PLUGIN_SDK.md` authoring guide + the hello-world walkthrough.
 - _Status:_ **not started.**
 
+### 🏛️ Atlas — ROUND 2 (containerization + real Postgres/Redis + CI) — ASSIGNED, ready to start
+**Goal:** make the whole platform runnable via Docker Compose with a REAL Postgres + Redis, so
+the Prisma data layer actually connects (proving round-1 end-to-end), and add CI. This also lays
+the deploy foundation for the 24/7 VPS (Coolify runs Compose).
+
+**Runs side-by-side with the orchestrator's integration pass.** To stay collision-free:
+- **File ownership (round 2) — ONLY create/edit:** `docker-compose.yml`, `apps/api/Dockerfile`,
+  `apps/web/Dockerfile`, `.dockerignore` (root + `apps/api/` + `apps/web/`), `.github/workflows/ci.yml`,
+  a root `Makefile`, and the "Run with Docker" section of `README.md`.
+- **Do NOT touch** `apps/api/src/**`, `apps/web/src/**`, `apps/web/next.config.mjs`, `packages/**`,
+  `plugins/**`, or `docs/MASTER_PLAN.md` (the orchestrator is actively editing source there).
+- **Do NOT run** `pnpm add`/`pnpm install` (orchestrator owns installs this round) and **do NOT run
+  any `git` command** (orchestrator commits). Leave changes uncommitted.
+
+**Tasks:**
+- [x] R2-1. `docker-compose.yml`: `postgres` (postgres:16 — DB/user/pass from env, named volume, healthcheck),
+  `redis` (redis:7, healthcheck), `api` (builds `apps/api`, `depends_on` postgres healthy, `DATABASE_URL`
+  + `REDIS_URL` wired, port 4000), `web` (builds `apps/web`, `NEXT_PUBLIC_API_URL`, port 3000). Shared network, `.env`-driven.
+- [x] R2-2. `apps/api/Dockerfile`: multi-stage (pnpm fetch/install → `nest build` → slim runtime), **non-root user**,
+  entrypoint runs `prisma generate` + `prisma migrate deploy` then `node dist/main.js`. `apps/web/Dockerfile`:
+  plain `next build` + `next start` (do NOT require the `standalone` config change — avoids editing web source), non-root.
+- [x] R2-3. `.dockerignore`s (node_modules, dist, .next, .git, .env, .turbo).
+- [x] R2-4. `.github/workflows/ci.yml`: on push/PR → pnpm + Node 22, `pnpm install --frozen-lockfile`,
+  `pnpm build`, `pnpm typecheck`, `pnpm test`; cache the pnpm store.
+- [x] R2-5. Root `Makefile` (`up`/`down`/`logs`/`migrate`) + README "Run with Docker" section.
+- [x] Verify: `docker compose config` validates; `docker compose build` succeeds (api + web);
+  `docker compose up -d` brings postgres+redis+api+web up healthy; `curl http://localhost:4000/api/health` → ok,
+  and with Postgres up the api logs a **successful** Prisma connection (no "database layer disabled" warning). Tear down after.
+- [x] Report back to the orchestrator. Do not commit.
+- _Status:_ **DONE — verified end-to-end 2026-08-01 (Atlas). Nothing committed; no `git`/`pnpm install` run.**
+
+#### Atlas round-2 results
+
+**Files created (8) / edited (1) — all inside the round-2 ownership list:**
+`docker-compose.yml` · `apps/api/Dockerfile` · `apps/web/Dockerfile` ·
+`.dockerignore` · `apps/api/.dockerignore` · `apps/web/.dockerignore` ·
+`.github/workflows/ci.yml` · `Makefile` (all 8 new) · `README.md` (edited —
+added the "Run with Docker" section only). **Nothing under `apps/*/src/**`,
+`packages/**`, `plugins/**`, or `next.config.mjs` was touched.**
+
+**Verification (real runs, local Docker 29.6.2 / Compose v5.3.1):**
+- `docker compose config --quiet` → valid.
+- `docker compose build` → **both images build clean** (api + web).
+- `docker compose up -d --wait` → **all four containers report `healthy`**
+  (postgres, redis, api, web) with Compose gating the api on postgres+redis health.
+- `GET /api/health` → `{"status":"ok", plugins:{total:1, failed:0, enabled:1, degradedOrDown:0}}`;
+  `GET /api/plugins` returns the validated `hello-world` manifest; portal HTTP 200.
+- **Prisma really connects** — api log: `[PrismaService] Connected to Postgres (core schema).`
+  Zero occurrences of the "database layer disabled" / "adapter not installed" warning.
+  `psql \dt core.*` confirms 4 real tables: `plugin_installations`, `settings`,
+  `feature_flags`, `audit_logs`. Redis `PING` → `PONG`.
+- Both api and web containers run as **`uid=1000(node)`**, confirmed via `id`.
+- Stack torn down afterwards (`docker compose down --volumes`); no containers left running.
+
+**Workspace gates (re-verified from a clean slate, no install run):**
+- `turbo run build` → **5/5 tasks successful** (plugin-sdk, cli, api, web, hello-world).
+- `turbo run typecheck` → **6/6 successful** (`tsc --noEmit` across every package).
+- `turbo run test` → **4/4 successful**; api **15/15** loader tests pass, sdk suite green.
+- `pnpm-lock.yaml` md5 verified **byte-identical before and after** — the
+  "no `pnpm install`/`pnpm add`" constraint held.
+- Full Compose stack was also re-run end-to-end a second time **with fresh
+  volumes** (`down --volumes` first), reproducing every result above from zero
+  — so none of it depended on warm state.
+
+**⚠️ `pnpm` is broken on this Windows host — use turbo's binary directly.**
+`pnpm <task>` dies instantly with `MODULE_NOT_FOUND` on a mangled corepack
+path (`C:\c\Users\...\corepack\dist\pnpm.js` — note the doubled drive
+segment). Nothing executes. Worse, the wrapper around it can still report a
+**false "typecheck passed"** for a command that never ran, so don't trust a
+green pnpm result on this machine. Working invocation:
+`./node_modules/.bin/turbo run build|typecheck|test`. This is a
+local-environment fault only — CI uses `pnpm/action-setup` on Linux and is
+unaffected.
+
+**Three real problems hit and fixed (recorded so nobody reintroduces them):**
+1. **Prisma generate must precede `nest build`.** `@prisma/client` is a stub
+   until generation, so the api build failed with `TS2305: Module
+   '"@prisma/client"' has no exported member 'PrismaClient'`. The builder stage
+   now runs `prisma generate` *before* `nest build`.
+2. **Prisma 7 removed `--skip-generate` from `db push`** — passing it is a hard
+   error that crash-looped the api container. Entrypoint and `make migrate` now
+   use plain `prisma db push --accept-data-loss`.
+3. **No `prisma/migrations` history exists** (round 1 shipped `schema.prisma`
+   but never ran `migrate dev`), so `migrate deploy` has nothing to apply. The
+   entrypoint detects this and falls back to `db push`, auto-switching to
+   `migrate deploy` the moment a migrations dir is committed.
+
+**Notes / handoffs for the orchestrator:**
+- **INTEGRATION_NOTES_ATLAS.md §5 is now resolved** — mid-round the orchestrator
+  added `@prisma/adapter-pg` + `pg` to `apps/api/package.json` and the lockfile.
+  My image-only workaround was removed; the frozen-lockfile install covers it.
+  That §5 text is stale and should be marked done (it's not my file this round).
+- **Port 4000 is still occupied locally** by the leftover Looper-style gateway
+  (the §9 note), and 4001 was taken too — verification ran on remapped host
+  ports (`API_HOST_PORT=4010`, `WEB_HOST_PORT=3010`, pg 55432, redis 63790) via
+  env only. Committed defaults remain 4000/3000/5432/6379.
+- **`prisma/migrations` should be generated and committed** (`prisma migrate dev
+  --name init`) so production uses `migrate deploy` rather than `db push`.
+  That's `apps/api/prisma/**` — outside my round-2 ownership, so I left it.
+- **CI is unverified against GitHub** (no repo/remote exists yet, and I ran no
+  `git`). It's designed-and-committed only, per R2-4. It has two jobs: the
+  workspace build/typecheck/test, plus a `docker compose build` job.
+- **Web image is fat** (~full node_modules) because avoiding `standalone` output
+  meant not editing `next.config.mjs`. Worth switching once web source is free.
+
+
+### ⭐ Nova — ROUND 2 (first agent-plane capability + lifecycle events) — ASSIGNED, ready to start
+**Goal:** prove the "agent plane" — a plugin that gives the platform a callable tool — and finish
+the loader's event story.
+
+- **File ownership (round 2) — ONLY create/edit:** `packages/**`, `apps/api/src/core/plugins/**`,
+  and a NEW `plugins/browser-use/**` (generate it with your own `generate-plugin` CLI, then flesh out).
+- **Do NOT touch** `apps/api/src/core/{database,settings,logging,events,health}/**`, `apps/api/src/app.module.ts`,
+  `apps/web/**`, any Docker/CI files, or `docs/MASTER_PLAN.md`.
+- **No `git`.** Only install allowed is inside `plugins/browser-use` if truly unavoidable (prefer ZERO new deps — use global `fetch`). Leave changes uncommitted.
+- **Preserve the two verified bugs in §9** (the `pathToFileURL` + `new Function` ESM-import trick). Inject any new core service (e.g. the event bus) `@Optional()`-ly, like the existing `PluginContextFactory`, so the offline hand-wired tests still pass.
+
+**Tasks:**
+- [ ] NR2-1. SDK: add an optional **`tools`** array to the manifest (each tool: `name`, `description`,
+  `inputSchema`, `permission`) + a runtime `invokeTool(name, args)` seam on `Plugin`. Additive + versioned — flag the contract change explicitly.
+- [ ] NR2-2. First capability plugin `plugins/browser-use` (agent-plane): declares tools
+  `browser.navigate` / `browser.act` / `browser.extract`; runtime calls a browser-use HTTP service at
+  `BROWSER_USE_URL` (env) with a clean "not configured" error when unset. Mocked unit test (no real network). Scaffold via your CLI first.
+- [ ] NR2-3. Publish loader lifecycle events per `apps/api/src/core/INTEGRATION_NOTES_ATLAS.md §4`
+  (`plugin:registered/enabled/failed/disabled`) via `EventBusService.emitPlatform` (inject it `@Optional()`).
+- [ ] NR2-4. Extend `GET /api/plugins/:id` to include declared `tools` (read-only) so the portal can show them.
+- [ ] Verify: SDK + api + cli build/typecheck/test green; boot on 4001 and confirm `browser-use` registers and its tools appear on `/api/plugins/browser-use`. Report back; do not commit.
+- _Status:_ **assigned — not started.**
+
+### 🌌 Orion — ROUND 2 (plugin detail + admin depth + live health) — ASSIGNED, ready to start
+**Goal:** turn the portal shell into a usable admin console.
+
+- **File ownership (round 2) — ONLY create/edit:** `apps/web/**` and `docs/*` (**NEVER** `docs/MASTER_PLAN.md`).
+- **Do NOT touch** `apps/api/**`, `packages/**`, `plugins/**`, any Docker/CI files.
+- **No `git`. No `pnpm install`/`pnpm add`. No `shadcn` CLI** (all web deps already installed — hand-write components). Leave changes uncommitted.
+
+**Tasks:**
+- [ ] OR2-1. **Plugin detail page** `/modules/[pluginId]`: fetch `GET /api/plugins/:id`, render the full
+  manifest — identity, state, **live health** (status + last-checked), permissions, routes, feature flags,
+  settings, and declared `tools` when present — in clean cards/tabs. Graceful 404 + loading/error states.
+- [ ] OR2-2. **Live health** across the portal: Modules list + dashboard poll `/api/plugins` on an interval
+  (or revalidate) and show each plugin's health badge (ok/degraded/down); degrade gracefully when the field is absent.
+- [ ] OR2-3. **Admin page** depth: platform summary from `/api/health`, a plugins table with state/health
+  filters + search, per-row links to the detail page. Enable/disable buttons may render but wire to
+  `POST /api/plugins/:id/enable|disable` — if those 404 today, show a disabled "coming soon" tooltip; **do not invent endpoints.**
+- [ ] OR2-4. Polish: keyboard-accessible tabs/menus, focus-visible rings, mobile layout for the new pages; extend ⌘K to jump to any plugin's detail page.
+- [ ] Verify: `pnpm --filter @constellation/web build` + `typecheck` clean; live-check the new routes render + degrade with the API down. Report back; do not commit.
+- _Status:_ **assigned — not started.**
+
 ## 9. Verification log
+- **2026-08-01 — Atlas ROUND 2: containerization verified end-to-end (local, $0):**
+  - `docker compose config` valid; `docker compose build` clean for **both** images.
+  - `docker compose up -d --wait` → **postgres + redis + api + web all `healthy`**,
+    reproduced twice including once from **fresh volumes**.
+  - `GET /api/health` → `ok` (1 plugin, 0 failed); `/api/plugins` and `/api/docs` → 200; portal → 200.
+  - **The round-1 data layer is now proven against real Postgres**:
+    `[PrismaService] Connected to Postgres (core schema).`, zero "database layer
+    disabled" warnings, and the `core` schema contains all 4 tables
+    (`plugin_installations`, `settings`, `feature_flags`, `audit_logs`). Redis `PING` → `PONG`.
+  - Both app containers run **non-root** (`uid=1000(node)`).
+  - Workspace gates: **build 5/5, typecheck 6/6, test 4/4 (api 15/15)**; `pnpm-lock.yaml` unchanged.
+  - **Three bugs found + fixed** (see §8 Atlas round-2 results): prisma generate
+    must precede `nest build`; Prisma 7 dropped `db push --skip-generate`; no
+    `prisma/migrations` history exists so the entrypoint falls back to `db push`.
+  - **Environment gotcha:** `pnpm` is broken on this host (mangled corepack path)
+    and can yield a *false* green — run gates via `./node_modules/.bin/turbo` instead.
 - **2026-08-01 — Foundation built and verified end-to-end (local, $0):**
   - `pnpm install` → 605 packages, clean.
   - `plugin-sdk`: builds ESM+CJS+d.ts (tsup); **7/7 unit tests pass** (manifest validation + permission matching).

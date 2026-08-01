@@ -1,0 +1,148 @@
+# ---------------------------------------------------------------------------
+# Constellation — local full-stack Compose (Atlas, round 2).
+#
+# Brings up the whole platform with REAL infrastructure:
+#   postgres -> redis -> api (NestJS core) -> web (Next.js portal)
+#
+# Everything is .env-driven with safe defaults, so `docker compose up -d`
+# works on a fresh clone with no .env file at all. Copy `.env.example` to
+# `.env` to override (that file is git-ignored — never commit secrets).
+#
+# This is also the deploy foundation for the 24/7 VPS: Coolify consumes a
+# Compose file directly, so what runs locally is what runs in production.
+# ---------------------------------------------------------------------------
+
+name: constellation
+
+services:
+  # --- PostgreSQL: the platform's system of record ----------------------
+  # Per C8 each plugin owns its own schema inside this one database; the
+  # core owns only the `core` schema (see apps/api/prisma/schema.prisma).
+  postgres:
+    image: postgres:16-alpine
+    container_name: constellation-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-constellation}
+      POSTGRES_USER: ${POSTGRES_USER:-constellation}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-constellation}
+      # Deterministic initdb regardless of the host locale.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    ports:
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # `pg_isready` alone returns true during initdb's temporary startup,
+      # so scope it to the real user+db to avoid a false "healthy".
+      test:
+        ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-constellation} -d ${POSTGRES_DB:-constellation} -q"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    networks: [constellation]
+
+  # --- Redis: cache / queue backbone (wired by later phases) ------------
+  redis:
+    image: redis:7-alpine
+    container_name: constellation-redis
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    ports:
+      - "${REDIS_HOST_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    networks: [constellation]
+
+  # --- API: the NestJS core (auth, plugin loader, settings, health) -----
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: constellation-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      API_PORT: 4000
+      API_GLOBAL_PREFIX: ${API_GLOBAL_PREFIX:-api}
+      # Browser-origin of the portal, not the internal service name.
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      # `?schema=core` matches the multiSchema datasource; Prisma also needs
+      # the schema to exist, which the entrypoint's migrate step handles.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-constellation}:${POSTGRES_PASSWORD:-constellation}@postgres:5432/${POSTGRES_DB:-constellation}?schema=core
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
+      PLUGINS_DIR: /app/plugins
+    ports:
+      - "${API_HOST_PORT:-4000}:4000"
+    healthcheck:
+      # Node 22 ships global fetch — no curl/wget needed in a slim image.
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks: [constellation]
+
+  # --- Web: the Next.js portal (single pane of glass) -------------------
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # Baked in at build time: NEXT_PUBLIC_* is inlined into the client
+        # bundle by Next, so it must be the URL the BROWSER can reach.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api}
+    container_name: constellation-web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      # Server Components fetch over the internal network instead of the
+      # published host port, so the portal renders even if 4000 is remapped.
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api}
+      INTERNAL_API_URL: http://api:4000/api
+    ports:
+      - "${WEB_HOST_PORT:-3000}:3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks: [constellation]
+
+networks:
+  constellation:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:

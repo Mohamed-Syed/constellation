@@ -11,15 +11,25 @@ export class HealthController {
   @Get()
   health() {
     const plugins = this.registry.all();
-    const failed = plugins.filter((p) => p.state === "failed");
+    const summary = this.registry.summary();
+    // "ok" only when nothing failed to load AND nothing is reporting
+    // degraded/down health (Nova's health poller feeds `degradedOrDown`).
+    const status = summary.failed === 0 && summary.degradedOrDown === 0 ? "ok" : "degraded";
     return {
-      status: failed.length === 0 ? "ok" : "degraded",
+      status,
       platformVersion: PLATFORM_VERSION,
       uptimeSeconds: Math.round(process.uptime()),
       plugins: {
-        total: plugins.length,
-        failed: failed.length,
-        ids: plugins.map((p) => ({ id: p.manifest.id, state: p.state })),
+        total: summary.total,
+        failed: summary.failed,
+        enabled: summary.enabled,
+        disabled: summary.disabled,
+        degradedOrDown: summary.degradedOrDown,
+        ids: plugins.map((p) => ({
+          id: p.manifest.id,
+          state: p.state,
+          health: p.health?.status ?? null,
+        })),
       },
       timestamp: new Date().toISOString(),
     };

@@ -77,6 +77,33 @@ export const JobSchema = z.object({
 export type Job = z.infer<typeof JobSchema>;
 
 /**
+ * A tool the plugin exposes to the AGENT PLANE (C5): a named, callable
+ * capability the orchestrator/agent can invoke via the runtime's
+ * `invokeTool(name, args)` seam.
+ *
+ * `inputSchema` is a JSON-Schema-shaped object, kept as opaque data on
+ * purpose — the manifest is data, never code, so we do NOT embed a Zod
+ * schema here. The core passes it through to the agent/LLM as the tool's
+ * parameter description; the plugin runtime is responsible for validating
+ * its own args. `permission` is enforced by the core before dispatch and
+ * MUST also appear in the manifest's top-level `permissions` array (the
+ * loader does not cross-check this yet — see PLUGIN_SDK notes).
+ */
+export const ToolSchema = z.object({
+  /** Dotted, agent-facing tool name, e.g. "browser.navigate". */
+  name: z
+    .string()
+    .regex(/^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)+$/, "tool name must be dotted lowercase, e.g. browser.navigate"),
+  /** Human/LLM-readable description of what the tool does. */
+  description: z.string().default(""),
+  /** JSON-Schema object describing the tool's arguments. Opaque data to the core. */
+  inputSchema: z.record(z.string(), z.unknown()).default({}),
+  /** Permission the caller must hold to invoke this tool. */
+  permission: permission,
+});
+export type Tool = z.infer<typeof ToolSchema>;
+
+/**
  * The full plugin manifest.
  */
 export const PluginManifestSchema = z.object({
@@ -120,6 +147,13 @@ export const PluginManifestSchema = z.object({
   featureFlags: z.array(FeatureFlagSchema).default([]),
   settings: z.array(SettingSchema).default([]),
   jobs: z.array(JobSchema).default([]),
+  /**
+   * Agent-plane tools this plugin exposes. Optional and additive
+   * (manifestVersion stays 1 — a manifest without `tools` is still valid and
+   * defaults to an empty list). A plugin declaring tools SHOULD implement
+   * `invokeTool` on its runtime; see `Plugin.invokeTool` in plugin.ts.
+   */
+  tools: z.array(ToolSchema).default([]),
 
   // --- Runtime ---
   /** Entrypoint module (relative to the plugin package) exporting the Plugin. */

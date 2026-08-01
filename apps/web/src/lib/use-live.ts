@@ -1,0 +1,132 @@
+"use client";
+
+import * as React from "react";
+
+import type { PluginDetail, PluginSummary } from "@/lib/types";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
+
+/**
+ * Poll the core for live plugin data on an interval. Degrades gracefully: if a
+ * fetch fails (core down / network error) the previous snapshot is kept and
+ * `error` flips to true, so the UI never blanks out or throws mid-poll.
+ *
+ * This is the OR2-2 "live health" seam. Callers render health badges that
+ * update automatically as the core's health poller records new results.
+ */
+
+interface LiveState<T> {
+  data: T[] | null;
+  loading: boolean;
+  error: boolean;
+  lastUpdated: number | null;
+}
+
+function useLiveList<T>(path: string, intervalMs: number): LiveState<T> {
+  const [state, setState] = React.useState<LiveState<T>>({
+    data: null,
+    loading: true,
+    error: false,
+    lastUpdated: null,
+  });
+
+  const load = React.useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as T[];
+      setState({ data, loading: false, error: false, lastUpdated: Date.now() });
+    } catch {
+      // Keep the last good snapshot; only mark the first load as errored.
+      setState((prev) => ({
+        data: prev.data,
+        loading: false,
+        error: prev.data === null,
+        lastUpdated: prev.lastUpdated,
+      }));
+    }
+  }, [path]);
+
+  React.useEffect(() => {
+    let active = true;
+    void load();
+    const id = setInterval(() => {
+      if (active) void load();
+    }, intervalMs);
+    return () => {
+      active = false;
+      clearInterval(id);
+    };
+  }, [load, intervalMs]);
+
+  return state;
+}
+
+/** Live list of all plugins (polls `GET /api/plugins`). */
+export function useLivePlugins(intervalMs = 15000): LiveState<PluginSummary> {
+  return useLiveList<PluginSummary>("/plugins", intervalMs);
+}
+
+/** Live single-plugin detail (polls `GET /api/plugins/:id`). */
+export function useLivePluginDetail(
+  id: string | undefined,
+  intervalMs = 15000,
+): LiveState<PluginDetail> & { notFound: boolean } {
+  const [state, setState] = React.useState<LiveState<PluginDetail>>({
+    data: null,
+    loading: true,
+    error: false,
+    lastUpdated: null,
+  });
+  const [notFound, setNotFound] = React.useState(false);
+
+  const load = React.useCallback(async () => {
+    if (!id) return;
+    try {
+      const res = await fetch(`${API_BASE}/plugins/${encodeURIComponent(id)}`, { cache: "no-store" });
+      if (res.status === 404) {
+        setNotFound(true);
+        setState((prev) => ({ ...prev, loading: false, error: false }));
+        return;
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as PluginDetail;
+      setNotFound(false);
+      setState({ data: [data], loading: false, error: false, lastUpdated: Date.now() });
+    } catch {
+      setState((prev) => ({
+        data: prev.data,
+        loading: false,
+        error: prev.data === null,
+        lastUpdated: prev.lastUpdated,
+      }));
+    }
+  }, [id]);
+
+  React.useEffect(() => {
+    let active = true;
+    setNotFound(false);
+    void load();
+    const timer = setInterval(() => {
+      if (active) void load();
+    }, intervalMs);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [load, intervalMs]);
+
+  return { ...state, notFound };
+}
+
+/** Format a relative "last updated" string for the poll indicator. */
+export function formatAgo(timestamp: number | null): string {
+  if (!timestamp) return "never";
+  const seconds = Math.round((Date.now() - timestamp) / 1000);
+  if (seconds < 5) return "just now";
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ago`;
+}

@@ -23,6 +23,10 @@ export class PluginsController {
       permissions: p.manifest.permissions,
       navigation: p.manifest.navigation,
       error: p.error,
+      health: p.health ?? null,
+      healthCheckedAt: p.healthCheckedAt ?? null,
+      /** Agent-plane tool count; the full declarations live on the detail route. */
+      toolCount: p.manifest.tools.length,
     }));
   }
 
@@ -31,6 +35,22 @@ export class PluginsController {
   get(@Param("id") id: string) {
     const p = this.registry.get(id);
     if (!p) throw new NotFoundException(`No plugin "${id}"`);
-    return { ...p.manifest, state: p.state, error: p.error };
+    return {
+      ...p.manifest,
+      state: p.state,
+      error: p.error,
+      health: p.health ?? null,
+      healthCheckedAt: p.healthCheckedAt ?? null,
+      /**
+       * Declared agent-plane tools, spread explicitly (not just via
+       * `...p.manifest`) so this stays a deliberate, documented part of the
+       * read API rather than an accident of manifest shape. Read-only:
+       * invoking a tool is a separate, permission-checked route that lands
+       * with the RBAC layer in P2.
+       */
+      tools: p.manifest.tools,
+      /** True when the loaded runtime actually implements the invokeTool seam. */
+      supportsToolInvocation: typeof p.runtime.invokeTool === "function",
+    };
   }
 }
