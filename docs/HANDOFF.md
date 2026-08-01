@@ -43,6 +43,7 @@ Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
   - Round 2 — Nova: SDK `tools` (agent plane) + `invokeTool` seam + `browser-use` plugin (3 tools) + loader lifecycle events + `tools`/`toolCount` on the read API. Orion: plugin detail page, admin depth, live health polling. Atlas: `docker-compose.yml` (postgres/redis/api/web), Dockerfiles, `Makefile`, GitHub Actions CI.
   - **Verification (this session):** `pnpm build` 6/6, `typecheck` 7/7, `test` green (SDK 13 · browser-use 19 · CLI 9 · API 21 = **62**). Live API boot: health `ok`, browser-use exposes 3 tools, health poller works. Real Postgres: `Connected to Postgres (core schema)`, graceful degradation when tables absent. `docker compose config` valid; **both images build clean**.
 - **Working tree is CLEAN at `ee64bff`.** Nothing pushed. No cloud provisioned.
+- **P2 IN PROGRESS (managed subagents):** Auth (JWT/`@nestjs/jwt`+bcrypt) + RBAC/ABAC + audit + protected enable/disable endpoints + login UI. Full spec + shared API contract in `MASTER_PLAN.md §8 "P2 ROUND"`. Auth deps pre-installed. Orchestrator wires permission guards onto Nova's endpoints at integration (friends stay decoupled). VPS deferred — prove everything locally first (user decision 2026-08-01).
 - **Remaining Docker check:** a full 4-service `docker compose up --wait` from the freshly-built images (Atlas reports healthy; orchestrator confirmed config + image builds + real DB connection, but didn't re-run the full `up` this pass).
 
 ## 4. Repo layout (monorepo)
