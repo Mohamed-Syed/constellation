@@ -3,6 +3,7 @@ import { ConfigModule } from "@nestjs/config";
 import { AuditModule } from "./core/audit/audit.module.js";
 import { AuthModule } from "./core/auth/auth.module.js";
 import { DatabaseModule } from "./core/database/database.module.js";
+import { EngineModule } from "./core/engine/engine.module.js";
 import { EventsModule } from "./core/events/events.module.js";
 import { FederationModule } from "./core/federation/federation.module.js";
 import { HealthModule } from "./core/health/health.module.js";
@@ -45,6 +46,7 @@ import { SettingsModule } from "./core/settings/settings.module.js";
     MemoryModule,
     HealthModule,
     PluginsModule,
+    EngineModule,
   ],
 })
 export class AppModule {}

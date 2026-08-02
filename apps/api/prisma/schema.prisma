@@ -149,3 +149,76 @@ model AuditLog {
   @@map("audit_logs")
   @@schema("core")
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Engine v0 — Durable Task Runtime
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A unit of autonomous work queued to the agent engine. The BullMQ queue
+/// holds the job reference; this table is the durable record that survives
+/// API restarts and provides the audit/history trail.
+model AgentTask {
+  id          String    @id @default(cuid())
+  title       String
+  /// The instruction passed to the agent as the user message.
+  prompt      String
+  /// queued | running | paused | completed | failed | cancelled
+  status      String    @default("queued")
+  /// Model identifier forwarded to the model router. Null = use platform default.
+  model       String?
+  /// Provider that actually served the task, written on first step.
+  provider    String?
+  stepCount   Int       @default(0)
+  maxSteps    Int       @default(20)
+  /// User who submitted the task (null = system-initiated).
+  actorId     String?
+  /// Final summary / output written on completion.
+  result      Json?
+  /// Error message when status = "failed".
+  error       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  steps       TaskStep[]
+  checkpoint  TaskCheckpoint?
+
+  @@index([status, createdAt])
+  @@map("agent_tasks")
+  @@schema("core")
+}
+
+/// One step in an agent task's conversation history.
+/// type is one of: "thought" | "tool_call" | "tool_result" | "done" | "error"
+model TaskStep {
+  id         String    @id @default(cuid())
+  taskId     String
+  stepIndex  Int
+  type       String
+  /// Full step payload (LLM thought, tool call args, tool result, etc.).
+  content    Json
+  createdAt  DateTime  @default(now())
+
+  task       AgentTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, stepIndex])
+  @@map("task_steps")
+  @@schema("core")
+}
+
+/// The last known conversation state for a running/paused task.
+/// Written after every step so the worker can resume from here on restart.
+model TaskCheckpoint {
+  id         String    @id @default(cuid())
+  taskId     String    @unique
+  /// Full messages array at the time of checkpointing.
+  messages   Json
+  stepIndex  Int
+  updatedAt  DateTime  @updatedAt
+
+  task       AgentTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@map("task_checkpoints")
+  @@schema("core")
+}
