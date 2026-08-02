@@ -3,7 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import { Worker, type ConnectionOptions, type Job } from "bullmq";
 import { PluginRegistryService } from "../plugins/plugin-registry.service.js";
 import { PluginToolService } from "../plugins/plugin-tool.service.js";
-import { TokenBudget } from "./model-provider.js";
+import { TokenBudget, retryTransient } from "./model-provider.js";
 import type { ChatMessage } from "./model-router.service.js";
 import { ModelRouterService } from "./model-router.service.js";
 import { EngineAvailabilityService } from "./engine-availability.service.js";
@@ -57,6 +57,8 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
   private readonly approveAll: boolean;
   /** Default per-task token ceiling (overridable per task via `maxTokens`). */
   private readonly defaultTokenBudget: number;
+  /** Bounded retries for TRANSIENT model-call failures (Ollama hiccups). */
+  private readonly modelRetries: number;
 
   constructor(
     private readonly taskService: TaskService,
@@ -69,6 +71,7 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
     this.connection = buildRedisConnectionOptions(config.get("REDIS_URL", "redis://localhost:6379"));
     this.approveAll = config.get("ENGINE_REQUIRE_APPROVAL_ALL", "false") === "true";
     this.defaultTokenBudget = Number(config.get("ENGINE_MAX_TOKENS_PER_TASK", "100000"));
+    this.modelRetries = Number(config.get("ENGINE_MODEL_RETRIES", "3"));
   }
 
   async onModuleInit() {
@@ -185,9 +188,19 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
       }
 
       // ── Call model ──────────────────────────────────────────────────────
+      // Transient failures (network blips, 5xx, timeouts) are retried a
+      // bounded number of times with small backoff — a 1s Ollama hiccup must
+      // not kill a long task (Engine v0.1 Task 5). Terminal failures (4xx,
+      // unknown model) and retries exhausted fall through to markFailed.
       let rawResponse: string;
       try {
-        const response = await this.modelRouter.chat(messages, task.model ?? undefined);
+        const response = await retryTransient(
+          () => this.modelRouter.chat(messages, task.model ?? undefined),
+          {
+            maxAttempts: this.modelRetries,
+            delayMs: (attempt) => Math.min(500 * (attempt + 1), 2000),
+          },
+        );
         rawResponse = response.content;
 
         // Token budget: stop the task (honest terminal failure) the moment

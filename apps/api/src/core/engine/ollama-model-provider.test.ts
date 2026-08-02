@@ -138,6 +138,39 @@ describe("OllamaModelProvider — chat()", () => {
     await expect(svc.chat(messages)).rejects.toThrow(/Model router error: Ollama returned HTTP 500: connection refused to model/);
   });
 
+  it("classifies a 5xx as TRANSIENT (retryable) — Task 5", async () => {
+    stubFetch(async () => ({
+      ok: false,
+      status: 503,
+      json: vi.fn(async () => ({})),
+      text: vi.fn(async () => "model loading"),
+    } as unknown as Response));
+    const svc = new OllamaModelProvider(makeConfig());
+
+    await expect(svc.chat(messages)).rejects.toMatchObject({ transient: true });
+  });
+
+  it("classifies a 4xx as TERMINAL (fails immediately, no retry) — Task 5", async () => {
+    stubFetch(async () => ({
+      ok: false,
+      status: 404,
+      json: vi.fn(async () => ({})),
+      text: vi.fn(async () => "model 'nope' not found"),
+    } as unknown as Response));
+    const svc = new OllamaModelProvider(makeConfig());
+
+    await expect(svc.chat(messages)).rejects.toMatchObject({ transient: false });
+  });
+
+  it("classifies a network failure as TRANSIENT (retryable) — Task 5", async () => {
+    stubFetch(async () => {
+      throw new TypeError("fetch failed");
+    });
+    const svc = new OllamaModelProvider(makeConfig());
+
+    await expect(svc.chat(messages)).rejects.toMatchObject({ transient: true });
+  });
+
   it("wraps a network failure with the underlying message", async () => {
     stubFetch(async () => {
       throw new TypeError("fetch failed");

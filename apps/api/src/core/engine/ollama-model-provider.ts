@@ -1,6 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import type { ChatMessage, ChatResponse, ModelProvider, ModelRouterHealth } from "./model-provider.js";
+import { ModelCallError, type ChatMessage, type ChatResponse, type ModelProvider, type ModelRouterHealth } from "./model-provider.js";
 
 /**
  * Ollama model provider — the first ModelProvider implementation.
@@ -42,7 +42,12 @@ export class OllamaModelProvider implements ModelProvider {
 
       if (!res.ok) {
         const body = await res.text().catch(() => "");
-        throw new Error(`Ollama returned HTTP ${res.status}: ${body.slice(0, 200)}`);
+        // 5xx = Ollama overloaded/restarting → TRANSIENT (retryable);
+        // 4xx = unknown model / bad request → TERMINAL (fail immediately).
+        throw new ModelCallError(
+          `Model router error: Ollama returned HTTP ${res.status}: ${body.slice(0, 200)}`,
+          res.status >= 500,
+        );
       }
 
       const data = (await res.json()) as {
@@ -70,9 +75,15 @@ export class OllamaModelProvider implements ModelProvider {
             : undefined,
       };
     } catch (err) {
+      if (err instanceof ModelCallError) {
+        this.logger.error(`Ollama chat failed (model=${resolvedModel}): ${err.message}`);
+        throw err;
+      }
+      // Network failure / abort / anything unexpected from the transport is
+      // a TRANSIENT condition (Ollama hiccup) — the worker retries it.
       const message = err instanceof Error ? err.message : String(err);
       this.logger.error(`Ollama chat failed (model=${resolvedModel}): ${message}`);
-      throw new Error(`Model router error: ${message}`);
+      throw new ModelCallError(`Model router error: ${message}`, true);
     } finally {
       clearTimeout(timer);
     }

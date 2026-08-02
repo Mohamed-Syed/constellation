@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ModelProvider } from "./model-provider.js";
-import { TokenBudget } from "./model-provider.js";
+import { ModelCallError, TokenBudget, retryTransient } from "./model-provider.js";
 import { ModelRouterService, type ChatMessage } from "./model-router.service.js";
 
 /**
@@ -100,5 +100,67 @@ describe("TokenBudget — the per-task token ceiling (the promised 'budget cap')
     expect(budget.record(undefined)).toBe(true);
     expect(budget.record({})).toBe(true);
     expect(budget.used).toBe(0);
+  });
+});
+
+describe("retryTransient — bounded retry of TRANSIENT model failures (Task 5)", () => {
+  it("retries a transient failure until it succeeds, then returns the value", async () => {
+    const fn = vi
+      .fn()
+      .mockRejectedValueOnce(new ModelCallError("Model router error: fetch failed", true))
+      .mockResolvedValueOnce("ok");
+
+    await expect(
+      retryTransient(fn, { maxAttempts: 3, delayMs: () => 0 }),
+    ).resolves.toBe("ok");
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives up after the bounded retries are exhausted and propagates the error", async () => {
+    const fn = vi.fn().mockRejectedValue(new ModelCallError("Model router error: fetch failed", true));
+
+    await expect(
+      retryTransient(fn, { maxAttempts: 2, delayMs: () => 0 }),
+    ).rejects.toThrow("Model router error: fetch failed");
+    expect(fn).toHaveBeenCalledTimes(3); // initial + 2 retries
+  });
+
+  it("does NOT retry a TERMINAL failure (4xx / unknown model) — fails immediately", async () => {
+    const fn = vi
+      .fn()
+      .mockRejectedValueOnce(new ModelCallError("Model router error: Ollama returned HTTP 404: model not found", false))
+      .mockResolvedValueOnce("ok");
+
+    await expect(
+      retryTransient(fn, { maxAttempts: 3, delayMs: () => 0 }),
+    ).rejects.toThrow("HTTP 404");
+    expect(fn).toHaveBeenCalledTimes(1); // terminal → no retry
+  });
+
+  it("does NOT retry a non-ModelCallError (unexpected) failure", async () => {
+    const fn = vi.fn().mockRejectedValueOnce(new Error("boom")).mockResolvedValueOnce("ok");
+
+    await expect(retryTransient(fn, { maxAttempts: 3, delayMs: () => 0 })).rejects.toThrow("boom");
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("applies the backoff delay between retries", async () => {
+    const fn = vi
+      .fn()
+      .mockRejectedValueOnce(new ModelCallError("Model router error: fetch failed", true))
+      .mockResolvedValueOnce("ok");
+    const delays: number[] = [];
+    const started = Date.now();
+
+    await retryTransient(fn, {
+      maxAttempts: 3,
+      delayMs: (attempt) => {
+        delays.push(attempt);
+        return 30;
+      },
+    });
+
+    expect(delays).toEqual([0]); // one backoff for the one retry
+    expect(Date.now() - started).toBeGreaterThanOrEqual(30);
   });
 });

@@ -59,6 +59,54 @@ export interface ModelProvider {
   health(): Promise<ModelRouterHealth>;
 }
 
+/**
+ * A model-call failure. `transient` distinguishes the retryable class from
+ * the terminal one (Engine v0.1 Task 5): a 1-second Ollama hiccup (network
+ * blip, 5xx, slow cold-load timeout) must NOT kill a long task, while a 4xx
+ * (unknown model, bad request) is terminal and must fail immediately.
+ */
+export class ModelCallError extends Error {
+  constructor(
+    message: string,
+    readonly transient: boolean,
+  ) {
+    super(message);
+    this.name = "ModelCallError";
+  }
+}
+
+/** Bounded retry of transient model-call failures (Engine v0.1 Task 5). */
+export interface RetryOptions {
+  /** Retries AFTER the first failure (total calls = maxAttempts + 1). */
+  maxAttempts: number;
+  /** Backoff in ms for each retry, keyed by the attempt index (0-based). */
+  delayMs: (attempt: number) => number;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Runs `fn`, retrying only `ModelCallError` failures marked `transient`,
+ * up to `maxAttempts` retries with the given backoff. Terminal errors
+ * (non-transient) and retries exhausted propagate immediately — the caller
+ * (AgentWorkerService) turns the final failure into an honest task failure.
+ */
+export async function retryTransient<T>(fn: () => Promise<T>, options: RetryOptions): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      const retryable = err instanceof ModelCallError && err.transient;
+      if (!retryable || attempt >= options.maxAttempts) throw err;
+      await sleep(options.delayMs(attempt));
+    }
+  }
+}
+
 /** NestJS multi-provider token — ModelRouterService injects ModelProvider[]. */
 export const MODEL_PROVIDERS = Symbol("MODEL_PROVIDERS");
 
