@@ -5,7 +5,8 @@ import Link from "next/link";
 import { Activity, Boxes, ClipboardList, Loader2, Lock, Search, ShieldCheck, Users } from "lucide-react";
 
 import type { PlatformHealth, PluginState, PluginSummary } from "@/lib/types";
-import type { FederatedCatalog } from "@/lib/federated-tools";
+import type { FederatedTool } from "@/lib/federated";
+import { fetchFederatedModules } from "@/lib/federated";
 import { cn } from "@/lib/utils";
 import { getPlugins } from "@/lib/api";
 import { disablePlugin, enablePlugin } from "@/lib/plugin-actions";
@@ -30,7 +31,6 @@ import {
   stateBadgeVariant,
   stateLabel,
 } from "@/components/modules/plugin-state";
-import { federatedStatusLabel, federatedStatusVariant } from "@/components/modules/federated-tool-tile";
 
 /** Either permission unlocks plugin enable/disable — matches `lib/nav.ts`'s Admin nav gate. */
 const MANAGE_PLUGINS_PERMISSIONS = ["core:plugin:manage", "platform:admin"];
@@ -38,8 +38,7 @@ const MANAGE_PLUGINS_PERMISSIONS = ["core:plugin:manage", "platform:admin"];
 type StateFilter = "all" | PluginState;
 type HealthFilter = "all" | "ok" | "degraded" | "down" | "unknown";
 
-function PlatformSummary({ health, federated }: { health: PlatformHealth | null; federated: FederatedCatalog }) {
-  const liveFederated = federated.tools.filter((t) => t.status === "live").length;
+function PlatformSummary({ health, federated }: { health: PlatformHealth | null; federated: FederatedTool[] }) {
   const cards = [
     {
       label: "Platform status",
@@ -61,9 +60,9 @@ function PlatformSummary({ health, federated }: { health: PlatformHealth | null;
     },
     {
       label: "Federated tools",
-      value: federated.tools.length === 0 ? "—" : `${liveFederated}/${federated.tools.length} live`,
+      value: federated.length === 0 ? "—" : `${federated.length}`,
       icon: Boxes,
-      tone: federated.tools.length === 0 ? ("neutral" as const) : liveFederated > 0 ? ("success" as const) : ("warning" as const),
+      tone: federated.length === 0 ? ("neutral" as const) : ("success" as const),
     },
     {
       label: "Uptime",
@@ -106,11 +105,9 @@ function HealthPill({ plugin }: { plugin: PluginSummary }) {
 export function AdminConsole({
   health,
   plugins: initialPlugins,
-  federated,
 }: {
   health: PlatformHealth | null;
   plugins: PluginSummary[];
-  federated: FederatedCatalog;
 }) {
   const { token, permissions } = useAuth();
   const canManagePlugins = hasAnyPermission(permissions, MANAGE_PLUGINS_PERMISSIONS);
@@ -126,6 +123,19 @@ export function AdminConsole({
 
   const [pendingIds, setPendingIds] = React.useState<Set<string>>(new Set());
   const [rowErrors, setRowErrors] = React.useState<Record<string, string>>({});
+
+  // Federated catalog is authenticated — fetch it client-side with the bearer
+  // token (the /api/federation/modules route requires auth). Degrades to [].
+  const [federated, setFederated] = React.useState<FederatedTool[]>([]);
+  React.useEffect(() => {
+    let active = true;
+    void fetchFederatedModules(token).then((m) => {
+      if (active) setFederated(m);
+    });
+    return () => {
+      active = false;
+    };
+  }, [token]);
 
   const handleToggle = React.useCallback(
     async (plugin: PluginSummary) => {
@@ -311,53 +321,47 @@ export function AdminConsole({
 }
 
 /**
- * Federation readiness (P3 portal federation depth). Shows the federated tool
- * catalog's live status and where it was sourced from. SSO + reverse proxy are a
- * later P3 item, so this is a read-only posture view — no invented endpoints.
+ * Federation readiness (P3 portal federation depth). Shows the live federated
+ * module catalog fetched from `GET /api/federation/modules`. SSO + reverse proxy
+ * are configured in the API's `config/modules.yaml` / docker-compose — this is a
+ * read-only posture view. No endpoints are invented here.
  */
-function FederationReadiness({ catalog }: { catalog: FederatedCatalog }) {
-  const sourceLabel =
-    catalog.source === "remote"
-      ? "Remote (NEXT_PUBLIC_FEDERATED_MODULES_URL)"
-      : catalog.source === "local"
-        ? "Local (apps/web/public/modules.yaml)"
-        : "Not configured";
-
-  const byStatus = catalog.tools.reduce<Record<string, number>>((acc, t) => {
-    acc[t.status] = (acc[t.status] ?? 0) + 1;
-    return acc;
-  }, {});
+function FederationReadiness({ catalog }: { catalog: FederatedTool[] }) {
+  const ssoCount = catalog.filter((m) => m.sso).length;
+  const embeddableCount = catalog.filter((m) => m.embeddable).length;
+  const gatedCount = catalog.filter((m) => m.requiresPermissions.length > 0).length;
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Federated tools</CardTitle>
         <CardDescription>
-          Heavyweight platforms surfaced as tiles on the <Link href="/tools" className="text-accent hover:underline">Tools</Link> page. SSO + reverse proxy are a later P3 item.
+          Heavyweight platforms surfaced as tiles on the <Link href="/tools" className="text-accent hover:underline">Tools</Link> page, sourced live from the API&apos;s federation registry.
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-0">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm">
           <div>
-            <p className="text-xs uppercase tracking-wide text-neutral-400 dark:text-neutral-500">Source</p>
-            <p className="mt-0.5 font-medium">{sourceLabel}</p>
+            <p className="text-xs uppercase tracking-wide text-neutral-400 dark:text-neutral-500">Modules</p>
+            <p className="mt-0.5 font-medium">{catalog.length}</p>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-wide text-neutral-400 dark:text-neutral-500">Tools</p>
-            <p className="mt-0.5 font-medium">{catalog.tools.length}</p>
+            <p className="text-xs uppercase tracking-wide text-neutral-400 dark:text-neutral-500">SSO</p>
+            <p className="mt-0.5 font-medium">{ssoCount}</p>
           </div>
-          {catalog.tools.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {Object.entries(byStatus).map(([status, count]) => (
-                <Badge key={status} variant={federatedStatusVariant(status as FederatedCatalog["tools"][number]["status"])}>
-                  {count} {federatedStatusLabel(status as FederatedCatalog["tools"][number]["status"]).toLowerCase()}
-                </Badge>
-              ))}
-            </div>
-          ) : null}
+          <div>
+            <p className="text-xs uppercase tracking-wide text-neutral-400 dark:text-neutral-500">Embeddable</p>
+            <p className="mt-0.5 font-medium">{embeddableCount}</p>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-wide text-neutral-400 dark:text-neutral-500">Permission-gated</p>
+            <p className="mt-0.5 font-medium">{gatedCount}</p>
+          </div>
         </div>
-        {catalog.note ? (
-          <p className="mt-3 text-xs text-neutral-400 dark:text-neutral-500">{catalog.note}</p>
+        {catalog.length === 0 ? (
+          <p className="mt-3 text-xs text-neutral-400 dark:text-neutral-500">
+            No federated modules returned. Add entries to the API&apos;s <code>config/modules.yaml</code> and restart the core.
+          </p>
         ) : null}
       </CardContent>
     </Card>

@@ -88,8 +88,28 @@ Edited:
 > work inside `apps/web/**` + `docs/*` (never `docs/MASTER_PLAN.md`). No `git`,
 > no `pnpm install`/`pnpm add`, no `shadcn` CLI (web deps already installed).
 > Build/typecheck via `./node_modules/.bin/turbo` (pnpm is broken on this host).
+>
+> **⚠️ RECONCILED TO REAL CONTRACTS (2026-08-02, Orion — UNCOMMITTED, pending
+> orchestrator merge).** The original Round 3 plan below was written *before*
+> the orchestrator's P3+P4 slice was committed (git `a07dd25`), which actually
+> built the backend endpoints I had assumed were absent. The portal code was
+> rewritten to consume those real contracts instead of inventing parallel ones:
+> - Federation: the portal now calls **`GET /api/federation/modules`** (Bearer-auth;
+>   returns `FederatedModuleDto[]` from the API's `config/modules.yaml`) — it does
+>   **NOT** parse `modules.yaml` itself. The old `src/lib/federated-tools.ts` YAML
+>   parser, `src/lib/federated-api.ts`, and `apps/web/public/modules.yaml` were
+>   **deleted**; replaced by `src/lib/federated.ts` (`fetchFederatedModules`).
+> - Tool invoke: the form now POSTs to **`POST /api/plugins/:id/invoke`** with
+>   body `{ tool, args }` (two-layer authz: route `core:plugin:manage` + the tool's
+>   own `permission`; returns 200 with a ToolResult envelope even on tool failure).
+>   The assumed `POST /api/plugins/:id/tools/:toolName/invoke` endpoint never
+>   existed — corrected to the real one.
+> - `NEXT_PUBLIC_FEDERATED_MODULES_URL` was removed from `.env.example` (no longer used).
+> The "Assumed / documented-but-not-yet-built backend contracts" subsection below
+> is therefore **superseded**; keep it only as a historical note. See the
+> per-file list further down for the reconciled file set.
 
-### Assumed / documented-but-not-yet-built backend contracts (degraded gracefully)
+### Assumed / documented-but-not-yet-built backend contracts (SUPERSEDED — see addendum above)
 These endpoints/features do not exist in `apps/api` yet (confirmed by reading the
 controller + grepping the api tree). The UI is built to the documented shape and
 degrades when they 404 / are absent — **no endpoints were invented**:
@@ -105,36 +125,42 @@ degrades when they 404 / are absent — **no endpoints were invented**:
   dependency-free YAML reader scoped to the `tools:` list (js-yaml is NOT
   installed and was deliberately not added — the rules forbid new deps).
 
-### Files added (all under `apps/web/**`)
-- `src/lib/federated-tools.ts` — types (`FederatedTool`, `FederatedCatalog`,
-  `FederatedToolStatus`) + a scoped, dependency-free YAML parser for the
-  `tools:` block (tolerates missing/extra keys, block scalars, quoted values).
-- `src/lib/federated-api.ts` — `getFederatedTools()` (remote→local fallback,
-  never throws; returns `source: "none"` when unconfigured).
+### Files added (all under `apps/web/**`) — RECONCILED SET
+- `src/lib/federated.ts` — `fetchFederatedModules(token)` (client fetch of
+  `GET /api/federation/modules`, Bearer-auth, degrades to `[]`; filters
+  `display:"hidden"`), the `FederatedTool` view type, and `canOpenModule()`.
+- `src/app/tools/page.tsx` — new `/tools` route (client component): grouped
+  federated catalog fetched via `useAuth().token`, empty/degraded states.
 - `src/components/modules/federated-tool-tile.tsx` — `FederatedToolTile` (card;
-  opens `url` in a new tab when live/openable, else a non-interactive placeholder).
-- `src/app/tools/page.tsx` — new `/tools` route: grouped federated catalog with
-  empty/degraded states + source footnote.
-- `apps/web/public/modules.yaml` — sample catalog (Grafana/Langflow/Open WebUI/
-  Coolify/OpenHands/Graphify) so the surface is populated by default.
+  links to the module's proxied `path`; SSO/embeddable/permission badges; locked
+  state when the caller lacks `requiresPermissions`).
 - `src/components/modules/plugin-tools-panel.tsx` — `PluginToolsPanel`: renders
   each declared agent-plane tool with a JSON `args` textarea + Invoke button wired
-  to the documented invoke route; degrades to "coming soon" on 404, shows
-  permission gating, renders the result/error.
+  to `POST /api/plugins/:id/invoke`; shows the result/error envelope, permission
+  gating, and unreachable/forbidden states.
 - `src/components/shell/session-guard.tsx` — `SessionGuard`: polls `/api/auth/me`
   every 60s; on 401/403 logs out + redirects to `/login`; on unreachable shows a
-  non-blocking banner and flags `apiUnreachable` (no forced logout).
+  non-blocking banner and flags `apiUnreachable`.
+
+### Files deleted (superseded by the reconciled design)
+- `src/lib/federated-tools.ts` — hand-rolled YAML parser + `FederatedCatalog`
+  (the portal no longer parses `modules.yaml`).
+- `src/lib/federated-api.ts` — local/remote YAML loader (replaced by API fetch).
+- `apps/web/public/modules.yaml` — sample catalog (source of truth is now the
+  API's `config/modules.yaml`).
 
 ### Files edited (all under `apps/web/**`)
-- `src/lib/icons.ts` — added `MessagesSquare` + `Share2` (used by `modules.yaml`).
+- `src/lib/icons.ts` — added icons used by federation tiles (`Boxes`, `Share2`, etc.).
 - `src/lib/nav.ts` — added a "Tools" core platform nav entry (`/tools`, `Boxes`).
-- `src/lib/tool-invoke.ts` — `invokeTool()` + `canInvokeTool()` (invoke contract).
+- `src/lib/tool-invoke.ts` — `invokeTool()` + `canInvokeTool()` rewritten to the
+  real `POST /api/plugins/:id/invoke` contract (was assumed `:tools/:toolName/invoke`).
 - `src/components/modules/plugin-detail-view.tsx` — replaced the inline Tools tab
   with `<PluginToolsPanel>`; added `defaultTab` prop (honors `?tab=tools`).
-- `src/components/admin/admin-console.tsx` — added a "Federated tools" summary
-  card to `PlatformSummary` + a `FederationReadiness` section (source + live
-  status counts); accepts a `federated` prop.
-- `src/app/admin/page.tsx` — fetches `getFederatedTools()` and passes to console.
+- `src/components/admin/admin-console.tsx` — `PlatformSummary` "Federated tools"
+  count now comes from the live catalog; `FederationReadiness` shows module/SSO/
+  embeddable/permission-gated counts (fetched client-side via `useAuth().token`).
+- `src/app/admin/page.tsx` — no longer passes a `federated` prop; the catalog is
+  fetched client-side inside `AdminConsole`.
 - `src/components/auth/auth-provider.tsx` — exposed `setApiUnreachable` on context.
 - `src/components/providers.tsx` — wrapped children in `SessionGuard`.
 - `src/app/login/page.tsx` — inline "session ended / unreachable" hint when bounced
@@ -143,25 +169,42 @@ degrades when they 404 / are absent — **no endpoints were invented**:
   passes `defaultTab` (supports the ⌘K "plugin · tools" jump).
 - `src/components/shell/command-palette.tsx` — ⌘K now jumps to any plugin's Tools
   tab (`<name> · tools`) in addition to its overview.
-- `.env.example` — documented `NEXT_PUBLIC_FEDERATED_MODULES_URL`.
+- `.env.example` — removed `NEXT_PUBLIC_FEDERATED_MODULES_URL`; federation is served
+  by the API (`GET /api/federation/modules`), no extra portal env needed.
 
 ### Verification (real runs)
 - **Build:** `./node_modules/.bin/turbo run build --filter=@constellation/web`
-  → **1 successful**. New route `/tools` compiles alongside the existing routes.
+  → **1 successful** (clean `.next` required on this Windows host; a stale
+  `.next` from a killed `next dev` causes an intermittent `ENOENT` on a
+  `*-manifest.json` at the trace step — `rm -rf apps/web/.next` clears it). New
+  route `/tools` compiles alongside the existing routes.
 - **Typecheck:** `./node_modules/.bin/turbo run typecheck --filter=@constellation/web`
   → **1 successful** (`tsc --noEmit` clean).
-- **Live degradation (API down):** started `next dev` with `NEXT_PUBLIC_API_URL`
-  pointed at a dead port. All routes returned **200** with friendly empty states —
-  no 500s: `/tools` → empty catalog card; `/admin` → platform summary with
-  "Federated tools: —" + "Not configured"; `/modules/<id>` → "Module unavailable";
-  the Tools tab form renders "Coming soon" because the invoke route 404s.
-- **Live with API up:** `/tools` renders the 6 sample tiles grouped by category,
-  links open in a new tab; `/admin` shows `Federated tools: N/M live`; ⌘K lists
-  each plugin's `· tools` jump.
+- **Live with API up (a07dd25):** booted the API (`API_PORT=4001 node dist/main.js`,
+  no DB) + `next dev` pointed at it. Confirmed:
+  - `/tools` renders the federated tiles from `GET /api/federation/modules`
+    (Grafana/Langflow/Open WebUI/Coolify via `config/modules.yaml`), grouped by
+    category, each linking to its proxied `path`.
+  - `/modules/browser-use?tab=tools` renders the Tools tab with the
+    `browser.navigate`/`act`/`extract` tools + Invoke form.
+  - `/admin` "Federated tools" count + `FederationReadiness` counts come from the
+    live catalog (fetched client-side with the bearer token).
+- **Live degradation (API down):** `next dev` pointed at a dead port. All routes
+  returned **200** with friendly empty states — no 500s: `/tools` → empty catalog
+  card (or "couldn't reach the registry" when a token is present); `/admin` →
+  platform summary with "Federated tools: —"; `/modules/<id>` → "Module unavailable";
+  the Tools-tab Invoke form shows a clear error (unreachable/forbidden) instead of
+  a false "Coming soon", because the real `POST /api/plugins/:id/invoke` route now
+  exists and is what the form targets.
 
 ### What was NOT done (by design)
-- No `POST /api/plugins/:id/tools/:toolName/invoke` endpoint was created (Atlas/
-  Nova lane, later round) — the form degrades to "coming soon" on 404.
-- No `GET /api/federated-tools` endpoint — catalog is read from `modules.yaml`
-  (remote or local). The remote URL is an accepted seam for a future overlay.
-- No `git`/install/CI changes. Nothing committed or pushed (standing rule).
+- No backend endpoints were created or modified — the portal consumes the
+  orchestrator's `a07dd25` contracts (`GET /api/federation/modules`,
+  `POST /api/plugins/:id/invoke`). Invoking a tool still requires a plugin whose
+  runtime implements `invokeTool()` (browser-use/graphify declare tools but the
+  reference runtime may not implement the seam yet — the server returns a clear
+  200 `{ ok:false }` envelope in that case, which the UI surfaces as an error).
+- No SSO round-trip / reverse-proxy embedding proven in the portal (the API's
+  `config/modules.yaml` + `docker-compose.federation.yml` exist but are unrun).
+- No `git`/install/CI changes. Nothing committed or pushed (standing rule); the
+  reconciled portal code is **UNCOMMITTED** pending the orchestrator's merge.

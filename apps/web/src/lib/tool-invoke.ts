@@ -1,27 +1,34 @@
+import type { PluginSummary } from "./types";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
 
 /**
  * Invoke an agent-plane tool exposed by a plugin.
  *
- * CONTRACT (documented, not yet implemented server-side as of this writing —
- * see `apps/api/src/core/plugins/plugins.controller.ts`'s `toDetail()` which
- * notes "invoking a tool is a separate, permission-checked route (later
- * round)"). We build the UI against the expected shape:
+ * CONTRACT (see `apps/api/src/core/plugins/plugins.controller.ts` +
+ * `plugin-tool.service.ts`, added in the P3/P4 slice):
  *
- *   POST /api/plugins/:id/tools/:toolName/invoke
+ *   POST /api/plugins/:id/invoke
  *   Authorization: Bearer <token>
- *   body: { args: Record<string, unknown> }
- *   → 200 { ok: true, result: unknown }
- *   → 401/403 if the caller lacks the tool's `permission`
- *   → 404 if the tool or the invoke route doesn't exist yet (expected today)
- *   → 400 { ok:false, error } for invalid args, surfaced to the form
+ *   body: { "tool": "<toolName>", "args"?: Record<string, unknown> }
+ *   → 200 { pluginId, tool, durationMs, ...ToolResult }   // ToolResult = { ok, ... }
+ *          (a tool returning { ok:false } is STILL HTTP 200 — it's a completed call)
+ *   → 401 / 403  forbidden (lacks core:plugin:manage or the tool's own permission)
+ *   → 404  plugin or tool not declared
+ *   → 409  plugin not enabled
+ *   → 400  invalid body
  *
- * We never throw to the caller: a discriminated result drives the form's UI,
- * and a 404 cleanly flips the form into a "coming soon" state.
+ * Authorization is TWO-LAYERED: the route requires `core:plugin:manage`, and
+ * `PluginToolService` additionally enforces the tool's manifest `permission`.
+ * We never throw to the caller: a discriminated result drives the form's UI.
  */
 export type InvokeOutcome =
-  | { ok: true; result: unknown }
-  | { ok: false; reason: "unauthenticated" | "unauthorized" | "not-found" | "bad-args" | "unreachable" | "unknown"; message: string };
+  | { ok: true; result: unknown; durationMs?: number }
+  | {
+      ok: false;
+      reason: "unauthenticated" | "forbidden" | "not-found" | "not-enabled" | "bad-args" | "unreachable" | "tool-error" | "unknown";
+      message: string;
+    };
 
 export async function invokeTool(
   pluginId: string,
@@ -33,52 +40,47 @@ export async function invokeTool(
     return { ok: false, reason: "unauthenticated", message: "You must be signed in to invoke tools." };
   }
   try {
-    const res = await fetch(
-      `${API_BASE}/plugins/${encodeURIComponent(pluginId)}/tools/${encodeURIComponent(toolName)}/invoke`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ args }),
-      },
-    );
-    if (res.status === 404) {
-      // The invoke route isn't wired yet (expected) — degrade to "coming soon".
-      return { ok: false, reason: "not-found", message: "Tool invocation isn't available yet." };
-    }
+    const res = await fetch(`${API_BASE}/plugins/${encodeURIComponent(pluginId)}/invoke`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ tool: toolName, args }),
+    });
+
     if (res.status === 401 || res.status === 403) {
-      return { ok: false, reason: "unauthorized", message: "You don't have permission to invoke this tool." };
+      return { ok: false, reason: "forbidden", message: "You don't have permission to invoke this tool." };
+    }
+    if (res.status === 404) {
+      return { ok: false, reason: "not-found", message: "This plugin or tool wasn't found on the server." };
+    }
+    if (res.status === 409) {
+      return { ok: false, reason: "not-enabled", message: "This plugin isn't enabled — its tools are unavailable." };
     }
     if (res.status === 400) {
-      const body = (await safeJson(res)) as { error?: string } | null;
-      return { ok: false, reason: "bad-args", message: body?.error ?? "Invalid arguments." };
+      return { ok: false, reason: "bad-args", message: "The request was rejected (invalid arguments)." };
     }
     if (!res.ok) {
       return { ok: false, reason: "unknown", message: `Invocation failed (HTTP ${res.status}).` };
     }
-    const body = (await safeJson(res)) as { result?: unknown } | null;
-    return { ok: true, result: body?.result ?? null };
+
+    const body = (await res.json()) as { tool: string; durationMs?: number; ok?: boolean; error?: string; result?: unknown };
+    // The endpoint returns 200 with a ToolResult envelope ({ ok, ... }) even when
+    // the tool call itself failed — so we surface the envelope as the result.
+    return {
+      ok: true,
+      result: body.result ?? body,
+      durationMs: typeof body.durationMs === "number" ? body.durationMs : undefined,
+    };
   } catch {
     return { ok: false, reason: "unreachable", message: "Can't reach the Constellation API." };
   }
 }
 
-async function safeJson(res: Response): Promise<unknown> {
-  try {
-    return await res.json();
-  } catch {
-    return null;
-  }
-}
-
 /** True when the user holds the tool's required permission (per `lib/permissions`). */
 export function canInvokeTool(toolPermission: string, heldPermissions: readonly string[]): boolean {
-  // Re-implement the match inline to avoid a circular import with permissions.ts.
-  const has = (required: string): boolean =>
-    heldPermissions.some((h) => {
-      if (h === required) return true;
-      if (h === "platform:admin") return true;
-      if (h.endsWith(":*")) return required.startsWith(h.slice(0, -1));
-      return false;
-    });
-  return has(toolPermission);
+  return heldPermissions.some((h) => {
+    if (h === toolPermission) return true;
+    if (h === "platform:admin") return true;
+    if (h.endsWith(":*")) return toolPermission.startsWith(h.slice(0, -1));
+    return false;
+  });
 }

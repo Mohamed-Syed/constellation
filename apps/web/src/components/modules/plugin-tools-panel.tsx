@@ -83,18 +83,21 @@ function ToolRow({ pluginId, tool }: { pluginId: string; tool: PluginTool }) {
     const res = await invokeTool(pluginId, tool.name, parsedArgs.value, token);
     setSubmitting(false);
     if (res.ok) {
-      setOutcome({ kind: "ok", result: res.result });
-    } else {
-      // 404 → "coming soon" (route not wired yet). Other reasons stay as errors.
-      if (res.reason === "not-found") {
-        setOutcome({ kind: "error", message: "Tool invocation isn't available yet on the server." });
+      // The endpoint returns 200 with a ToolResult envelope even when the tool
+      // call itself failed (e.g. the plugin didn't implement invokeTool). Surface
+      // the envelope's own `ok`/`error` rather than a false "success".
+      const envelope = res.result as { ok?: boolean; error?: string } | undefined;
+      if (envelope && envelope.ok === false) {
+        setOutcome({ kind: "error", message: envelope.error ?? "The tool returned a failure with no details." });
       } else {
-        setOutcome({ kind: "error", message: res.message });
+        setOutcome({ kind: "ok", result: res.result });
       }
+    } else {
+      setOutcome({ kind: "error", message: res.message });
     }
   }
 
-  const isComingSoon = outcome?.kind === "error" && outcome.message.startsWith("Tool invocation isn't");
+  const isComingSoon = false;
 
   return (
     <li className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
@@ -130,7 +133,7 @@ function ToolRow({ pluginId, tool }: { pluginId: string; tool: PluginTool }) {
           rows={2}
           placeholder='{ "key": "value" }'
           spellCheck={false}
-          disabled={isComingSoon || !canInvoke}
+          disabled={!canInvoke || submitting || Boolean(parsedArgs.error)}
           className="w-full resize-y rounded-lg border border-neutral-200 bg-white px-3 py-2 font-mono text-xs shadow-sm transition-colors placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-800 dark:bg-neutral-900"
         />
 

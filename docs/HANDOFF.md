@@ -57,15 +57,19 @@ Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
     denials**; args/results deliberately never logged. New third capability plugin
     **`plugins/graphify`** (`graph.query` / `graph.related` / `graph.ingest` over MCP JSON-RPC),
     unconfigured-safe.
-  - **Orion — portal federation UX:** `/tools` federated tile page, `federated-tool-tile`,
-    `plugin-tools-panel` (tool-invoke UI), `session-guard`, `federated-api`/`federated-tools` libs.
+  - **Orion — portal federation UX (reconciled to the real API contracts, UNCOMMITTED pending orchestrator merge):**
+    `/tools` federated tile page + `federated-tool-tile` (consume `GET /api/federation/modules`,
+    Bearer-auth; tiles link to each module's proxied `path`), `plugin-tools-panel` (tool-invoke UI →
+    `POST /api/plugins/:id/invoke` with `{ tool, args }`, two-layer authz), `session-guard`, and
+    `lib/federated.ts` + `lib/tool-invoke.ts` clients. The portal does NOT parse `modules.yaml`
+    itself — it reads the API's registry. Admin "Federated tools" summary pulls the live catalog.
   - **Orchestrator wiring:** `config/modules.yaml` federated registry + `core/federation`
     (`GET /api/federation/modules | /:id | /status`) mounted in `AppModule`; **fixed the
     `pnpm-lock.yaml` missing `plugins/graphify` importer** (turbo warned "workspace not found in
     lockfile" — CI's `--frozen-lockfile` would have failed).
   - **Gates:** build **7/7** · typecheck **8/8** · test **169** (sdk 13, cli 9, browser-use 25,
     api 95, graphify 27) — all run `--force --concurrency=1`. Live boot + real-Postgres pass. See §9.
-- **Working tree CLEAN at `a07dd25`** (plus this doc update). Nothing pushed. No cloud provisioned. **VPS deferred** — prove everything locally first (user decision 2026-08-01).
+- **Working tree CLEAN at `a07dd25`** (plus this doc update + Orion's uncommitted portal reconciliation). Nothing pushed. No cloud provisioned. **VPS deferred** — prove everything locally first (user decision 2026-08-01).
 - **⚠️ ENVIRONMENT GOTCHAS (confirmed again 2026-08-02 — read before verifying):**
   1. **`pnpm` is broken on this host.** `corepack enable && pnpm install` dies with
      `MODULE_NOT_FOUND` on a mangled `C:\c\Users\...\corepack\dist\pnpm.js` path. Use
