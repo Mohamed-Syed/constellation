@@ -456,6 +456,41 @@ engine files · 1b portal `/engine` page (Orion's lane) · Ollama integration te
 
 ## 9. Verification log
 
+- **2026-08-02 — 🤖 ENGINE v0.1 — HARDEN & GATE round, TASK 5 of 5: bounded retry of transient model errors + redis-connection dedup
+  (git `d5901ba`, local only) — clau_partner (orchestrating solo).**
+  - **The defect (Polaris's review):** transient model failures were TERMINAL — the worker
+    `markFailed`+returned on ANY model error (agent-worker.service.ts ~156-160), while BullMQ's
+    `attempts:3` only fires on a THROWN infra error. A 1-second Ollama hiccup killed a long task.
+    Plus duplicated code: `parseRedisUrl` + `RedisConnectionOptions` were copy-pasted in both
+    `task-queue.service.ts` and `agent-worker.service.ts`.
+  - **What shipped:**
+    - **5a — bounded retry of TRANSIENT failures:** NEW `ModelCallError` (carries a `transient`
+      flag) in `model-provider.ts`; `OllamaModelProvider` classifies **5xx / network failure /
+      timeout as TRANSIENT** and **4xx (unknown model, bad request) as TERMINAL**. NEW
+      `retryTransient()` — retries only `transient` errors up to `ENGINE_MODEL_RETRIES` (default
+      3) with small backoff (`500ms * attempt`, capped 2s); terminal failures and exhausted
+      retries propagate to the existing honest `markFailed` path. The worker's model call is now
+      wrapped in it. `.env.example` documents the env.
+    - **5b — redis-connection dedup:** already extracted in Task 1 (`apps/api/src/core/engine/
+      redis-connection.ts` — the shared util both services import). VERIFIED this round: neither
+      service defines its own `parseRedisUrl`/`RedisConnectionOptions` anymore; both import
+      `buildRedisConnectionOptions` from the single util. No code change needed.
+  - **Gates (`--force --concurrency=1`):** lint/build/typecheck/test **20/20**; api tests **247**
+    (was 239; +8: retryTransient 5 — retry-until-success / bounded-exhaustion / no-retry-on-
+    terminal / no-retry-on-unexpected / backoff applied — and Ollama classification 3 — 5xx
+    transient, 4xx terminal, network transient).
+  - **LIVE acceptance — RUN against a fake-Ollama shim (real worker + router + Postgres + Redis,
+    api:4001):**
+    - Shim answers the FIRST `/api/chat` with **503** then succeeds → task **COMPLETED**
+      (`[0] done: survived the 503 hiccup`); exactly ONE `HTTP 503` line in the log (the retry
+      evidence — the pre-fix behavior would have failed the task on the first 503).
+    - Shim answers `/api/chat` for model `does-not-exist` with **404** → task **FAILED
+      terminally** with `Model router error: Ollama returned HTTP 404: {"error":"model
+      'does-not-exist' not found"}` — no retry, no hang.
+  - **Honest notes:** the retry is per model-call within a step (not per step), and the backoff is
+    intentionally small; a provider that hangs for the full MODEL_TIMEOUT_MS will still retry
+    (up to the bound), which is the documented trade for surviving hiccups.
+
 - **2026-08-02 — 🤖 ENGINE v0.1 — HARDEN & GATE round, TASK 4 of 5: portal API base :4001 + startup identity banner
   (git `0c41813`, local only) — clau_partner (orchestrating solo).**
   - **The defect (Polaris's review, D-2 left unfinished):** `GET /api/identity` existed (added in the
