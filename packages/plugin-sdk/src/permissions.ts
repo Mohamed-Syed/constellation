@@ -17,6 +17,10 @@ export const CorePermissions = {
   SETTINGS_MANAGE: "core:settings:manage",
   AUDIT_READ: "core:audit:read",
   FEATURE_FLAG_MANAGE: "core:feature-flag:manage",
+  // The brain (memory & knowledge graph) — see docs/BRAIN.md.
+  // Added additively in SDK 0.2.0; no existing permission changed.
+  BRAIN_READ: "core:brain:read",
+  BRAIN_WRITE: "core:brain:write",
   // Baseline
   AUTHENTICATED: "core:authenticated",
 } as const;

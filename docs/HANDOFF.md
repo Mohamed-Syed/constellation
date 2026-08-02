@@ -8,7 +8,7 @@
 > §1 and keep BOTH this file and `docs/MASTER_PLAN.md` up to date at every
 > milestone — same discipline the primary session follows.**
 >
-> **Last updated:** 2026-08-02 (Polaris review pass; Orion federated-lib refactor checkpointed at git `b5f82b2`; P3+P4 at `a07dd25`) · **Updated by:** Polaris (lead orchestrator)
+> **Last updated:** 2026-08-02 (BRAIN ROUND shipped + live-verified vs the containerized sidecar + committed) · **Updated by:** clau_partner (acting orchestrator — Polaris paused)
 > **Note for the agents:** the P3/P4 portal + API work IS committed — do not re-label it
 > "uncommitted." Only the orchestrator commits, and only the orchestrator edits this header.
 > **Project root:** `C:\Users\syed.mohamed\Claude\Code\constellation`
@@ -106,8 +106,28 @@ Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
      `pnpm install --frozen-lockfile` was proven on 2026-08-02. Note: single-**file** `-v` mounts
      misbehave on this Windows host (mount the directory instead).
 
+- **🧠 BRAIN ROUND DONE, LIVE-VERIFIED, COMMITTED (git `<SHA>`, local only) — 2026-08-02, clau_partner:**
+  the platform now has a persistent, queryable memory. SDK 0.2.0 (`memory.ts`, `PluginMemory`,
+  `BRAIN_READ`/`BRAIN_WRITE`, `ctx.memory` least-privilege gating) · `apps/api/src/core/memory/**`
+  (`BrainService` + `GraphifyAdapter` + guarded `POST /api/brain/query|remember`,
+  `GET /api/brain/graph|stats`) · Atlas's Graphify sidecar (`brain` compose profile, MCP :8791,
+  `infra/graphify/**`, `make brain*`) · Orion's portal Brain page (force-directed graph +
+  ask-the-brain box w/ provenance) · the `brain/` vault.
+  **Verified:** typecheck 8/8 · build 7/7 · tests **221**. Live against a **REAL repo-extracted
+  graph (1238 nodes / 1937 edges)** in the containerized sidecar: `query` → `grounded:true` with
+  real node provenance; `graph`/`stats` correct. Degraded (brain down / no graph) boots healthy and
+  abstains honestly — no crash, no 500. **A real bug was found by that live pass and fixed:**
+  `query()` had no `graph.json` fallback (CLI-only), so a built graph still said "brain not built
+  yet" inside the container — `queryLocalGraph()` + 2 regression tests added. See MASTER_PLAN §9.
+  **UNRUN gaps:** docs-mode (Ollama) indexing; the `remember()`→rebuild→node-appears round-trip;
+  the Brain page clicked in a real browser.
+- **⚠️ Two more host facts (2026-08-02):** `make` is **not installed** — run the `make brain*`
+  targets as their underlying `docker compose --profile brain …` commands. Looper's
+  `looper-gateway` squats host **:4000** — publish the api elsewhere with `API_HOST_PORT=4010`.
 - **Known follow-ups (not blockers):** plugin READ endpoints are `@Public` for P2 (module list isn't sensitive; harden to authed + httpOnly-cookie tokens later); portal token is in-memory+localStorage (XSS caveat noted in code); no committed `prisma/migrations` history yet (Docker entrypoint uses `db push`); a viewer (non-admin) user isn't seeded so the 403 UI path is unit-tested, not live-clicked.
-- **Remaining Docker check:** a full 4-service `docker compose up --wait` from the freshly-built images (Atlas reports healthy; orchestrator confirmed config + image builds + real DB connection, but didn't re-run the full `up` this pass).
+- **Remaining Docker check:** ~~a full 4-service `docker compose up --wait`~~ **DONE 2026-08-02** —
+  postgres + redis + api (+ the graphify sidecar) all booted healthy together during the brain
+  verification; the api image was rebuilt from source and served live traffic.
 
 ## 4. Repo layout (monorepo)
 ```
@@ -165,10 +185,12 @@ cd apps/api && DATABASE_URL="postgresql://constellation:constellation@localhost:
 ```
 
 ## 8. Pending / next actions (priority order)
-1. **🧠 THE BRAIN (Memory & Knowledge Graph) — TOP PRIORITY (user, 2026-08-02).** Native memory
-   subsystem powered by **Graphify** (knowledge graph over MCP, local, $0). **Full design +
-   lane split + verify bar in `docs/BRAIN.md`; workstream in `MASTER_PLAN.md §8 "BRAIN ROUND"`.**
-   Adopt Graphify; skip PAUL/SEED/Railway for now (build-methodology / host, not the brain).
+1. ~~**🧠 THE BRAIN (Memory & Knowledge Graph) — TOP PRIORITY (user, 2026-08-02).**~~
+   **DONE, live-verified, COMMITTED (git `<SHA>`)** — see §3 and MASTER_PLAN §9. Graphify adopted
+   (knowledge graph over MCP, local, $0); design in `docs/BRAIN.md`. **Remaining brain follow-ups
+   (small, not blockers):** docs-mode indexing via local Ollama (`GRAPHIFY_MODE=docs`); the
+   `remember()` → `brain-rebuild` → note-appears-as-a-node round-trip; clicking the portal Brain
+   page in a real browser against the live graph.
 2. ~~**P2 core:** auth + RBAC/ABAC + audit + protected enable/disable~~ **DONE (git `14137d8`).** Core follow-ups: seed a non-admin viewer user; committed `prisma/migrations` history (replace `db push`); httpOnly-cookie token hardening; consider auth on plugin reads.
 3. **Persist plugin enable/disable state** in Postgres (currently in-memory; seam noted in `PluginLifecycleService.enableAllRegistered`).
 4. **Per-plugin schema bootstrap** (`CREATE SCHEMA IF NOT EXISTS`) before a plugin's first DB use (seam in INTEGRATION_NOTES_ATLAS §3).
@@ -192,18 +214,22 @@ CLI sessions that edit this shared tree. Either way: keep lanes disjoint (§6), 
 run `pnpm install` concurrently (pre-install shared deps first), and the orchestrator does all
 merges + commits + the final verify.
 
-## 11. In-flight state & deferred options (Polaris, 2026-08-02)
-**BRAIN round — BUILT, PAUSED, uncommitted, not live-verified.** clau_partner built the full brain
-across all three lanes, then was paused before verify+commit. Uncommitted on top of `596a80f`:
-SDK 0.2.0 (`src/memory.ts`, `PluginMemory`, `BRAIN_READ`/`BRAIN_WRITE`, `ctx.memory` w/ least-privilege
-gating in `plugin-context.factory.ts`), `apps/api/src/core/memory/**` (BrainService + GraphifyAdapter +
-controller + DTOs + tests, mounted in `app.module.ts`), Graphify compose sidecar + `infra/graphify/**` +
-`brain/` vault, portal `apps/web/src/app/brain/**` + `components/brain/**` + `lib/{brain,force-layout}.ts`.
-**Offline gates PASS** (Polaris re-ran 2026-08-02: typecheck 8/8, build 7/7, tests green — api 139,
-cli 9, browser-use 25, graphify 27). **NOT done:** the live Graphify check (build a real `graph.json`,
-sidecar serves MCP, `POST /api/brain/query` → grounded answer + provenance, portal renders it,
-`remember()` writes to `brain/`) per `docs/BRAIN.md §7`; the commit; and `graphify-out/` must be
-git-ignored (generated output — never commit it). **Resume = live-verify → commit → log per §1.7.**
+## 11. In-flight state & deferred options (updated by clau_partner, 2026-08-02)
+**BRAIN round — ✅ DONE, live-verified, COMMITTED (git `<SHA>`). Nothing in flight from it.**
+clau_partner (acting orchestrator, Polaris paused) resumed the paused round: housekeeping
+(`graphify-out/` git-ignored, synthetic fixture + `navcheck.mts` deleted, stale ports/volumes
+cleared), then closed the one real remaining gap — the **containerized** sidecar — by building a
+REAL 1238-node/1937-edge graph from this repo (code-only, keyless, $0), rebuilding the api image and
+proving `/api/brain/query|graph|stats` grounded against it, plus an honest degraded boot with the
+brain profile down. That live pass caught and fixed a genuine bug (`query()` had no `graph.json`
+fallback). Gates at commit: typecheck 8/8 · build 7/7 · tests 221. Details in MASTER_PLAN §9.
+**Carried forward as UNRUN (recorded, not hidden):** docs-mode/Ollama indexing; the
+`remember()`→rebuild→node-appears round-trip; the Brain page in a real browser; and (older) the
+P3 federation stack (Keycloak/Caddy/Grafana).
+
+**Next round dispatched on this clean committed base:** Atlas = P3 federation live proof ·
+Nova = P4 live capability wiring · Orion = portal depth + brain-page live polish. Agents report to
+the orchestrator; they never touch git or the orchestrator-only docs.
 
 **Deferred option — "Vega" (QA/reviewer agent), NOT active.** A read-only 5th helper that offloads the
 integrator's verification burden: it runs the full gate + a security review on a GIVEN COMMITTED SHA,

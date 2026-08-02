@@ -7,6 +7,7 @@ import { EventsModule } from "./core/events/events.module.js";
 import { FederationModule } from "./core/federation/federation.module.js";
 import { HealthModule } from "./core/health/health.module.js";
 import { LoggingModule } from "./core/logging/logging.module.js";
+import { MemoryModule } from "./core/memory/memory.module.js";
 import { PluginsModule } from "./core/plugins/plugins.module.js";
 import { RbacModule } from "./core/rbac/rbac.module.js";
 import { SettingsModule } from "./core/settings/settings.module.js";
@@ -41,6 +42,7 @@ import { SettingsModule } from "./core/settings/settings.module.js";
     AuditModule,
     AuthModule,
     FederationModule,
+    MemoryModule,
     HealthModule,
     PluginsModule,
   ],

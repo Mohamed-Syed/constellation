@@ -86,6 +86,24 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
       PLUGINS_DIR: /app/plugins
+      # --- Brain (Graphify) — OPTIONAL. The api must boot fine with the
+      # sidecar down, so there is no depends_on here: core/memory reads the
+      # graph off the shared volume and degrades to "brain not built yet".
+      GRAPHIFY_GRAPH_PATH: /brain/graph.json
+      # Left UNSET on purpose. Verified in graphify.adapter.ts: once an MCP URL
+      # is configured, query()/explain() go MCP-only and return null if the
+      # sidecar is unreachable — no graph.json fallback. An always-on default
+      # would therefore BREAK query when the brain profile is down. Opt in with
+      # `GRAPHIFY_MCP_URL=http://graphify:8791/mcp` (or set it in .env) when
+      # running `make brain`; unset, the api reads the graph off the volume.
+      GRAPHIFY_MCP_URL: ${GRAPHIFY_MCP_URL:-}
+      BRAIN_VAULT_DIR: /app/brain
+    volumes:
+      # Read-only: the api consumes the graph, only the sidecar writes it.
+      - graphify-out:/brain:ro
+      # Writable: `POST /api/brain/remember` appends markdown here; the
+      # Graphify sidecar watches the same host folder read-only as corpus.
+      - ./brain:/app/brain
     ports:
       - "${API_HOST_PORT:-4000}:4000"
     healthcheck:
@@ -139,6 +157,61 @@ services:
       start_period: 30s
     networks: [constellation]
 
+  # --- Graphify: the Brain sidecar (knowledge graph + MCP server) --------
+  # See docs/BRAIN.md. Fully OPTIONAL infrastructure: nothing depends_on it,
+  # it publishes its own port, and the api mounts its output read-only. If
+  # this container is stopped, absent, or crash-looping the rest of the
+  # stack boots and serves exactly as before.
+  #
+  # Keyless by default (GRAPHIFY_MODE=code-only → local tree-sitter AST, no
+  # LLM). Set GRAPHIFY_MODE=docs to index markdown too; that uses a LOCAL
+  # Ollama backend (GRAPHIFY_BACKEND=ollama) so it stays $0 and offline.
+  graphify:
+    profiles: ["brain"]
+    build:
+      context: .
+      dockerfile: infra/graphify/Dockerfile
+    container_name: constellation-graphify
+    restart: unless-stopped
+    environment:
+      GRAPHIFY_CORPUS: /corpus
+      GRAPHIFY_MCP_PORT: 8791
+      # code-only (keyless, default) | docs (markdown+PDF via local Ollama)
+      GRAPHIFY_MODE: ${GRAPHIFY_MODE:-code-only}
+      GRAPHIFY_BACKEND: ${GRAPHIFY_BACKEND:-ollama}
+      GRAPHIFY_MODEL: ${GRAPHIFY_MODEL:-}
+      # Reach a host-installed Ollama from inside the container.
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
+      GRAPHIFY_WATCH: ${GRAPHIFY_WATCH:-1}
+      GRAPHIFY_API_KEY: ${GRAPHIFY_API_KEY:-}
+    volumes:
+      # The corpus: this repo's docs + the agent-written brain/ vault, plus
+      # the source the graph is actually about. All READ-ONLY — the brain
+      # can never mutate the repo.
+      - ./docs:/corpus/docs:ro
+      - ./brain:/corpus/brain:ro
+      - ./apps/api/src:/corpus/apps-api:ro
+      - ./apps/web/src:/corpus/apps-web:ro
+      - ./packages:/corpus/packages:ro
+      - ./plugins:/corpus/plugins:ro
+      # The only writable path: graphify always writes <corpus>/graphify-out.
+      # This is the volume the api (Nova's core/memory) reads graph.json from.
+      - graphify-out:/corpus/graphify-out
+    ports:
+      # Bound to loopback: an unauthenticated MCP server should not be on the
+      # LAN. Set GRAPHIFY_API_KEY before changing this.
+      - "127.0.0.1:${GRAPHIFY_MCP_HOST_PORT:-8791}:8791"
+    healthcheck:
+      # graph.json present = the brain is usable, even mid-rebuild.
+      test: ["CMD-SHELL", "test -s /corpus/graphify-out/graph.json"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      # First run installs nothing at runtime but the initial AST build over
+      # the whole repo takes a while — don't flap during it.
+      start_period: 300s
+    networks: [constellation]
+
 networks:
   constellation:
     driver: bridge
@@ -146,3 +219,6 @@ networks:
 volumes:
   postgres-data:
   redis-data:
+  # Shared brain output. Written by `graphify`, read-only-mounted at /brain
+  # in the api. Canonical graph path for core/memory: /brain/graph.json
+  graphify-out:

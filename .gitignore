@@ -36,3 +36,6 @@ coverage/
 # local data
 data/
 tmp/
+
+# brain (Graphify) generated output — never commit the knowledge graph
+graphify-out/

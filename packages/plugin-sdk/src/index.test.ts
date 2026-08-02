@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseManifest, safeParseManifest } from "./manifest.js";
-import { hasAllPermissions, hasPermission, permissionSatisfies } from "./permissions.js";
+import { CorePermissions, hasAllPermissions, hasPermission, isValidPermission, permissionSatisfies } from "./permissions.js";
+import { PLATFORM_VERSION } from "./index.js";
 
 const validManifest = {
   manifestVersion: 1,
@@ -105,5 +106,40 @@ describe("permissions", () => {
   it("hasAllPermissions requires every one", () => {
     expect(hasAllPermissions(["a:read", "a:write"], ["a:read", "a:write"])).toBe(true);
     expect(hasAllPermissions(["a:read"], ["a:read", "a:write"])).toBe(false);
+  });
+});
+
+describe("brain permissions (SDK 0.2.0, additive)", () => {
+  it("exposes core:brain:read / core:brain:write", () => {
+    expect(CorePermissions.BRAIN_READ).toBe("core:brain:read");
+    expect(CorePermissions.BRAIN_WRITE).toBe("core:brain:write");
+  });
+
+  it("they are well-formed, colon-scoped permission strings", () => {
+    expect(isValidPermission(CorePermissions.BRAIN_READ)).toBe(true);
+    expect(isValidPermission(CorePermissions.BRAIN_WRITE)).toBe(true);
+  });
+
+  it("a manifest may declare them", () => {
+    const m = parseManifest({
+      ...validManifest,
+      permissions: [CorePermissions.BRAIN_READ, CorePermissions.BRAIN_WRITE],
+    });
+    expect(m.permissions).toContain("core:brain:write");
+  });
+
+  it("core:* and platform:admin both satisfy them (wildcard semantics unchanged)", () => {
+    expect(hasPermission(["core:*"], CorePermissions.BRAIN_READ)).toBe(true);
+    expect(hasPermission(["platform:admin"], CorePermissions.BRAIN_WRITE)).toBe(true);
+    expect(hasPermission(["core:brain:read"], CorePermissions.BRAIN_WRITE)).toBe(false);
+  });
+
+  it("the additive change bumped the platform version to 0.2.0", () => {
+    expect(PLATFORM_VERSION).toBe("0.2.0");
+  });
+
+  it("manifestVersion is STILL 1 — the manifest contract did not break", () => {
+    const m = parseManifest(validManifest);
+    expect(m.manifestVersion).toBe(1);
   });
 });

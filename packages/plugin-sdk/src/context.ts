@@ -7,6 +7,7 @@
  * is allowed to use. This keeps plugins decoupled, independently testable, and
  * safe to run as separate microservices later (the context becomes an RPC stub).
  */
+import type { PluginMemory } from "./memory.js";
 
 /** Structured logger scoped to the plugin. */
 export interface PluginLogger {
@@ -55,6 +56,12 @@ export interface PluginContext {
   readonly events: PluginEvents;
   /** Present only if the plugin declared `requiredServices: ["database"]`. */
   readonly db?: PluginDatabase;
+  /**
+   * Platform memory (the brain). Present only when the core mounts the memory
+   * subsystem and the plugin declared the `core:brain:*` permissions it uses.
+   * Always guard: `await ctx.memory?.query(...)`.
+   */
+  readonly memory?: PluginMemory;
   /**
    * Resolve the principal for the current async context (request-scoped).
    * Returns undefined for background jobs / system calls.

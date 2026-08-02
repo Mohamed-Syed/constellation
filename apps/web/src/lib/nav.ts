@@ -1,5 +1,6 @@
 import type { PluginSummary } from "./types";
 import { hasAnyPermission } from "./permissions";
+import { BRAIN_READ_PERMISSION } from "./brain";
 
 /** A single, portal-ready nav entry (core or plugin-contributed). */
 export interface FlatNavItem {
@@ -12,6 +13,12 @@ export interface FlatNavItem {
   order: number;
   /** Present for plugin-contributed items; omitted for core items. */
   pluginId?: string;
+  /**
+   * Permissions gating this item — the caller needs ANY one of them for the
+   * item to show. Absent/empty means "always visible". UX only; the real
+   * boundary is the API's RBAC guards.
+   */
+  requiresAnyPermission?: string[];
 }
 
 export interface NavGroups {
@@ -27,6 +34,16 @@ const CORE_PLATFORM: FlatNavItem[] = [
   { id: "core-dashboard", label: "Dashboard", href: "/", icon: "LayoutDashboard", order: 0 },
   { id: "core-modules", label: "Modules", href: "/modules", icon: "Blocks", order: 10 },
   { id: "core-tools", label: "Tools", href: "/tools", icon: "Boxes", order: 20 },
+  {
+    // The platform's memory / knowledge graph (docs/BRAIN.md). Role-aware like
+    // Admin: hidden unless the caller can read the brain.
+    id: "core-brain",
+    label: "Brain",
+    href: "/brain",
+    icon: "BrainCircuit",
+    order: 30,
+    requiresAnyPermission: [BRAIN_READ_PERMISSION],
+  },
 ];
 
 const CORE_SYSTEM: FlatNavItem[] = [
@@ -73,14 +90,26 @@ export function flattenNavGroups(groups: NavGroups): FlatNavItem[] {
 /** Permissions that unlock the "Admin" nav entry (either satisfies it — see MASTER_PLAN §8 P2 ROUND). */
 const ADMIN_NAV_PERMISSIONS = ["core:plugin:manage", "platform:admin"];
 
+/** True when the caller may see this nav item (no declared requirement ⇒ always). */
+function navItemVisible(item: FlatNavItem, permissions: readonly string[]): boolean {
+  const required = item.id === "core-admin" ? ADMIN_NAV_PERMISSIONS : item.requiresAnyPermission;
+  if (!required || required.length === 0) return true;
+  return hasAnyPermission(permissions, required);
+}
+
 /**
- * Role-aware nav (Orion P2 task 2): hide the "Admin" item unless the caller
- * holds `core:plugin:manage` or `platform:admin`. Applied client-side only
- * (see `AppShell`) — this is a UX nicety, not the security boundary; the
- * admin page itself and its mutations are guarded server-side.
+ * Role-aware nav (Orion P2 task 2, generalized for the BRAIN round): hide any
+ * item whose `requiresAnyPermission` the caller doesn't satisfy. "Admin" keeps
+ * its historical rule (`core:plugin:manage` OR `platform:admin`); "Brain"
+ * requires `core:brain:read`. Applied client-side only (see `AppShell`) — this
+ * is a UX nicety, not the security boundary; the pages' data and mutations are
+ * guarded server-side.
  */
 export function filterNavForPermissions(groups: NavGroups, permissions: readonly string[]): NavGroups {
-  const canSeeAdmin = hasAnyPermission(permissions, ADMIN_NAV_PERMISSIONS);
-  if (canSeeAdmin) return groups;
-  return { ...groups, system: groups.system.filter((item) => item.id !== "core-admin") };
+  const keep = (item: FlatNavItem) => navItemVisible(item, permissions);
+  return {
+    platform: groups.platform.filter(keep),
+    modules: groups.modules.filter(keep),
+    system: groups.system.filter(keep),
+  };
 }

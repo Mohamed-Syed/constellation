@@ -1,0 +1,7 @@
+# The Brain vault (agent-written memory).
+#
+# `remember()` appends markdown notes here; the graphify sidecar mounts this
+# folder read-only as part of its corpus and rebuilds the graph on change.
+# Nova seeds brain/README.md as part of the core/memory lane — this .gitkeep
+# only guarantees the directory exists so the compose bind-mount resolves
+# instead of being auto-created as a root-owned empty dir.

@@ -1,9 +1,12 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Optional } from "@nestjs/common";
 import type {
   PluginContext,
   PluginLogger,
   PluginManifest,
+  PluginMemory,
 } from "@constellation/plugin-sdk";
+import { CorePermissions, hasPermission } from "@constellation/plugin-sdk";
+import { BrainService } from "../memory/brain.service.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { EventBusService } from "../events/event-bus.service.js";
 import { PluginLoggerFactory } from "../logging/plugin-logger.factory.js";
@@ -30,6 +33,13 @@ export class PluginContextFactory {
     private readonly configFactory: PluginConfigFactory,
     private readonly eventBus: EventBusService,
     private readonly prisma: PrismaService,
+    /**
+     * The brain. `@Optional()` on purpose — `MemoryModule` is global in the
+     * running app, but the offline unit tests construct this factory by hand
+     * with no DI container, and a platform build that drops the memory module
+     * must still boot. Absent brain => `ctx.memory` is simply undefined.
+     */
+    @Optional() private readonly brain?: BrainService,
   ) {}
 
   async build(manifest: PluginManifest): Promise<PluginContext> {
@@ -46,7 +56,35 @@ export class PluginContextFactory {
               this.prisma.queryInSchema<T>(schema, sql, params ?? []),
           }
         : undefined,
+      memory: this.memoryFor(manifest),
       getPrincipal: () => undefined, // still a stub; RBAC principal lands in P2.
+    };
+  }
+
+  /**
+   * Least-privilege memory capability: a plugin only receives `ctx.memory` if
+   * it DECLARED a `core:brain:*` permission in its manifest, and each method is
+   * gated on the specific permission it needs. A read-only plugin that calls
+   * `remember()` gets a rejected promise, not a silent write — the same
+   * enforce-then-dispatch shape `PluginToolService` uses for tools.
+   */
+  private memoryFor(manifest: PluginManifest): PluginMemory | undefined {
+    if (!this.brain) return undefined;
+    const declared = manifest.permissions;
+    const canRead = hasPermission(declared, CorePermissions.BRAIN_READ);
+    const canWrite = hasPermission(declared, CorePermissions.BRAIN_WRITE);
+    if (!canRead && !canWrite) return undefined;
+    const brain = this.brain;
+    const denied = (perm: string) =>
+      Promise.reject(
+        new Error(
+          `Plugin "${manifest.id}" did not declare "${perm}" in its manifest permissions.`,
+        ),
+      );
+    return {
+      remember: (note) => (canWrite ? brain.remember(note) : denied(CorePermissions.BRAIN_WRITE)),
+      query: (question) => (canRead ? brain.query(question) : denied(CorePermissions.BRAIN_READ)),
+      stats: () => (canRead ? brain.stats() : denied(CorePermissions.BRAIN_READ)),
     };
   }
 }

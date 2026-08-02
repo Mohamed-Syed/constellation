@@ -399,17 +399,76 @@ call (adopt Graphify; skip PAUL/SEED/Railway for now; Obsidian optional) and the
 surface live there. Same rules as every round (no git/installs by friends beyond their lane, boot
 w/o the brain must not crash, verify before done).
 
-- 🏛️ **Atlas:** `graphify` sidecar service in `docker-compose.yml` (`pip install graphifyy`,
+- ✅ **Atlas:** `graphify` sidecar service in `docker-compose.yml` (`pip install graphifyy`,
   `graphify watch /corpus`, `python -m graphify.serve` MCP port), mount corpus (`docs/` + `brain/`),
-  shared `graphify-out` volume, `make brain` target.
-- ⭐ **Nova:** `apps/api/src/core/memory` — `BrainService` + `GraphifyAdapter` + REST
+  shared `graphify-out` volume, `make brain` target. **DONE** (`infra/graphify/{Dockerfile,entrypoint.sh}`,
+  `brain` compose profile, MCP on :8791, `make brain|brain-build|brain-down|brain-logs|brain-status|brain-rebuild|brain-mcp`).
+- ✅ **Nova:** `apps/api/src/core/memory` — `BrainService` + `GraphifyAdapter` + REST
   (`/api/brain/remember|query|graph|stats`, guarded by the P2 RBAC guards) + new
   `core:brain:read|write` permissions in the SDK + a `memory` capability; seed `brain/README.md`.
-- 🌌 **Orion:** portal **"Brain"** nav + page — force-directed `graph.json` view + "ask the brain"
-  box calling `POST /api/brain/query`, rendering the grounded answer + provenance.
-- _Status:_ **assigned — not started.** (Verify bar in `docs/BRAIN.md` §7.)
+  **DONE** (SDK 0.2.0 `src/memory.ts`, `PluginMemory`, `BRAIN_READ`/`BRAIN_WRITE`, `ctx.memory`
+  least-privilege gating in `plugin-context.factory.ts`).
+- ✅ **Orion:** portal **"Brain"** nav + page — force-directed `graph.json` view + "ask the brain"
+  box calling `POST /api/brain/query`, rendering the grounded answer + provenance. **DONE**
+  (`apps/web/src/app/brain/**`, `components/brain/**`, `lib/{brain,force-layout}.ts`).
+- _Status:_ ✅ **DONE, live-verified, COMMITTED.** Gates: typecheck 8/8 · build 7/7 · tests **221**.
+  Live-proved twice: Nova on :4001 (grounded + degraded, real JWT) and the orchestrator against the
+  **containerized** sidecar with a REAL repo-extracted graph (1238 nodes / 1937 edges). Verify bar
+  `docs/BRAIN.md` §7 met except the two gaps recorded in §9 (docs-mode/Ollama indexing; `remember()`
+  → rebuild → node-appears round-trip). See §9.
 
 ## 9. Verification log
+- **2026-08-02 — 🧠 BRAIN ROUND shipped, live-verified against the containerized sidecar, COMMITTED
+  (git `<SHA>`, local only) — clau_partner (acting orchestrator; Polaris paused).**
+  - **What shipped.** The full memory subsystem across all three lanes:
+    **SDK 0.2.0** (`packages/plugin-sdk/src/memory.ts`, `PluginMemory`, `BRAIN_READ`/`BRAIN_WRITE`
+    permissions, `ctx.memory` with least-privilege gating in `plugin-context.factory.ts`);
+    **`apps/api/src/core/memory/**`** (`BrainService`, `GraphifyAdapter`, controller + DTOs, mounted
+    in `app.module.ts`) exposing `POST /api/brain/query|remember` and `GET /api/brain/graph|stats`
+    behind the P2 RBAC guards; **Atlas's Graphify sidecar** (`infra/graphify/{Dockerfile,entrypoint.sh}`,
+    a `brain` compose profile serving MCP on :8791, shared `graphify-out` volume, `make brain*`
+    targets); **Orion's portal Brain page** (`apps/web/src/app/brain/**`, `components/brain/**`,
+    `lib/{brain,force-layout}.ts` — force-directed graph + ask-the-brain box with provenance);
+    and the `brain/` markdown vault.
+  - **Offline gates (re-run at commit time, `--force --concurrency=1`):** typecheck **8/8** ·
+    build **7/7** · test **221** (api 141, graphify 27, browser-use 25, sdk 19, cli 9).
+  - **Live proof #1 (Nova, :4001, host node):** `/api/brain/*` answered in both grounded and
+    degraded modes with a real JWT.
+  - **Live proof #2 (orchestrator, THE containerized sidecar — the gap Polaris flagged):** built a
+    **REAL** graph from this repo in code-only/keyless mode (`docker compose --profile brain`,
+    **1238 nodes / 1937 edges**, 1.1 MB), rebuilt the api image so it carried Nova's code, booted the
+    4-service stack, and confirmed against the real graph: `GET /api/brain/stats` →
+    `{nodes:1238, edges:1937, available:true}`; `GET /api/brain/graph` → 1238/1937 to the portal;
+    `POST /api/brain/query "what connects the plugin loader to the SDK?"` → **`grounded:true`** with
+    8 real graph-node provenance refs correctly centred on `plugin-loader.service.ts` (19 edges),
+    `PluginLoaderService`, `esmImport`, `__setEntryImporterForTests()`. `GRAPHIFY_MCP_URL` kept
+    **UNSET** throughout (setting it disables the graph.json fallback).
+  - **Degraded mode proven honestly:** with the brain profile removed *and* the graph path pointed at
+    a non-existent file, the stack boots healthy (`/api/health` `ok`, 3 plugins enabled, no crash),
+    `stats` → `available:false` + an actionable `detail`, `graph` → empty with the reason in `meta`,
+    `query` → an explicitly ungrounded vault-text answer. No 500s anywhere.
+  - **🐛 REAL BUG FOUND AND FIXED BY THIS LIVE PASS** (offline tests could not have caught it):
+    `GraphifyAdapter.query()` fell back only to the **`graphify` CLI**, which does not exist inside
+    the api image — so with `GRAPHIFY_MCP_URL` unset (the documented containerized default), a fully
+    built graph still degraded to a vault text-scan and answered *"Brain not built yet."*
+    `explain()` and `path()` already had a `graph.json` fallback; `query()` did not. Added
+    `queryLocalGraph()` (term-scored node match over `graph.json` with a stopword-filtered
+    `tokenize()`, returning real node provenance and connection counts) plus **2 regression tests**
+    pinning both the grounded path and the honest no-match abstain. This is what took the round from
+    "green offline" to actually working in the container.
+  - **Housekeeping:** `graphify-out/` added to `.gitignore` (generated); deleted the leftover
+    synthetic `graphify-out/graph.json` fixture and the stray `apps/web/scripts/navcheck.mts`;
+    stray :4001/:3100 listeners killed and `docker compose down --volumes` run before verifying.
+  - **⚠️ UNRUN GAPS (explicitly not claimed):** (1) **docs-mode indexing** (`GRAPHIFY_MODE=docs`
+    against local Ollama) — only the keyless **code-only** path was exercised; (2) the full
+    `remember()` → `brain-rebuild` → *note appears as a graph node* round-trip (`remember()` itself
+    writes the vault correctly and is unit-tested, but the re-extraction was not re-run); (3) the
+    portal Brain page was verified by build/typecheck + a live API contract, **not** clicked in a
+    browser against the real graph. (4) Carried over: the P3 federation stack (Keycloak/Caddy/Grafana)
+    remains UNRUN.
+  - **Env note:** `make` is not installed on this host — the `make brain*` targets were executed as
+    their underlying `docker compose --profile brain …` commands. Also, Looper's `looper-gateway`
+    squats host **:4000**, so the api was published on **:4010** via `API_HOST_PORT`.
 - **2026-08-02 — Polaris review + checkpoint (git `b5f82b2`):** integrator review of the P3/P4 +
   in-flight state. Confirmed P3+P4 committed at `a07dd25` and clau_partner's docs accurate.
   Checkpointed Orion's uncommitted federated-lib refactor (`federated-api`+`federated-tools` →

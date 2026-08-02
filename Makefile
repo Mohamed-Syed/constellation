@@ -10,10 +10,14 @@ COMPOSE ?= docker compose
 # P3 federation overlay: base stack + federated tools, gated behind the
 # "federation" compose profile so nothing extra starts by accident.
 FED_COMPOSE ?= docker compose -f docker-compose.yml -f docker-compose.federation.yml --profile federation
+# BRAIN sidecar profile: opt-in so ordinary `make up` does not pull/build the
+# Python Graphify image or start the MCP server.
+BRAIN_COMPOSE ?= docker compose --profile brain
 
 .DEFAULT_GOAL := help
 .PHONY: help up down logs migrate config build restart ps psql redis-cli health clean \
-        fed-config fed-up fed-down fed-clean fed-ps fed-logs fed-health
+        fed-config fed-up fed-down fed-clean fed-ps fed-logs fed-health \
+        brain brain-build brain-down brain-logs brain-status brain-rebuild brain-mcp
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -108,3 +112,51 @@ fed-health: ## Probe every federated endpoint through the reverse proxy
 		code=$$(curl -s -o /dev/null -w '%{http_code}' "$$base$$path" || echo "---"); \
 		printf '  %-34s %s\n' "$$path" "$$code"; \
 	done
+
+# ---------------------------------------------------------------------------
+# BRAIN — the Graphify knowledge-graph sidecar (docs/BRAIN.md).
+# Independent of the rest of the stack in both directions: `make brain` starts
+# ONLY the sidecar (--no-deps), and `make up` works whether or not it's running.
+# $0 / keyless by default (code-only AST extraction). Docs indexing uses a
+# local Ollama: GRAPHIFY_MODE=docs make brain-rebuild
+# ---------------------------------------------------------------------------
+
+brain: ## Build + start the Graphify brain sidecar (MCP on :8791)
+	mkdir -p brain
+	$(BRAIN_COMPOSE) up -d --build --no-deps graphify
+	@echo ""
+	@echo "  brain MCP  -> http://127.0.0.1:$${GRAPHIFY_MCP_HOST_PORT:-8791}/mcp  (streamable-http)"
+	@echo "  graph.json -> volume constellation_graphify-out  (api sees /brain/graph.json)"
+	@echo "  first build indexes the whole repo — follow it with 'make brain-logs'."
+
+brain-build: ## Build the brain image only (no container start)
+	$(BRAIN_COMPOSE) build graphify
+
+brain-down: ## Stop the brain sidecar (the graph volume is PRESERVED)
+	$(BRAIN_COMPOSE) rm -sf graphify
+
+brain-logs: ## Tail the brain sidecar logs (build progress + MCP requests)
+	$(BRAIN_COMPOSE) logs -f --tail=100 graphify
+
+brain-status: ## Show graph size + node/edge counts from inside the sidecar
+	@$(BRAIN_COMPOSE) exec graphify sh -c '\
+		f=/corpus/graphify-out/graph.json; \
+		if [ -s "$$f" ]; then \
+			ls -lh "$$f"; \
+			python -c "import json;g=json.load(open(\"$$f\"));print(\"  nodes:\",len(g.get(\"nodes\",[])),\" edges:\",len(g.get(\"links\",g.get(\"edges\",[]))))"; \
+		else echo "  no graph yet — still building? try make brain-logs"; fi'
+
+brain-rebuild: ## Force a full graph re-extraction inside the running sidecar
+	$(BRAIN_COMPOSE) exec graphify sh -c '\
+		if [ "$${GRAPHIFY_MODE:-code-only}" = "code-only" ]; then \
+			graphify /corpus --code-only --no-viz --no-label --force; \
+		else \
+			graphify /corpus --no-viz --backend=$${GRAPHIFY_BACKEND:-ollama} --force; \
+		fi'
+
+brain-mcp: ## Probe the MCP endpoint (initialize handshake)
+	@curl -fsS -X POST http://127.0.0.1:$${GRAPHIFY_MCP_HOST_PORT:-8791}/mcp \
+		-H 'Content-Type: application/json' \
+		-H 'Accept: application/json, text/event-stream' \
+		-d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"make","version":"1"}}}' \
+		&& echo ""

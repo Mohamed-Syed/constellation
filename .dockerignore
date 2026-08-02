@@ -57,3 +57,10 @@ Thumbs.db
 data
 tmp
 *.log
+
+# brain (Graphify) — the corpus and the graph are BIND/VOLUME mounts at
+# runtime, never build inputs. graphify-out in particular can reach tens of
+# MB (graph.json + graph.html) and would bloat every api/web build context.
+graphify-out
+**/graphify-out
+brain
