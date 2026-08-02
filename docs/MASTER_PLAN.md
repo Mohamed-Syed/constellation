@@ -456,6 +456,39 @@ engine files · 1b portal `/engine` page (Orion's lane) · Ollama integration te
 
 ## 9. Verification log
 
+- **2026-08-02 — 🤖 ENGINE v0.1 — HARDEN & GATE round, TASK 4 of 5: portal API base :4001 + startup identity banner
+  (git `0c41813`, local only) — clau_partner (orchestrating solo).**
+  - **The defect (Polaris's review, D-2 left unfinished):** `GET /api/identity` existed (added in the
+    Engine v0 follow-up round) but NOTHING consumed it; every portal API client
+    (`apps/web/src/lib/*.ts`) still defaulted to the collision-prone `http://localhost:4000/api` —
+    the port a FOREIGN process (Looper's LiteLLM gateway) squats, answering with valid HTTP that is
+    NOT this product, so the portal silently rendered another product's data.
+  - **What shipped:**
+    - **NEW `apps/web/src/lib/api-base.ts`** — the single source of truth: `API_BASE`
+      (`NEXT_PUBLIC_API_URL` override ?? `http://localhost:4001/api`) + `probeApiIdentity()` which
+      calls `GET /api/identity` and returns `{ ok, url, product }`.
+    - **All 7 portal clients** (`api`, `auth-api`, `engine`, `brain`, `federated`,
+      `plugin-actions`, `tool-invoke`) now import `API_BASE` from the helper instead of repeating
+      the `:4000` default; `next.config.mjs`'s dev-proxy default flipped to `:4001` too.
+    - **NEW `IdentityBanner`** (mounted in `AppShell`, both the login page and the authenticated
+      shell): probes `/api/identity` on load; when the API does NOT identify as
+      `{ product: "constellation" }` it renders a clear amber banner — *"Connected to the wrong API
+      on <url> — expected Constellation"* (including what the server DID claim to be); when the
+      identity checks out it renders nothing.
+    - `.env.example`: `NEXT_PUBLIC_API_URL` default flipped to `:4001` + the port-4000 hazard
+      documented (and the remap recipe for `API_HOST_PORT`/`NEXT_PUBLIC_API_URL` kept).
+  - **Gates (`--force --concurrency=1`):** build/typecheck/test **19/19**; web lint **0 errors /
+    17 warnings** (the documented pre-existing baseline — no new warnings from this lane's files).
+  - **LIVE acceptance — RUN in a real browser (next dev + real API on :4001):**
+    - Portal started with `NEXT_PUBLIC_API_URL=http://localhost:4000/api` (the squatted gateway,
+      whose `/api/identity` answers `{"detail":"Not Found"}`) → **banner FIRED** on `/login`:
+      `Connected to the wrong API on http://localhost:4000/api — that server did not identify as
+      Constellation. Expected the API published on port 4001.` (verified in the browser snapshot).
+    - Portal restarted with `NEXT_PUBLIC_API_URL=http://localhost:4001/api` (real api) → **normal
+      render, NO banner** (no alert element in the snapshot).
+  - **Honest notes:** the banner is a client-side probe (5s timeout, never throws); the happy path
+    is zero visual noise. Portal `/engine` page still not clicked in a live browser (recorded gap).
+
 - **2026-08-02 — 🤖 ENGINE v0.1 — HARDEN & GATE round, TASK 3 of 5: honest ModelProvider interface + per-task token budget cap
   (git `7217568`, local only) — clau_partner (orchestrating solo).**
   - **The defect (Polaris's review):** `ModelRouterService` was an Ollama client wearing a router's
