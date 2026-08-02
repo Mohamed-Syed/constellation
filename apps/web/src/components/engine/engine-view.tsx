@@ -509,19 +509,23 @@ export function EngineView() {
 }
 
 function HealthStrip({ health, error }: { health: EngineHealth | null; error: boolean }) {
+  const queueDisabled = health !== null && health.queue === null;
+  const queueCount = (key: "waiting" | "active" | "failed") =>
+    health && health.queue ? String(health.queue[key]) : "—";
+
   return (
     <div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           icon={<ListChecks className="size-4" />}
           label="Waiting"
-          value={health ? String(health.queue.waiting) : "—"}
+          value={queueCount("waiting")}
         />
-        <StatCard icon={<Play className="size-4" />} label="Active" value={health ? String(health.queue.active) : "—"} />
+        <StatCard icon={<Play className="size-4" />} label="Active" value={queueCount("active")} />
         <StatCard
           icon={<AlertTriangle className="size-4" />}
           label="Failed"
-          value={health ? String(health.queue.failed) : "—"}
+          value={queueCount("failed")}
         />
         <StatCard
           icon={<Activity className="size-4" />}
@@ -545,6 +549,13 @@ function HealthStrip({ health, error }: { health: EngineHealth | null; error: bo
           }
         />
       </div>
+      {queueDisabled && health ? (
+        <p className="mt-3 flex items-center gap-2 text-xs text-amber-600 dark:text-amber-500">
+          <AlertTriangle className="size-3.5" />
+          Engine is unavailable — the queue backend (Redis) is down or unset:
+          {health.reason ? ` ${health.reason}` : " no reason given."}
+        </p>
+      ) : null}
       {error && !health ? (
         <p className="mt-3 text-xs text-neutral-400 dark:text-neutral-500">
           Engine health unavailable — the API may be starting up.

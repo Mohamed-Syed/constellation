@@ -5,6 +5,8 @@ import { PluginRegistryService } from "../plugins/plugin-registry.service.js";
 import { PluginToolService } from "../plugins/plugin-tool.service.js";
 import type { ChatMessage } from "./model-router.service.js";
 import { ModelRouterService } from "./model-router.service.js";
+import { EngineAvailabilityService } from "./engine-availability.service.js";
+import { buildRedisConnectionOptions } from "./redis-connection.js";
 import { ENGINE_QUEUE_NAME } from "./task-queue.service.js";
 import { TaskService } from "./task.service.js";
 
@@ -16,34 +18,6 @@ interface AgentAction {
   args?: Record<string, unknown>;
   result?: string;
   error?: string;
-}
-
-/**
- * Single-node Redis connection shape. bullmq 6.x's own `ConnectionOptions`
- * is a union that also covers Cluster/Sentinel configs (no `.host`/`.port`
- * on those variants), so we keep our own narrow type here and hand it to
- * bullmq as `ConnectionOptions` at the call site — we only ever build the
- * single-node shape.
- */
-interface RedisConnectionOptions {
-  host: string;
-  port: number;
-  password?: string;
-  db: number;
-}
-
-function parseRedisUrl(url: string): RedisConnectionOptions {
-  try {
-    const u = new URL(url);
-    return {
-      host: u.hostname || "localhost",
-      port: Number(u.port) || 6379,
-      password: u.password || undefined,
-      db: u.pathname ? Number(u.pathname.slice(1)) || 0 : 0,
-    };
-  } catch {
-    return { host: "localhost", port: 6379, db: 0 };
-  }
 }
 
 /** The fixed permission set granted to the engine agent for tool invocations. */
@@ -67,8 +41,8 @@ const AGENT_PERMISSIONS = ["platform:admin"] as const;
 @Injectable()
 export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(AgentWorkerService.name);
-  private worker!: Worker;
-  private readonly connection: RedisConnectionOptions;
+  private worker: Worker | undefined;
+  private readonly connection: ReturnType<typeof buildRedisConnectionOptions>;
 
   constructor(
     private readonly taskService: TaskService,
@@ -76,11 +50,20 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
     private readonly pluginTool: PluginToolService,
     private readonly registry: PluginRegistryService,
     private readonly config: ConfigService,
+    private readonly availability: EngineAvailabilityService,
   ) {
-    this.connection = parseRedisUrl(config.get("REDIS_URL", "redis://localhost:6379"));
+    this.connection = buildRedisConnectionOptions(config.get("REDIS_URL", "redis://localhost:6379"));
   }
 
-  onModuleInit() {
+  async onModuleInit() {
+    // Same ordering note as TaskQueueService: ensureProbed() triggers the
+    // shared single Redis probe so the verdict is ready before we decide.
+    await this.availability.ensureProbed();
+    if (!this.availability.isEnabled) {
+      this.logger.warn(`AgentWorker NOT started — ${this.availability.reason}`);
+      return;
+    }
+
     this.worker = new Worker(
       ENGINE_QUEUE_NAME,
       (job: Job<{ taskId: string }>) => this.processJob(job),

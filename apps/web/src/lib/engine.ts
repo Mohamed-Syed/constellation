@@ -75,7 +75,12 @@ export interface EngineTaskDetail extends EngineTaskSummary {
 
 /** `GET /api/engine/health` payload. */
 export interface EngineHealth {
-  queue: { queue: string; waiting: number; active: number; failed: number };
+  /** Engine v0.1: "available" when Redis is reachable, "unavailable" when disabled. */
+  engine: "available" | "unavailable";
+  /** Human-readable reason when `engine` is "unavailable"; null when ready. */
+  reason: string | null;
+  /** Queue counters when enabled; null when the engine is disabled. */
+  queue: { queue: string; waiting: number; active: number; failed: number } | null;
   model: { provider: string; model: string; reachable: boolean; error?: string };
   timestamp: string;
 }

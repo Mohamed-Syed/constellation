@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ConfigService } from "@nestjs/config";
 import { Queue } from "bullmq";
+import type { EngineAvailabilityService } from "./engine-availability.service.js";
+import { EngineUnavailableError } from "./engine-availability.service.js";
 import { ENGINE_QUEUE_NAME, TaskQueueService } from "./task-queue.service.js";
 
 /**
@@ -8,14 +10,13 @@ import { ENGINE_QUEUE_NAME, TaskQueueService } from "./task-queue.service.js";
  * `vi.mock`, so `onModuleInit()` constructs a fake queue and every subsequent
  * call lands on the same hoisted mock instance — nothing touches Redis.
  *
- * Contracts under test:
- *  1. `onModuleInit` creates the queue with the engine queue name and the
- *     parsed Redis connection options (defaults, full URL, garbage URL).
- *  2. `enqueue` adds a `run` job with { taskId } plus the retry/backoff/
- *     retention options; priority is pass-through.
- *  3. `getHealth` aggregates the three BullMQ counters.
- *  4. `onModuleDestroy` closes the queue — and tolerates never being
- *     initialised (NestJS teardown ordering is not guaranteed).
+ * Engine v0.1 additions under test:
+ *  - availability gating: with the engine disabled, `onModuleInit` does NOT
+ *    construct a Queue, `enqueue` throws EngineUnavailableError (→ 503), and
+ *    `getHealth` reports `{ enabled:false, reason }`.
+ *  - the connection options passed to bullmq are the fail-fast ones.
+ *  - the v0 contracts still hold when the engine is enabled (job options,
+ *    priority passthrough, health counters, teardown).
  */
 
 const queueMock = vi.hoisted(() => ({
@@ -39,8 +40,19 @@ function makeConfig(overrides: Record<string, string> = {}) {
   } as unknown as ConfigService;
 }
 
-function makeService(config: ConfigService = makeConfig()): TaskQueueService {
-  return new TaskQueueService(config);
+/** Minimal EngineAvailabilityService stand-in. */
+function makeAvailability(
+  enabled: boolean,
+  reason: string | null = null,
+): Pick<EngineAvailabilityService, "isEnabled" | "reason" | "ensureProbed"> {
+  return { isEnabled: enabled, reason, ensureProbed: vi.fn(async () => undefined) };
+}
+
+function makeService(
+  config: ConfigService = makeConfig(),
+  availability = makeAvailability(true),
+): TaskQueueService {
+  return new TaskQueueService(config, availability);
 }
 
 beforeEach(() => {
@@ -50,38 +62,51 @@ beforeEach(() => {
   queueMock.getFailedCount.mockResolvedValue(0);
 });
 
-describe("TaskQueueService — lifecycle", () => {
-  it("onModuleInit creates a Queue with the engine queue name and default Redis connection", () => {
+describe("TaskQueueService — lifecycle (engine enabled)", () => {
+  it("onModuleInit creates a Queue with the engine queue name and fail-fast connection", async () => {
     const svc = makeService();
-    svc.onModuleInit();
+    await svc.onModuleInit();
 
     expect(Queue).toHaveBeenCalledOnce();
     expect(Queue).toHaveBeenCalledWith(ENGINE_QUEUE_NAME, {
-      connection: { host: "localhost", port: 6379, password: undefined, db: 0 },
+      connection: expect.objectContaining({
+        host: "localhost",
+        port: 6379,
+        password: undefined,
+        db: 0,
+        connectTimeout: expect.any(Number),
+        enableOfflineQueue: false,
+        retryStrategy: expect.any(Function),
+      }),
     });
   });
 
-  it("onModuleInit parses a full Redis URL into connection options", () => {
+  it("onModuleInit parses a full Redis URL into connection options", async () => {
     const svc = makeService(makeConfig({ REDIS_URL: "redis://:s3cret@redis.internal:6380/2" }));
-    svc.onModuleInit();
+    await svc.onModuleInit();
 
     expect(Queue).toHaveBeenCalledWith(ENGINE_QUEUE_NAME, {
-      connection: { host: "redis.internal", port: 6380, password: "s3cret", db: 2 },
+      connection: expect.objectContaining({
+        host: "redis.internal",
+        port: 6380,
+        password: "s3cret",
+        db: 2,
+      }),
     });
   });
 
-  it("onModuleInit falls back to localhost defaults for an unparseable URL", () => {
+  it("onModuleInit falls back to localhost defaults for an unparseable URL", async () => {
     const svc = makeService(makeConfig({ REDIS_URL: "not a url at all" }));
-    svc.onModuleInit();
+    await svc.onModuleInit();
 
     expect(Queue).toHaveBeenCalledWith(ENGINE_QUEUE_NAME, {
-      connection: { host: "localhost", port: 6379, db: 0 },
+      connection: expect.objectContaining({ host: "localhost", port: 6379, db: 0 }),
     });
   });
 
   it("onModuleDestroy closes the queue", async () => {
     const svc = makeService();
-    svc.onModuleInit();
+    await svc.onModuleInit();
 
     await svc.onModuleDestroy();
 
@@ -95,10 +120,27 @@ describe("TaskQueueService — lifecycle", () => {
   });
 });
 
+describe("TaskQueueService — lifecycle (engine disabled)", () => {
+  it("does NOT construct a Queue when the engine is unavailable", async () => {
+    const svc = makeService(makeConfig(), makeAvailability(false, "Redis unreachable at localhost:6380"));
+    await svc.onModuleInit();
+
+    expect(Queue).not.toHaveBeenCalled();
+  });
+
+  it("onModuleDestroy tolerates a disabled engine", async () => {
+    const svc = makeService(makeConfig(), makeAvailability(false, "REDIS_URL is not set"));
+    await svc.onModuleInit();
+
+    await expect(svc.onModuleDestroy()).resolves.toBeUndefined();
+    expect(queueMock.close).not.toHaveBeenCalled();
+  });
+});
+
 describe("TaskQueueService — enqueue", () => {
   it("adds a run job with the taskId and the retry/backoff/retention options", async () => {
     const svc = makeService();
-    svc.onModuleInit();
+    await svc.onModuleInit();
 
     await svc.enqueue("task-1");
 
@@ -118,7 +160,7 @@ describe("TaskQueueService — enqueue", () => {
 
   it("passes a custom priority through to the job", async () => {
     const svc = makeService();
-    svc.onModuleInit();
+    await svc.onModuleInit();
 
     await svc.enqueue("task-2", 10);
 
@@ -127,26 +169,42 @@ describe("TaskQueueService — enqueue", () => {
   });
 
   it("enqueues without an initialised queue only after init", async () => {
-    // Guard against regression: enqueue must reach the queue instance
-    // created by onModuleInit, not a stale/absent one.
     const svc = makeService();
     await expect(svc.enqueue("task-3")).rejects.toThrow(); // no queue yet
+  });
+
+  it("throws EngineUnavailableError (→ 503) when the engine is disabled", async () => {
+    const svc = makeService(makeConfig(), makeAvailability(false, "Redis unreachable at localhost:6380"));
+    await svc.onModuleInit();
+
+    await expect(svc.enqueue("task-4")).rejects.toBeInstanceOf(EngineUnavailableError);
+    expect(queueMock.add).not.toHaveBeenCalled();
   });
 });
 
 describe("TaskQueueService — getHealth", () => {
-  it("returns the engine queue name and the three BullMQ counters", async () => {
+  it("returns the engine queue name and the three BullMQ counters when enabled", async () => {
     const svc = makeService();
-    svc.onModuleInit();
+    await svc.onModuleInit();
     queueMock.getWaitingCount.mockResolvedValue(3);
     queueMock.getActiveCount.mockResolvedValue(2);
     queueMock.getFailedCount.mockResolvedValue(1);
 
     await expect(svc.getHealth()).resolves.toEqual({
+      enabled: true,
       queue: ENGINE_QUEUE_NAME,
       waiting: 3,
       active: 2,
       failed: 1,
+    });
+  });
+
+  it("reports enabled:false with the reason when disabled", async () => {
+    const svc = makeService(makeConfig(), makeAvailability(false, "REDIS_URL is not set"));
+
+    await expect(svc.getHealth()).resolves.toEqual({
+      enabled: false,
+      reason: "REDIS_URL is not set",
     });
   });
 });

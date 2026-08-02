@@ -456,6 +456,64 @@ engine files · 1b portal `/engine` page (Orion's lane) · Ollama integration te
 
 ## 9. Verification log
 
+- **2026-08-02 — 🤖 ENGINE v0.1 — HARDEN & GATE round, TASK 1 of 5: engine degrades cleanly with no Redis
+  (git `TASK1_SHA`, local only) — clau_partner (orchestrating solo, Nova/Orion/Atlas resting).**
+  - **The defect (Polaris's architecture review):** `TaskQueueService`/`AgentWorkerService` constructed
+    their BullMQ Queue/Worker UNCONDITIONALLY in `onModuleInit`. With Redis down, ioredis retries
+    `ECONNREFUSED` forever (default exponential backoff capped at 20s) — a background log flood and a
+    hanging `queue.add()`; task submission never failed cleanly. This broke the platform's
+    "boot with no infra" invariant (every other core service degrades — cf. `PrismaService.isConnected`).
+  - **Fix:**
+    - NEW `apps/api/src/core/engine/redis-connection.ts` — shared util: `parseRedisUrl`,
+      `RedisConnectionOptions`, `buildRedisConnectionOptions` (FAIL-FAST: `connectTimeout: 3s`,
+      `enableOfflineQueue:false`, bounded `retryStrategy` — 3 quick attempts then give up, instead of
+      retry-forever), `buildProbeRedisOptions` (lazyConnect + zero retries for the probe). This is also
+      Task 5b's dedup (parseRedisUrl was copy-pasted in both services) — extracted here because both
+      services needed the same fail-fast options anyway.
+    - NEW `apps/api/src/core/engine/engine-availability.service.ts` — mirrors `PrismaService.isConnected`:
+      probes Redis at boot with a fail-fast client (bounded connect, no retries, noop error listener).
+      `REDIS_URL` unset OR unreachable → engine disabled with an honest reason. `EngineUnavailableError`
+      exported for the controller. `ensureProbed()` shares ONE probe across consumers (see design note).
+    - `task-queue.service.ts` / `agent-worker.service.ts` — Queue/Worker only constructed when the
+      backend is reachable; both await `ensureProbed()` first. `enqueue()` throws
+      `EngineUnavailableError` when disabled or when Redis dies post-boot (fast, honest — no hang).
+    - `engine.controller.ts` — `POST /engine/tasks` returns a clean **503** ("Engine unavailable:
+      <reason>") BEFORE creating a DB row when the engine is disabled; if Redis dies between check and
+      enqueue, the row is marked failed + 503. `GET /engine/health` now reports
+      `{ engine: "available"|"unavailable", reason, queue: {enabled:false,reason}|counters, model, timestamp }`
+      — the v0 shape is preserved when enabled.
+    - Portal: `lib/engine.ts` `EngineHealth` type + the `/engine` health strip render the disabled state
+      (amber banner with the reason) instead of crashing on a null queue.
+    - `.env.example` documents the degrade behavior; NEW `scripts/boot-api.sh` dev helper (encodes the
+      host gotchas: :4001, `DEFAULT_MODEL`, REDIS_URL override).
+  - **Design note (ordering trap found live):** NestJS runs `onModuleInit` hooks in provider-DECLARATION
+    order, not dependency order — the queue/worker read the availability verdict before the probe had
+    run ("Redis availability not yet checked"), correct by luck in the down case but wrong if Redis were
+    up. Fixed with `ensureProbed()`: whichever consumer inits first triggers the single shared probe and
+    everyone awaits the same verdict. Also dropped `maxRetriesPerRequest` from the bullmq connection
+    options — bullmq 6.x overrides it to `null` on its own blocking connections and warns loudly if set;
+    the bounded `retryStrategy` is the actual retry-forever fix.
+  - **Gates (`--force --concurrency=1`):** lint/build/typecheck/test **20/20**; tests **327** total
+    (api **212** = 187 + 25 new: redis-connection 8, engine-availability 8 incl. ensureProbed dedup,
+    engine-controller 6, task-queue rewritten 13 vs 9; sdk 19 · cli 9 · browser-use 47 · graphify 40).
+  - **LIVE acceptance (host node, real Postgres container + Ollama, Redis toggled) — RUN, not simulated:**
+    - **Phase 1 — Redis DOWN** (`REDIS_URL=redis://localhost:6380`, nothing listening): clean boot,
+      3 plugins enabled; `GET /api/health` → `ok`; `GET /api/engine/health` →
+      `{"engine":"unavailable","reason":"Redis unreachable at localhost:6380: Connection is closed.", ...}`;
+      `POST /api/engine/tasks` (real admin JWT) → **HTTP 503**
+      `{"message":"Engine unavailable: Redis unreachable at localhost:6380: ...","error":"Service Unavailable","statusCode":503}`;
+      log contains exactly ONE engine warning — **zero** `ECONNREFUSED`/retry lines (the pre-fix behavior
+      was an infinite flood).
+    - **Phase 2 — Redis UP** (compose redis on 6380): `engine:"available"`, queue initialised, worker
+      started, no BullMQ option warning; submit → `queued` → `running` → steps; a no-tools prompt
+      **completed in 1 step** on `qwen2.5-coder:7b` (`result: {"summary":"No actions required."}`); a
+      tool-exploring run on `qwen2.5-coder:1.5b` terminated honestly at `maxSteps` with a real error and
+      `tool_result` steps (hallucinated plugin id "browser.use" → clean `ok:false` refusal — the
+      machinery + honest terminal states proven, same small-model quirk documented in the v0 round).
+  - **Honest notes:** the availability verdict is boot-time only (no live re-probe endpoint yet —
+    `refresh()` exists and is unit-tested; a future admin route can call it). The two failed 1.5b tasks
+    left rows in the local dev DB — harmless, disposable.
+
 - **2026-08-02 — 🤖 ENGINE v0 built + follow-up round integrated, kill-restart acceptance PROVEN
   (commits `28f1125`, `5907d67`, this round UNCOMMITTED pending final commit) — Polaris.**
   - **What Engine v0 is:** the platform's first agentic runtime. Before this, the codebase had

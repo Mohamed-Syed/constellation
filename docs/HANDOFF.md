@@ -208,6 +208,7 @@ Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
   - **Ollama compose + identity fix:** Atlas added an `ollama` service (profile `engine`) to `docker-compose.yml` and `GET /api/identity` (fixes D-2: a foreign process on port 4000 no longer looks like this API).
   - **Honest gap:** the acceptance test proves checkpoint/resume + the parser fix; it does NOT exercise a `tool_call` being killed and resumed mid-dispatch (the passing re-run had no tool call). `AgentWorkerService` itself still has no unit test (Nova skipped it — too many deps for a first pass).
 
+- **🤖 ENGINE v0.1 — HARDEN & GATE round in progress (2026-08-02, clau_partner orchestrating SOLO).** Task 1 of 5 DONE + committed: the engine now degrades cleanly with no Redis (fail-fast options, boot probe, availability-gated Queue/Worker, 503 on submit, honest `/engine/health`). Live-proven both directions. Tasks 2–5 pending. Full detail in MASTER_PLAN §9.
 - **Known follow-ups (not blockers):** plugin READ endpoints are `@Public` for P2 (module list isn't sensitive; harden to authed + httpOnly-cookie tokens later); portal token is in-memory+localStorage (XSS caveat noted in code); no committed `prisma/migrations` history yet (Docker entrypoint uses `db push`); a viewer (non-admin) user isn't seeded so the 403 UI path is unit-tested, not live-clicked.
 - **Remaining Docker check:** ~~a full 4-service `docker compose up --wait`~~ **DONE 2026-08-02** —
   postgres + redis + api (+ the graphify sidecar) all booted healthy together during the brain
@@ -279,6 +280,12 @@ cd apps/api && DATABASE_URL="postgresql://constellation:constellation@localhost:
 1c. ~~**Kill-restart acceptance test**~~ **DONE, PROVEN LIVE (Polaris — see HANDOFF §3 and MASTER_PLAN §9 for full evidence).**
 1d. ~~**Lint pass**~~ **DONE — 20/20 gate tasks green, 0 new warnings from engine files.**
 1e. **Engine follow-ups (new, from this round's integration):** (i) unit test for `AgentWorkerService` itself — skipped so far, needs a mocking strategy for the BullMQ Worker + model router + plugin tool service combo; (ii) a tool-calling variant of the kill-restart acceptance test (kill mid-`tool_call`, not mid-`thought`); (iii) audit the rest of the codebase for the `import type` + `@Body()` DTO bug pattern found in `engine.controller.ts` (§9) — any other controller importing its DTO as `import type` has a silently-broken validation pipe; (iv) `ollama pull llama3.2` or update `.env.example`'s `DEFAULT_MODEL` to match what's actually installed on a fresh host (this host has `qwen2.5-coder:1.5b`/`7b`, not `llama3.2`).
+1f. **🤖 ENGINE v0.1 — Harden & Gate round (clau_partner, orchestrating SOLO — Nova/Orion/Atlas resting; fixes Polaris's 6 review issues; NO new scope).**
+   - [x] **Task 1 — engine degrades cleanly with no Redis** (DONE, git `<TASK1_SHA>`): fail-fast Redis options + `EngineAvailabilityService` probe + availability-gated Queue/Worker + 503 on submit + honest `/engine/health`. Live-proven both ways (Redis down → clean 503/health; up → full task run). See MASTER_PLAN §9.
+   - [ ] **Task 2 — human-in-the-loop approval gate** (SDK `requiresApproval` + manifestVersion bump, `ENGINE_REQUIRE_APPROVAL_ALL`, paused/pending_approval, approve/reject routes, named agent role).
+   - [ ] **Task 3 — ModelProvider interface + per-task token-budget cap seam.**
+   - [ ] **Task 4 — portal API base :4001 + startup identity banner.**
+   - [ ] **Task 5 — retry transient model errors + shared redis-connection util (util already extracted in Task 1).**
 2. ~~**🧠 THE BRAIN (Memory & Knowledge Graph) — TOP PRIORITY (user, 2026-08-02).**~~
    **DONE, live-verified, COMMITTED (git `32c1ea8`)** — see §3 and MASTER_PLAN §9. Graphify adopted
    (knowledge graph over MCP, local, $0); design in `docs/BRAIN.md`. **Remaining brain follow-ups
