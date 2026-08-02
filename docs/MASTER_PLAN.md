@@ -456,6 +456,43 @@ engine files · 1b portal `/engine` page (Orion's lane) · Ollama integration te
 
 ## 9. Verification log
 
+- **2026-08-02 — 🤖 ENGINE v0.1 — HARDEN & GATE round, TASK 3 of 5: honest ModelProvider interface + per-task token budget cap
+  (git `7217568`, local only) — clau_partner (orchestrating solo).**
+  - **The defect (Polaris's review):** `ModelRouterService` was an Ollama client wearing a router's
+    name — no provider interface, no fallback, no cost cap; the design's promised "hard budget cap"
+    had only `maxSteps` behind it.
+  - **What shipped:**
+    - **NEW `apps/api/src/core/engine/model-provider.ts`** — the honest seam: `ModelProvider`
+      interface (`chat` + `health`), shared `ChatMessage`/`ChatResponse`/`ModelRouterHealth`,
+      `ModelUsage` (`inputTokens`/`outputTokens`/`totalTokens`), the NestJS `MODEL_PROVIDERS`
+      multi-provider token, and **`TokenBudget`** — a per-task ceiling tracker (`record(usage)`
+      returns false the moment the cumulative count crosses the ceiling).
+    - **NEW `ollama-model-provider.ts`** — the Ollama HTTP client moved out of the router as the
+      FIRST `ModelProvider` implementation; parses non-stream `/api/chat` usage
+      (`prompt_eval_count`/`eval_count`) into `ModelUsage`.
+    - **`ModelRouterService` is now a thin SELECTOR** over `ModelProvider[]` (first-registered
+      wins; honest "no model provider is configured" health/error when the list is empty).
+      `engine.module.ts` registers `OllamaModelProvider` + the `MODEL_PROVIDERS` factory — a second
+      provider slots in there WITHOUT touching callers (`AgentWorkerService`/`EngineController`
+      still only see `chat()`/`health()`).
+    - **Per-task token ceiling (the budget cap, now structural):** the worker creates a
+      `TokenBudget` per task (`task.maxTokens ?? ENGINE_MAX_TOKENS_PER_TASK`) and records every
+      model call; crossing it fails the task with an honest terminal error
+      (`Token budget exhausted: used X of Y tokens`) instead of unbounded spend. Prisma
+      `AgentTask.maxTokens Int?` + `CreateTaskDto.maxTokens` (per-task override, min 1) + the
+      findAll projection. `.env.example` documents the env + the **dollar-cap seam**: a paid
+      provider would sum cost from its usage payload the same way, same enforcement point.
+  - **Gates (`--force --concurrency=1`):** lint/build/typecheck **8/8** each (test gate 6/6);
+    api tests **239** (was 228; +11: router-selector 5, TokenBudget 4, ollama usage parsing 2).
+  - **LIVE acceptance (real Ollama `qwen2.5-coder:7b` + Postgres + Redis:6380, api:4001) — RUN:**
+    submitted a "say hello, then done" task with `maxTokens: 50000` through the NEW provider
+    interface → **completed in 1 step** (`[0] done`), `provider:"ollama"` recorded,
+    `maxTokens: 50000` persisted on the row, `/engine/health` → `model: {provider:"ollama",
+    model:"qwen2.5-coder:7b", reachable:true}` via the selector.
+  - **Honest notes:** usage is best-effort — a provider that omits token counts contributes 0 to
+    the ceiling (documented in `.env.example`); Ollama reports them on non-stream responses, so
+    the ceiling is real here.
+
 - **2026-08-02 — 🤖 ENGINE v0.1 — HARDEN & GATE round, TASK 2 of 5: human-in-the-loop approval gate
   (git `3a24898`, local only) — clau_partner (orchestrating solo).**
   - **The defect (Polaris's review):** `AgentWorkerService` invoked every tool with the literal
