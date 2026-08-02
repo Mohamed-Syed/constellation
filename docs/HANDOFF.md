@@ -8,7 +8,9 @@
 > §1 and keep BOTH this file and `docs/MASTER_PLAN.md` up to date at every
 > milestone — same discipline the primary session follows.**
 >
-> **Last updated:** 2026-08-02 (P3+P4 committed at git `a07dd25`) · **Updated by:** clau_partner (orchestrator)
+> **Last updated:** 2026-08-02 (P3+P4 committed at git `a07dd25`; docs/lockfile proof at `b6bef93`) · **Updated by:** clau_partner (orchestrator)
+> **Note for the agents:** the P3/P4 portal + API work IS committed — do not re-label it
+> "uncommitted." Only the orchestrator commits, and only the orchestrator edits this header.
 > **Project root:** `C:\Users\syed.mohamed\Claude\Code\constellation`
 
 ---
@@ -94,14 +96,21 @@ Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
 constellation/
 ├── apps/api/            # NestJS core: bootstrap, config, plugin loader/registry/lifecycle/health, DB (Prisma), logging(pino), settings, events
 │   ├── prisma/          # schema.prisma (core schema); prisma.config.ts
-│   └── src/core/{plugins,database,logging,settings,events,health}
-├── apps/web/            # Next.js App Router portal: shell, sidebar (manifest-driven), theme, ⌘K palette, modules/detail/admin/settings
+│   └── src/core/{plugins,database,logging,settings,events,health,auth,rbac,audit,federation}
+│       ├── auth/        # JWT login + guards; TOKEN_VERIFIER seam → local-jwt / oidc-jwt / composite
+│       ├── plugins/     # + plugin-tool.service.ts (agent-plane dispatch) + dto/invoke-tool.dto.ts
+│       └── federation/  # reads config/modules.yaml → GET /api/federation/modules|:id|status
+├── apps/web/            # Next.js App Router portal: shell, manifest-driven sidebar, theme, ⌘K,
+│                        #   modules/detail/admin/settings/login + /tools federated tiles + tool-invoke UI
 ├── packages/plugin-sdk/ # THE contract: manifest (Zod) + Plugin lifecycle + PluginContext + permissions (+ tools, agent-plane)
 ├── packages/cli/        # @constellation/cli — generate-plugin scaffolder
 ├── plugins/hello-world/ # reference plugin
-├── plugins/browser-use/ # first agent-plane capability plugin (tools: browser.navigate/act/extract)
-├── docker-compose.yml, Makefile, apps/*/Dockerfile, .github/  # Atlas R2 infra
-└── docs/{MASTER_PLAN.md, HANDOFF.md (this), PLUGIN_SDK.md, ORION_ROUND2.md}
+├── plugins/browser-use/ # agent-plane capability (tools: browser.navigate/act/extract)
+├── plugins/graphify/    # agent-plane capability (tools: graph.query/related/ingest, MCP JSON-RPC)
+├── config/modules.yaml  # federated module registry (DATA — add a tool here, never edit the core)
+├── infra/               # Caddy reverse proxy, Prometheus, Loki, Grafana provisioning  ← UNRUN so far
+├── docker-compose.yml, docker-compose.federation.yml, Makefile, apps/*/Dockerfile, .github/
+└── docs/{MASTER_PLAN.md, HANDOFF.md (this), BRAIN.md, PLUGIN_SDK.md, ORION_ROUND2.md}
 ```
 
 ## 5. TWO VERIFIED BUGS — never regress (see MASTER_PLAN §9)
@@ -109,10 +118,14 @@ constellation/
 2. **CJS downleveling:** under `module: CommonJS`, tsc rewrites `import()` → `require()`, which can't load an ESM plugin. The loader uses `const esmImport = new Function("s","return import(s)")` to preserve a real dynamic import. Tests swap it via `__setEntryImporterForTests` (a Vitest vm limitation, not a defect).
 
 ## 6. Friend file-ownership lanes (keep disjoint)
-- **Atlas (infra/data):** `apps/api/src/core/{database,logging,settings,events}`, `apps/api/prisma`, `apps/api/src/app.module.ts`, Docker/Compose/Makefile/CI, README "Run with Docker".
+- **Atlas (infra/data):** `apps/api/src/core/{database,logging,settings,events,auth,rbac,audit}`, `apps/api/prisma`, `apps/api/src/app.module.ts`, `infra/**`, Docker/Compose/Makefile/CI, README "Run with Docker".
 - **Nova (SDK/core-plugins/capabilities):** `packages/**`, `apps/api/src/core/plugins/**`, `plugins/<new capability>/**`.
-- **Orion (portal/DX):** `apps/web/**`, `docs/*` (NEVER `docs/MASTER_PLAN.md`).
-- **Orchestrator only:** `docs/MASTER_PLAN.md`, cross-boundary wiring (e.g. `plugin-context.factory.ts` pulling Atlas services), `docs/HANDOFF.md`, all installs, all git commits.
+- **Orion (portal/DX):** `apps/web/**`, `docs/*` **EXCEPT `docs/MASTER_PLAN.md` and `docs/HANDOFF.md`** — both are orchestrator-only.
+- **Orchestrator only:** `docs/MASTER_PLAN.md`, `docs/HANDOFF.md`, `config/modules.yaml` + `apps/api/src/core/federation/**` (cross-boundary), other cross-boundary wiring (e.g. `plugin-context.factory.ts`), `pnpm-lock.yaml`, all installs, all git commits.
+- **⚠️ Observed 2026-08-02:** Orion edited the HANDOFF header and mislabeled committed work as
+  "UNCOMMITTED." Agents cannot see git state — **they must never write commit/status claims.**
+  State that explicitly when assigning any lane that includes `docs/`.
+
 
 ## 7. How to verify (the standard pass)
 > **`pnpm` is BROKEN on this host — see the gotchas in §3.** Use turbo directly, always
