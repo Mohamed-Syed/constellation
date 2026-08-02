@@ -4,7 +4,21 @@ import { Queue, type ConnectionOptions } from "bullmq";
 
 export const ENGINE_QUEUE_NAME = "engine-tasks";
 
-function parseRedisUrl(url: string): ConnectionOptions {
+/**
+ * Single-node Redis connection shape. bullmq 6.x's own `ConnectionOptions`
+ * is a union that also covers Cluster/Sentinel configs (no `.host`/`.port`
+ * on those variants), so we keep our own narrow type here and hand it to
+ * bullmq as `ConnectionOptions` at the call site — we only ever build the
+ * single-node shape.
+ */
+interface RedisConnectionOptions {
+  host: string;
+  port: number;
+  password?: string;
+  db: number;
+}
+
+function parseRedisUrl(url: string): RedisConnectionOptions {
   try {
     const u = new URL(url);
     return {
@@ -14,7 +28,7 @@ function parseRedisUrl(url: string): ConnectionOptions {
       db: u.pathname ? Number(u.pathname.slice(1)) || 0 : 0,
     };
   } catch {
-    return { host: "localhost", port: 6379 };
+    return { host: "localhost", port: 6379, db: 0 };
   }
 }
 
@@ -29,14 +43,14 @@ function parseRedisUrl(url: string): ConnectionOptions {
 export class TaskQueueService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(TaskQueueService.name);
   private queue!: Queue;
-  private readonly connection: ConnectionOptions;
+  private readonly connection: RedisConnectionOptions;
 
   constructor(private readonly config: ConfigService) {
     this.connection = parseRedisUrl(config.get("REDIS_URL", "redis://localhost:6379"));
   }
 
   onModuleInit() {
-    this.queue = new Queue(ENGINE_QUEUE_NAME, { connection: this.connection });
+    this.queue = new Queue(ENGINE_QUEUE_NAME, { connection: this.connection as ConnectionOptions });
     this.logger.log(`Queue "${ENGINE_QUEUE_NAME}" initialised (${this.connection.host}:${this.connection.port})`);
   }
 

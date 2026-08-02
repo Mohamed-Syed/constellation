@@ -11,7 +11,7 @@ import {
 import { Public } from "../auth/public.decorator.js";
 import { CurrentUser } from "../auth/current-user.decorator.js";
 import type { AuthPrincipal } from "../auth/token-verifier.js";
-import type { CreateTaskDto } from "./dto/create-task.dto.js";
+import { CreateTaskDto } from "./dto/create-task.dto.js";
 import { ModelRouterService } from "./model-router.service.js";
 import { TaskQueueService } from "./task-queue.service.js";
 import { TaskService } from "./task.service.js";

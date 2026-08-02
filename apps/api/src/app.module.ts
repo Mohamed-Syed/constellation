@@ -29,8 +29,9 @@ import { SettingsModule } from "./core/settings/settings.module.js";
  *
  * `AuthModule` registers `JwtAuthGuard` as the global `APP_GUARD` — every
  * route requires a bearer token by default from here on, except routes
- * marked `@Public()`: today `POST /api/auth/login`, `GET /api/health`, and
- * the plugin read API (`GET /api/plugins`, `GET /api/plugins/:id`).
+ * marked `@Public()`: today `POST /api/auth/login`, `GET /api/health`,
+ * `GET /api/identity`, and the plugin read API (`GET /api/plugins`,
+ * `GET /api/plugins/:id`).
  */
 @Module({
   imports: [

@@ -8,7 +8,7 @@
 > §1 and keep BOTH this file and `docs/MASTER_PLAN.md` up to date at every
 > milestone — same discipline the primary session follows.**
 >
-> **Last updated:** 2026-08-02 (Engine v0 — durable task runtime + Ollama model router committed `28f1125`) · **Updated by:** Polaris
+> **Last updated:** 2026-08-02 (Engine v0 follow-up round: tests + portal UI + Ollama compose + identity endpoint + kill-restart acceptance PROVEN — integration commit pending) · **Updated by:** Polaris
 > **Note for the agents:** the P3/P4 portal + API work IS committed — do not re-label it
 > "uncommitted." Only the orchestrator commits, and only the orchestrator edits this header.
 > **Project root:** `C:\Users\syed.mohamed\Claude\Code\constellation`
@@ -193,8 +193,20 @@ Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
   - **Prisma schema**: 3 new models (`AgentTask`, `TaskStep`, `TaskCheckpoint`) pushed to DB.
   - **`.env.example`**: `OLLAMA_BASE_URL`, `DEFAULT_MODEL`, `MODEL_TIMEOUT_MS`, `ENGINE_MAX_STEPS` documented.
   - **Gates:** typecheck `0 errors` · API tests `141 pass` (0 regressions) · build `7/7`.
-  - **NOT done yet (honest):** engine-specific tests; portal `/engine` task list page; Ollama integration test (kill + restart acceptance criterion requires Ollama running); lint pass with engine files.
-  - **To use locally:** `ollama pull llama3.2` → start stack (`docker compose up -d`) → `POST /api/engine/tasks {"title":"test","prompt":"Say hello"}` → `GET /api/engine/tasks/:id`.
+  - **To use locally:** `ollama pull <model>` (this host has `qwen2.5-coder:1.5b`/`7b`, not `llama3.2` — set `DEFAULT_MODEL` or pass `model` per-task) → start stack (`docker compose up -d`) → `POST /api/engine/tasks {"title":"test","prompt":"Say hello"}` → `GET /api/engine/tasks/:id`.
+
+- **🤖 ENGINE v0 FOLLOW-UP ROUND DONE, KILL-RESTART ACCEPTANCE PROVEN LIVE — 2026-08-02, Polaris (integrating Nova/Orion/Atlas):**
+  Nova, Orion, and Atlas worked disjoint lanes concurrently (§8 1a/1b/1d from the prior round) and each verified clean in isolation. Polaris integrated all three and found 5 bugs none of them could see individually (each only ran their own package):
+  1. **`ioredis` missing from node_modules** — bullmq 6.x made it an optional peer dep, `pnpm install` never pulled it in. Fixed: added as an explicit direct dependency.
+  2. **bullmq 6.x's `ConnectionOptions` type is now a union** (single-node ∪ Cluster ∪ Sentinel) — broke `tsc` on both `task-queue.service.ts` and `agent-worker.service.ts`. Fixed: narrow local `RedisConnectionOptions` interface, cast at the bullmq call site only.
+  3. **`import type { CreateTaskDto }` silently broke `POST /engine/tasks`** — TS erases `import type`, so `emitDecoratorMetadata` had nothing for `design:paramtypes`, so Nest's `ValidationPipe` rejected every field as unknown. **Gates were green the whole time; the endpoint was dead.** Fixed: value import. ⚠️ **Watch for this pattern elsewhere — any DTO imported as `import type` for a `@Body()` param is silently broken the same way.**
+  4. **`REDIS_HOST_PORT=6380` in this host's `.env`**, not the Compose default 6379 — cost time diagnosing a hang (ioredis retries `ECONNREFUSED` forever by default).
+  5. **`parseAction`'s greedy regex broke on a real small model** (`qwen2.5-coder:1.5b` emitted multiple JSON objects in one code-fenced reply instead of one-per-turn; the regex spanned all of them into invalid JSON, so every step silently degraded to "thought" and the task always hit `maxSteps` and failed). Fixed: `extractFirstJsonObject()` brace-counting helper + tightened system prompt ("EXACTLY ONE JSON object... do not wrap in a code fence").
+  - **Gates (all 20 tasks, merged tree):** lint 20/20 · build 20/20 · typecheck 20/20 · test 20/20 (187 api tests: 141 + Nova's 46 new).
+  - **Kill-restart acceptance test — RUN LIVE against real Ollama/Postgres/Redis, not simulated:** submitted a 20-step task, watched `stepCount` climb to 6, **killed the API process**, **queried Postgres directly while the API was down** to confirm `status=running, stepCount=6` (proves durability, not in-memory state), restarted the API, watched the stalled BullMQ job resume and `stepCount` continue climbing from 6 (not reset to 0). After the parser fix, a fresh task completed end-to-end in 1 step with a real `done` result. **This is the Engine v0 acceptance criterion, proven.**
+  - **Portal:** Orion built `/engine` — submit form, auto-refreshing task table, step-detail drawer, cancel button, engine health strip. Verified by typecheck+lint only (not clicked in a live browser — same caveat as the Brain page).
+  - **Ollama compose + identity fix:** Atlas added an `ollama` service (profile `engine`) to `docker-compose.yml` and `GET /api/identity` (fixes D-2: a foreign process on port 4000 no longer looks like this API).
+  - **Honest gap:** the acceptance test proves checkpoint/resume + the parser fix; it does NOT exercise a `tool_call` being killed and resumed mid-dispatch (the passing re-run had no tool call). `AgentWorkerService` itself still has no unit test (Nova skipped it — too many deps for a first pass).
 
 - **Known follow-ups (not blockers):** plugin READ endpoints are `@Public` for P2 (module list isn't sensitive; harden to authed + httpOnly-cookie tokens later); portal token is in-memory+localStorage (XSS caveat noted in code); no committed `prisma/migrations` history yet (Docker entrypoint uses `db push`); a viewer (non-admin) user isn't seeded so the 403 UI path is unit-tested, not live-clicked.
 - **Remaining Docker check:** ~~a full 4-service `docker compose up --wait`~~ **DONE 2026-08-02** —
@@ -261,11 +273,12 @@ cd apps/api && DATABASE_URL="postgresql://constellation:constellation@localhost:
 ```
 
 ## 8. Pending / next actions (priority order)
-1. ~~**🤖 Engine v0 — Durable Task Runtime + Ollama model router.**~~ **DONE (git `28f1125`).** Follow-ups below.
-1a. **Engine tests** — unit tests for `TaskService`, `ModelRouterService`, `TaskQueueService` (mock BullMQ). Same pattern as `plugin-tool.service.test.ts`. Target: raise API test count from 141 → ~165.
-1b. **Portal `/engine` page** — minimal task list: submit form, task table (id/title/status/steps/created), detail drawer with step-by-step log. Client component. No new API routes needed. Orion's lane.
-1c. **Kill-restart acceptance test** — manual: start API + Ollama, submit a task, kill API mid-run, restart, verify task resumes from checkpoint and completes. Documents acceptance criterion met.
-1d. **Lint pass** — run `turbo lint --force` with the new engine files (17 pre-existing warnings; confirm no new errors from engine additions).
+1. ~~**🤖 Engine v0 — Durable Task Runtime + Ollama model router.**~~ **DONE (git `28f1125`).**
+1a. ~~**Engine tests**~~ **DONE (Nova, 46 new tests, 187 total).**
+1b. ~~**Portal `/engine` page**~~ **DONE (Orion — submit form, task table, step drawer, cancel, health strip). Not yet clicked in a live browser.**
+1c. ~~**Kill-restart acceptance test**~~ **DONE, PROVEN LIVE (Polaris — see HANDOFF §3 and MASTER_PLAN §9 for full evidence).**
+1d. ~~**Lint pass**~~ **DONE — 20/20 gate tasks green, 0 new warnings from engine files.**
+1e. **Engine follow-ups (new, from this round's integration):** (i) unit test for `AgentWorkerService` itself — skipped so far, needs a mocking strategy for the BullMQ Worker + model router + plugin tool service combo; (ii) a tool-calling variant of the kill-restart acceptance test (kill mid-`tool_call`, not mid-`thought`); (iii) audit the rest of the codebase for the `import type` + `@Body()` DTO bug pattern found in `engine.controller.ts` (§9) — any other controller importing its DTO as `import type` has a silently-broken validation pipe; (iv) `ollama pull llama3.2` or update `.env.example`'s `DEFAULT_MODEL` to match what's actually installed on a fresh host (this host has `qwen2.5-coder:1.5b`/`7b`, not `llama3.2`).
 2. ~~**🧠 THE BRAIN (Memory & Knowledge Graph) — TOP PRIORITY (user, 2026-08-02).**~~
    **DONE, live-verified, COMMITTED (git `32c1ea8`)** — see §3 and MASTER_PLAN §9. Graphify adopted
    (knowledge graph over MCP, local, $0); design in `docs/BRAIN.md`. **Remaining brain follow-ups
@@ -296,12 +309,12 @@ run `pnpm install` concurrently (pre-install shared deps first), and the orchest
 merges + commits + the final verify.
 
 ## 11. In-flight state & deferred options (updated by Polaris, 2026-08-02)
-**NOTHING IS IN FLIGHT. Working tree CLEAN (HANDOFF.md itself is the only staged change), all work COMMITTED LOCALLY (`28f1125`), nothing pushed.**
+**Nova/Orion/Atlas's follow-up work + Polaris's integration fixes are ALL DONE and gate-verified
+(20/20 tasks, 187 tests, kill-restart acceptance proven live) but NOT YET COMMITTED as of this
+HANDOFF.md write — commit is the very next action, immediately after this doc update.**
 
-**Engine v0 is committed and working. The immediate next items (§8 1a/1b/1c/1d) are well-scoped and can be picked up independently:**
-- clau_partner or Orion: portal `/engine` page (§8 1b) — Orion's lane, `apps/web/src/app/engine/`
-- Atlas or Nova: engine unit tests (§8 1a) — Nova's lane, `apps/api/src/core/engine/*.test.ts`
-- Polaris or clau_partner: lint + kill-restart acceptance (§8 1c/1d) — orchestrator verification
+Everyone (clau_partner, Nova, Orion, Atlas) can rest — nothing further to assign this round.
+§8 items 1a–1d are DONE; only 1e (new follow-ups) remains open for a future round, none urgent.
 Four commits this session, oldest first:
 `32c1ea8` brain round · `a4f28db` P3 federation + P4 capability wiring · `95f237a` SHA backfill ·
 `db0826f` lint gate repair. **All four gates green: lint 2/2 · typecheck 8/8 · build 7/7 · tests 256.**

@@ -18,7 +18,21 @@ interface AgentAction {
   error?: string;
 }
 
-function parseRedisUrl(url: string): ConnectionOptions {
+/**
+ * Single-node Redis connection shape. bullmq 6.x's own `ConnectionOptions`
+ * is a union that also covers Cluster/Sentinel configs (no `.host`/`.port`
+ * on those variants), so we keep our own narrow type here and hand it to
+ * bullmq as `ConnectionOptions` at the call site — we only ever build the
+ * single-node shape.
+ */
+interface RedisConnectionOptions {
+  host: string;
+  port: number;
+  password?: string;
+  db: number;
+}
+
+function parseRedisUrl(url: string): RedisConnectionOptions {
   try {
     const u = new URL(url);
     return {
@@ -28,7 +42,7 @@ function parseRedisUrl(url: string): ConnectionOptions {
       db: u.pathname ? Number(u.pathname.slice(1)) || 0 : 0,
     };
   } catch {
-    return { host: "localhost", port: 6379 };
+    return { host: "localhost", port: 6379, db: 0 };
   }
 }
 
@@ -54,7 +68,7 @@ const AGENT_PERMISSIONS = ["platform:admin"] as const;
 export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(AgentWorkerService.name);
   private worker!: Worker;
-  private readonly connection: ConnectionOptions;
+  private readonly connection: RedisConnectionOptions;
 
   constructor(
     private readonly taskService: TaskService,
@@ -70,7 +84,7 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
     this.worker = new Worker(
       ENGINE_QUEUE_NAME,
       (job: Job<{ taskId: string }>) => this.processJob(job),
-      { connection: this.connection, concurrency: 2 },
+      { connection: this.connection as ConnectionOptions, concurrency: 2 },
     );
 
     this.worker.on("completed", (job) => {
@@ -222,12 +236,18 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
   }
 
   private parseAction(raw: string): AgentAction {
-    // Extract the first JSON object from the model response (model may add prose)
-    const match = raw.match(/\{[\s\S]*\}/);
-    if (!match) return { type: "thought", thought: raw };
+    // Extract the FIRST balanced JSON object from the model response. A naive
+    // greedy `/\{[\s\S]*\}/` grabs from the first `{` to the LAST `}` — if a
+    // (smaller, less instruction-followed) model emits several JSON objects
+    // in one reply (e.g. inside a single code fence), that span is not valid
+    // JSON and every step silently degrades to "thought", so the loop can
+    // never dispatch a tool_call or reach done. Brace-counting finds the
+    // first *complete* object and ignores anything the model appended after.
+    const jsonText = extractFirstJsonObject(raw);
+    if (!jsonText) return { type: "thought", thought: raw };
 
     try {
-      const obj = JSON.parse(match[0]) as Partial<AgentAction>;
+      const obj = JSON.parse(jsonText) as Partial<AgentAction>;
       if (obj.type && ["thought", "tool_call", "done", "error"].includes(obj.type)) {
         return obj as AgentAction;
       }
@@ -268,9 +288,53 @@ When the task is finished:
 {"type":"done","result":"<summary of what was accomplished>"}
 
 Rules:
-- Output only the JSON object, nothing before or after it.
+- Output EXACTLY ONE JSON object per response — never multiple objects, never a
+  plan of several steps at once. One action, then wait for the result.
+- Do not wrap the JSON in a code fence or add any text before or after it.
 - Do not hallucinate tool names — use only the tools listed above.
-- After receiving a tool result, decide the next action.
+- After receiving a tool result, decide the next single action.
 - Be concise and task-focused.`;
   }
+}
+
+/**
+ * Finds the first balanced `{...}` object in `text` by brace-counting, so a
+ * model that emits several JSON objects in one reply (ignoring the "exactly
+ * one" instruction) still yields a parseable first action instead of an
+ * invalid multi-object span. Returns `null` if no `{` is found or braces
+ * never balance (truncated/malformed output).
+ */
+function extractFirstJsonObject(text: string): string | null {
+  const start = text.indexOf("{");
+  if (start === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+    } else if (ch === "{") {
+      depth++;
+    } else if (ch === "}") {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+
+  return null;
 }

@@ -7,7 +7,7 @@
 > **Codename:** `constellation` (placeholder — user may rename).
 > **Status:** **Round 1 + 2 + P2 + the first P3/P4 slice done, integrated, verified, committed** (git `a07dd25`, local only — not pushed). Foundation + Prisma data layer + hardened loader + agent-plane tools + portal + Docker/CI + JWT auth/RBAC/audit (all real-Postgres-proven) + **OIDC/SSO verifier seam, `POST /api/plugins/:id/invoke` tool invocation, the `graphify` capability plugin, and portal federation (`config/modules.yaml` + `/api/federation/*` + `/tools` tiles)**. **169 tests green.** See §9. Next: **the BRAIN round** (§8, `docs/BRAIN.md`) — user's top priority. Then: prove a real Keycloak+Caddy SSO round-trip (configs exist, UNRUN). VPS deferred (prove locally first).
 > **Relationship to Looper:** SEPARATE project. Looper (`../loop-engineering`) is untouched.
-> **Last updated:** 2026-08-02 (clau_partner)
+> **Last updated:** 2026-08-02 (Polaris — Engine v0 built, integrated, kill-restart acceptance proven)
 
 ---
 
@@ -417,7 +417,145 @@ w/o the brain must not crash, verify before done).
   `docs/BRAIN.md` §7 met except the two gaps recorded in §9 (docs-mode/Ollama indexing; `remember()`
   → rebuild → node-appears round-trip). See §9.
 
+### ⭐ Nova — ENGINE v0 unit tests — ✅ DONE (46 new tests, verified 2026-08-02)
+**Goal (HANDOFF §8 1a):** first tests for the Engine v0 module (`apps/api/src/core/engine/**`,
+zero before this round). Same offline pattern as `plugin-tool.test.ts`: hand-wired with `new`,
+no Nest DI container, Vitest. `AgentWorkerService` deliberately NOT tested (too many deps —
+per plan, skipped for now). **Files created (3, all in `apps/api/src/core/engine/`):**
+- **`task.service.test.ts` (28 tests)** — `PrismaService.db` faked with `vi.fn()` delegates.
+  All 11 methods: `create` (defaults `maxSteps:20`/`status:"queued"`, explicit model/maxSteps,
+  no-actor) · `findAll` (newest-first, take:100, fixed projection) · `findOne` (+steps ordered
+  by stepIndex) · `markRunning`/`markCompleted`/`markFailed` (status + timestamps/provider/
+  result/error) · `cancel` (false for not-found and ALL terminal statuses completed/failed/
+  cancelled, true for queued/running/paused) · `addStep` (step create + `stepCount` increment
+  in one `$transaction`, 2 ops) · `saveCheckpoint`/`loadCheckpoint` (upsert branches; null
+  when absent) · `isCancelled` (true only for cancelled). **No-DB degradation covered on every
+  method** — null/[]/false/undefined, except `create` which throws the documented
+  `Database not available`.
+- **`model-router.service.test.ts` (9 tests)** — global `fetch` stubbed (`vi.stubGlobal`, no
+  sockets). Successful chat parses content/model/provider/durationMs + exact POST payload
+  (`/api/chat`, JSON body `{model,messages,stream:false}`, AbortSignal) · explicit model
+  override + response-model fallback · `OLLAMA_BASE_URL` honoured · HTTP 500 → wrapped
+  `Model router error: Ollama returned HTTP 500: <body snippet>` · network failure wrapped ·
+  **real timeout abort** (MODEL_TIMEOUT_MS=10, asserts `signal.aborted === true`) · `health()`
+  200 → `reachable:true`, non-2xx → `reachable:false`, network error → `reachable:false` +
+  `Ollama unreachable at …`.
+- **`task-queue.service.test.ts` (9 tests)** — `bullmq` module mocked wholesale (hoisted mock
+  Queue instance, nothing touches Redis). `onModuleInit` creates queue with parsed connection
+  (default localhost:6379, full `redis://:pw@host:6380/2`, unparseable→fallback) · `enqueue`
+  adds `run` job with `{taskId}` + `{priority, attempts:3, backoff:exponential/2000,
+  removeOnComplete:86400, removeOnFail:604800}` + priority passthrough · `getHealth` aggregates
+  waiting/active/failed · `onModuleDestroy` closes the queue and tolerates never-initialised.
+
+**Verification (real run):** `pnpm --filter @constellation/api test` (direct pnpm.js
+invocation per HANDOFF §3) → **12 files, 187 passed (141 existing + 46 new), 0 failures.**
+One assertion was corrected during the pass (default Redis connection includes
+`password:undefined, db:0` keys — `parseRedisUrl` always emits them).
+**Still pending (unchanged, HANDOFF §8):** 1c kill-restart acceptance test · 1d lint pass with
+engine files · 1b portal `/engine` page (Orion's lane) · Ollama integration test.
+
 ## 9. Verification log
+
+- **2026-08-02 — 🤖 ENGINE v0 built + follow-up round integrated, kill-restart acceptance PROVEN
+  (commits `28f1125`, `5907d67`, this round UNCOMMITTED pending final commit) — Polaris.**
+  - **What Engine v0 is:** the platform's first agentic runtime. Before this, the codebase had
+    zero LLM clients, zero workflow engines, zero durable queues (Redis was in Compose but
+    unreferenced by any API code) — every capability call was human-initiated HTTP. Engine v0
+    adds: `ModelRouterService` (Ollama, `$0` local), `TaskQueueService`/`AgentWorkerService`
+    (BullMQ, durable + checkpointed), `TaskService` (Prisma CRUD on 3 new models), 5 REST routes.
+  - **Base commit (`28f1125`):** typecheck 0 errors, 141/141 api tests, build 7/7. No engine
+    tests yet, no portal UI, ioredis gap undiscovered (host node_modules lacked it — bullmq made
+    it an optional peer dep as of 6.x, not auto-installed).
+  - **This round — three agents worked disjoint lanes concurrently, Polaris integrated:**
+    - **Nova** — 46 new tests across `task.service`/`model-router.service`/`task-queue.service`
+      (`AgentWorkerService` deliberately skipped — too many deps for a first pass). See her own
+      §8 entry above for full detail. Verified: 187/187 (141 + 46).
+    - **Orion** — portal `/engine` page: submit form, auto-refreshing task table, step-detail
+      drawer, cancel button, engine health strip. `apps/web/src/lib/engine.ts` +
+      `components/engine/engine-view.tsx` + `app/engine/page.tsx` + nav entry. Verified:
+      typecheck 0 errors, lint 0 errors on his 4 files (17 pre-existing repo warnings untouched).
+    - **Atlas** — `ollama` service added to `docker-compose.yml` under profile `engine` (image,
+      named volume, healthcheck, `OLLAMA_HOST_PORT` env) + `GET /api/identity` (`@Public`,
+      `{product:"constellation",version,api:true}`) fixing the D-2 silent-wrong-product risk
+      when port 4000 is squatted by another local process. Verified: api typecheck 0 errors,
+      `docker compose config` valid.
+  - **Integration bugs found and fixed by Polaris (none of the three lanes could see these —
+    each only ran their own package in isolation):**
+    1. **`ioredis` genuinely missing from node_modules.** `bullmq@6.0.5` made `ioredis` an
+       *optional* peer dependency (it now supports pluggable Redis/Cluster/Sentinel backends),
+       so a plain `pnpm install` never pulls it in. `bullmq` would throw at runtime the moment a
+       `Queue`/`Worker` tried to connect. Fixed: `pnpm --filter @constellation/api add ioredis`
+       as an explicit direct dependency.
+    2. **bullmq 6.x's own `ConnectionOptions` type is a union** (single-node ∪ Cluster ∪
+       Sentinel) — Cluster/Sentinel variants have no `.host`/`.port`, so code written against the
+       single-node shape (both `task-queue.service.ts` and `agent-worker.service.ts`, from the
+       original build) failed `tsc` under the newer bullmq version pulled in by `pnpm install`.
+       Fixed: both files now declare their own narrow `RedisConnectionOptions` interface and
+       cast to bullmq's `ConnectionOptions` only at the `new Queue()`/`new Worker()` call site.
+       One test assertion updated to match (`db:0` is always emitted by `parseRedisUrl`, Nova
+       had already caught and fixed this exact thing in her own suite independently).
+    3. **`import type { CreateTaskDto }` silently broke request validation.** TypeScript erases
+       `import type` at compile time, so `emitDecoratorMetadata` had nothing to put in
+       `design:paramtypes` for `submitTask`'s first parameter — Nest's global `ValidationPipe`
+       (`whitelist:true, forbidNonWhitelisted:true`) then had no class to validate the body
+       against and rejected every field as unknown (`"property title should not exist"`, etc.),
+       making `POST /engine/tasks` permanently unusable despite green gates everywhere (unit
+       tests mock the service layer and never exercise Nest's real param-metadata pipeline).
+       **This is the same class of bug as the "200 + isError:false" dishonest-success case from
+       the P4 round — a gate that passes while the actual endpoint is broken.** Fixed: value
+       import instead of `import type`.
+    4. **`REDIS_HOST_PORT` in `.env` is `6380`, not the Compose default `6379`** — a local-host
+       customization from an earlier session, not documented anywhere obvious. Cost real time
+       diagnosing a `curl` hang (BullMQ's ioredis client retries `ECONNREFUSED` forever by
+       default rather than failing fast). No code fix needed — this is host-specific `.env`
+       state — but worth remembering when booting the api directly instead of via Compose.
+    5. **`parseAction`'s greedy regex (`/\{[\s\S]*\}/`) broke on a real (small) local model.**
+       `qwen2.5-coder:1.5b` — instructed to output exactly one JSON action per turn — instead
+       emitted all its planned steps as multiple JSON objects inside one code fence. The greedy
+       regex matched from the first `{` to the LAST `}`, spanning all the objects, which is not
+       valid JSON — so `JSON.parse` threw on every single step, every step silently degraded to
+       `type:"thought"`, and the loop could never dispatch a real `tool_call` or reach `done`
+       (only discovered because the acceptance test actually ran the task to a real terminal
+       state instead of stopping once the checkpoint mechanism was observed working). Fixed:
+       `extractFirstJsonObject()` — brace-counting with string/escape awareness — finds the
+       first *complete* balanced object and ignores anything appended after it. System prompt
+       also tightened: "Output EXACTLY ONE JSON object per response... One action, then wait for
+       the result," plus "do not wrap in a code fence."
+  - **Gates after all fixes (`--force --concurrency=1`, this round + all three lanes merged):
+    lint 20/20 · build 20/20 · typecheck 20/20 · test 20/20 tasks, 187 api tests (141 + Nova's
+    46), 0 failures.**
+  - **Kill-restart acceptance test — RUN LIVE, not simulated (Polaris, host node + real Ollama +
+    real Postgres/Redis containers):**
+    1. Logged in as seeded admin, `POST /engine/tasks` with a 20-step counting prompt against
+       `qwen2.5-coder:1.5b` → `queued`.
+    2. Polled: `running`, `stepCount` climbing 0→1→2→…→6.
+    3. **Killed the API process (`Stop-Process -Force`) mid-run at stepCount=6.**
+    4. **Queried Postgres directly (API fully down, proving this isn't in-memory state):**
+       `status=running, stepCount=6` — frozen exactly where the kill landed, not lost, not
+       corrupted.
+    5. Restarted the API with the same task still in Redis as a stalled BullMQ job.
+    6. Polled again: **stepCount held at 6 for ~15s (BullMQ's stalled-job lock-timeout window),
+       then resumed and continued climbing 6→7→8→9→…** — never reset to 0. **This is the
+       acceptance criterion, proven**: an in-flight task survives an API restart and resumes
+       from its last checkpoint rather than restarting from scratch or being lost.
+    7. First run hit `maxSteps:20` and terminated `failed` with an honest error message — root
+       cause was bug #5 above (parser), not the checkpoint/queue mechanism, which behaved
+       exactly as designed throughout (including the max-step safety ceiling firing correctly).
+    8. **Re-ran after the parser fix** with a trivial prompt ("say hello, then respond done") on
+       the same model: completed in **1 step**, `status:"completed"`,
+       `result:{"summary":"Hello! Ready to assist."}`. The full loop — model call → JSON parse →
+       `done` dispatch → checkpoint → completion — now works end-to-end against a real local
+       model, not just a mocked one.
+  - **Honest scope note:** the acceptance test proves checkpoint/resume and the parser fix
+    against a real model; it does not exercise `tool_call` dispatch through the checkpoint/
+    restart path (the sanity-check prompt completed in 1 step with no tool call). A task that
+    calls a plugin tool, gets killed mid-call, and resumes correctly is UNRUN — worth a follow-up
+    if tool-calling reliability with small local models becomes a priority.
+  - **Not yet done (honest, carried to HANDOFF §8):** engine-specific test for
+    `AgentWorkerService` itself (Nova skipped it — "too many deps"); a tool-calling variant of
+    the acceptance test; portal `/engine` page clicked in a real browser (Orion verified via
+    gates only, same caveat pattern as the Brain page in the P3/P4 round).
+
 - **2026-08-02 — 🧹 `lint` gate repaired — it had NEVER run (git `db0826f`, local only) — clau_partner.**
   Found by actually running `pnpm run lint` instead of assuming it didn't exist. `apps/web` declared
   `"lint": "next lint"` with **no ESLint config and no eslint dependency**, so `next lint` fell into

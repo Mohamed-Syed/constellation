@@ -44,6 +44,16 @@ const CORE_PLATFORM: FlatNavItem[] = [
     order: 30,
     requiresAnyPermission: [BRAIN_READ_PERMISSION],
   },
+  {
+    // The agentic task runtime (apps/api/src/core/engine). Visible to every
+    // authenticated user — the engine's routes are JWT-guarded with no
+    // granular permission enforced yet.
+    id: "core-engine",
+    label: "Engine",
+    href: "/engine",
+    icon: "Cpu",
+    order: 40,
+  },
 ];
 
 const CORE_SYSTEM: FlatNavItem[] = [
