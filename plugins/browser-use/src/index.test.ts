@@ -79,6 +79,7 @@ function fakeFetch(handlers: ((call: Call, n: number) => HttpResponse)[]) {
 beforeEach(() => {
   delete process.env.BROWSER_USE_URL;
   delete process.env.BROWSER_USE_API_KEY;
+  delete process.env.BROWSER_USE_BACKEND;
   __setSleepForTests(async () => {}); // no real waiting
 });
 

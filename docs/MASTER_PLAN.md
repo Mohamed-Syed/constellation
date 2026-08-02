@@ -418,6 +418,78 @@ w/o the brain must not crash, verify before done).
   → rebuild → node-appears round-trip). See §9.
 
 ## 9. Verification log
+- **2026-08-02 — 🛰️ P3 federation + 🤖 P4 capability wiring LIVE-PROVED and integrated
+  (git `<SHA2>`, local only) — clau_partner (acting orchestrator).** Three agent lanes
+  (Atlas/Nova/Orion) landed on the clean brain base `32c1ea8`; the orchestrator integrated,
+  found and fixed what live testing exposed, and verified the result.
+  - **Gates (merged tree, `--force --concurrency=1`):** typecheck **8/8**, build **7/7**,
+    tests **256 passed** (api 141 · browser-use 47 · graphify 40 · sdk 19 · cli 9) — up from 221.
+  - **P3 federation — the whole overlay booted for the first time ever.** 11 containers healthy:
+    api, web, caddy, keycloak, prometheus, loki, grafana, postgres, redis, graphify, steel.
+    - Atlas fixed 3 real config bugs: Loki 3.2.1 rejected `metric_aggregation_enabled` under
+      `limits_config` (crash-loop) → moved to `pattern_ingester`; the Keycloak healthcheck probed
+      `/health/ready` when `--http-relative-path=/auth` also prefixes management endpoints
+      (always 404) → `/auth/health/ready`; **`docker-compose.yml` had no `OIDC_*` passthrough at
+      all**, so setting `OIDC_ISSUER_URL` silently did nothing and SSO could never activate.
+    - **Orchestrator caught that the Keycloak fix was never actually applied** — the container was
+      still running the old healthcheck (86 consecutive failures, `unhealthy`) because editing
+      compose does not touch a running container. After `--force-recreate`: **healthy,
+      failingStreak=0**. Editing a healthcheck requires a recreate; noted inline in the compose file.
+    - **Orchestrator made the SSO proof reproducible.** Atlas's realm was hand-created at runtime
+      in an in-memory `start-dev` Keycloak, so it evaporated on recreate (realm → HTTP 404) and the
+      proof could not be re-run. Added `infra/keycloak/realm-constellation.json` + `--import-realm`.
+      Log now shows `Realm 'constellation' imported` on every boot.
+    - **Live SSO round-trip (reproducible, post-recreate):** real RS256 token from
+      `iss=http://localhost:8081/auth/realms/constellation`, `aud=[constellation-portal, account]`
+      → `GET /api/auth/me` **HTTP 200**; tampered token → **HTTP 401**. Signature validation is
+      genuinely enforced. Local admin login still 200 with SSO on (no regression), and with
+      `OIDC_ISSUER_URL` unset the api logs `SSO not configured — local JWT verification only`.
+    - **Caddy proxy:** `/api/health` 200, `/tools/grafana/api/health` 200 (Grafana 11.3.1),
+      `/tools/prometheus/-/healthy` 200, `/auth/realms/constellation` 200, `/` 200.
+      Honest caveat (Atlas): `/tools/grafana/` returns 302 — Grafana's normal unauthenticated
+      login redirect, not a proxy failure — and `/tools/grafana` without the trailing slash 404s.
+  - **P4 capability wiring — real backends, real invokes.** Nova wired browser-use to a local
+    **Steel Browser** container (Apache-2.0, $0; upstream browser-use ships no self-hosted REST
+    image — issue #658) and graphify to the live MCP sidecar, discovering via `tools/list` that the
+    plugin's assumed tool names were **entirely wrong** (`query`/`related`/`ingest` matched
+    nothing) → corrected to `query_graph`/`get_neighbors` with arg mapping. She could not boot the
+    api to capture evidence; the orchestrator closed that gap and found **four further bugs that
+    only a live invoke could expose**:
+    1. **`apps/api/Dockerfile` never built browser-use or graphify** — only `hello-world`. Both
+       shipped as bare source with no `dist/`, so every invoke failed
+       `declares tool "x" but its runtime implements no invokeTool()` **while `/api/health`
+       cheerfully reported both plugins `enabled`+`ok`**. Added to deps/builder stages.
+    2. **`docker-compose.yml` had no plugin-backend env passthrough** (same class of bug as
+       Atlas's `OIDC_*`): `BROWSER_USE_*` / `GRAPHIFY_*` silently never reached the container.
+    3. **Manifest defaults shadow env fallbacks.** `PluginConfigFactory.hydrate()` seeds manifest
+       defaults into config, so `backend`'s default `"cloud"` was always truthy and the
+       `BROWSER_USE_BACKEND` env fallback was **unreachable dead code**. Default → `""`.
+    4. **`GRAPHIFY_MCP_URL` name collision.** The graphify *plugin* read the same variable the
+       *core brain* reserves — setting it for the plugin would disable the brain's graph.json
+       fallback. Split to `GRAPHIFY_PLUGIN_MCP_URL` (legacy name still honoured).
+    - **Live invoke evidence** (`POST /api/plugins/:id/invoke`, real JWT, containerized api):
+      `browser.navigate` → `ok:true {backend:"steel", title:"Example Domain", statusCode:200}`;
+      `browser.extract` → `ok:true` with real scraped page content; `graph.query` → `ok:true`
+      (`query_graph`, BFS depth=3, 144 nodes); `graph.related` → `ok:true` (`get_neighbors`,
+      real `PluginLoaderService` methods with file:line).
+    - **Dishonest-success bug found and fixed:** the sidecar answers an unsupported tool with
+      HTTP 200 + **`isError:false`** and the body `"Unknown tool: ingest"`. Checking `isError`
+      alone reported that hard failure as **`ok:true`** — exactly the dishonest degradation the
+      agent plane must never emit. Unit tests mock the transport and could never catch it. Now
+      returns `ok:false` with an actionable message; regression test added.
+    - **Honest refusals preserved:** `browser.act` on the steel backend returns a clear
+      "Steel is a browser sandbox, not an LLM agent" error rather than faking an action.
+  - **UNRUN / deferred (explicitly not claimed):** Orion's Brain-page fixes — he spent his budget
+    on real-browser root-causing against the 1241-node graph and stopped at the diagnosis line
+    without writing the fix code (his own honest report); `open-webui`/`langflow` never started
+    (GB-scale images, outside the SSO/proxy proof); docs-mode (Ollama) brain still unrun.
+  - **Also corrected this pass:** HANDOFF §3 gotcha 1 + §7 — **`pnpm` is not broken, its shim is**
+    (it prepends `C:` to an MSYS path); invoking `corepack/dist/pnpm.js` directly with a native
+    Windows path works (pnpm 9.12.3, `pnpm run typecheck` 8/8 / `test` 221, matching turbo).
+    This explains Polaris's "pnpm worked fine from this shell" note. Documented the `:4000`
+    collision trap in `.env.example`: a foreign process there answers with valid HTTP
+    (`{"detail":"Not Found"}`) instead of refusing, so the portal silently talks to the wrong API.
+
 - **2026-08-02 — 🧠 BRAIN ROUND shipped, live-verified against the containerized sidecar, COMMITTED
   (git `32c1ea8`, local only) — clau_partner (acting orchestrator; Polaris paused).**
   - **What shipped.** The full memory subsystem across all three lanes:

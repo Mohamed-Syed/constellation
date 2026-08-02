@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PluginContext } from "@constellation/plugin-sdk";
 import plugin, {
+  __resetToolListCacheForTests,
   __setFetchForTests,
   flattenMcpContent,
+  mapToolArgs,
   parseRpcBody,
   resolveBaseUrl,
   type HttpRequestInit,
@@ -66,6 +68,7 @@ const sentBody = (c: Call) => JSON.parse(c.init!.body!) as Record<string, unknow
 beforeEach(() => {
   delete process.env.GRAPHIFY_MCP_URL;
   delete process.env.GRAPHIFY_API_KEY;
+  __resetToolListCacheForTests();
 });
 
 afterEach(() => {
@@ -138,7 +141,7 @@ describe("MCP JSON-RPC protocol", () => {
     const out = await plugin.invokeTool!("graph.query", { question: "who uses the SDK?" }, configured());
 
     expect(out.ok).toBe(true);
-    if (out.ok) expect(out.data).toMatchObject({ tool: "query", text: "the SDK is used by api" });
+    if (out.ok) expect(out.data).toMatchObject({ tool: "query_graph", text: "the SDK is used by api" });
 
     const body = sentBody(callAt(calls, 0));
     expect(callAt(calls, 0).url).toBe(BASE);
@@ -146,7 +149,7 @@ describe("MCP JSON-RPC protocol", () => {
     expect(body.jsonrpc).toBe("2.0");
     expect(body.method).toBe("tools/call");
     expect(body.params).toMatchObject({
-      name: "query",
+      name: "query_graph",
       arguments: { question: "who uses the SDK?" },
     });
     // MCP Streamable HTTP requires accepting both content types.
@@ -162,7 +165,7 @@ describe("MCP JSON-RPC protocol", () => {
     await plugin.invokeTool!("graph.query", { question: "q" }, configured());
     await plugin.invokeTool!("graph.related", { entity: "e" }, configured());
     await plugin.invokeTool!("graph.ingest", { source: "s" }, configured());
-    expect(seen).toEqual(["query", "related", "ingest"]);
+    expect(seen).toEqual(["query_graph", "get_neighbors", "ingest"]);
   });
 
   it("honors a per-deployment toolNames override", async () => {
@@ -196,6 +199,22 @@ describe("MCP JSON-RPC protocol", () => {
     const out = await plugin.invokeTool!("graph.related", { entity: "x" }, configured());
     expect(out.ok).toBe(false);
     if (!out.ok) expect(out.error).toContain("index missing");
+  });
+
+  // Regression (orchestrator, verified live 2026-08-02): the real sidecar
+  // answers an unsupported tool with HTTP 200 + isError:FALSE and the body
+  // "Unknown tool: ingest". Trusting isError alone reported that hard failure
+  // as ok:true — a dishonest success the agent plane must never emit.
+  it("treats a 200 + isError:false 'Unknown tool' body as a failure, not success", async () => {
+    fakeFetch(() =>
+      res({ result: { isError: false, content: [{ type: "text", text: "Unknown tool: ingest" }] } }),
+    );
+    const out = await plugin.invokeTool!("graph.ingest", { source: "hello" }, configured());
+    expect(out.ok).toBe(false);
+    if (!out.ok) {
+      expect(out.error).toContain("does not expose");
+      expect(out.error).toContain("Unknown tool: ingest");
+    }
   });
 
   it("surfaces a transport-level HTTP error", async () => {
@@ -278,5 +297,148 @@ describe("health against a configured server", () => {
     const health = await plugin.health!(configured());
     expect(health.status).toBe("down");
     expect(health.detail).toContain("ETIMEDOUT");
+  });
+});
+
+/**
+ * P4 LIVE WIRING.
+ *
+ * These lock in the mapping onto the tools the REAL brain sidecar exposes,
+ * verified by a `tools/list` against http://127.0.0.1:8791/mcp:
+ *   query_graph, get_node, get_neighbors, get_community, god_nodes,
+ *   graph_stats, shortest_path, list_prs, get_pr_impact, triage_prs
+ * Still no real network here — the live proof is an end-to-end invoke, these
+ * guard the wire shape so a rename upstream fails loudly in CI.
+ */
+const LIVE_TOOLS = [
+  "query_graph",
+  "get_node",
+  "get_neighbors",
+  "get_community",
+  "god_nodes",
+  "graph_stats",
+  "shortest_path",
+  "list_prs",
+  "get_pr_impact",
+  "triage_prs",
+].map((name) => ({ name }));
+
+describe("P4: live sidecar tool mapping", () => {
+  it("maps graph.query and graph.related onto tools the live server really has", () => {
+    const names = LIVE_TOOLS.map((t) => t.name);
+    expect(names).toContain("query_graph");
+    expect(names).toContain("get_neighbors");
+    // The sidecar genuinely has no ingest tool — this documents that fact.
+    expect(names).not.toContain("ingest");
+  });
+
+  it("renames graph.related's `entity` to the server's `label`", () => {
+    expect(mapToolArgs("graph.related", { entity: "Plugin" })).toEqual({ label: "Plugin" });
+  });
+
+  it("drops `depth` for graph.related, which get_neighbors does not accept", () => {
+    expect(mapToolArgs("graph.related", { entity: "Plugin", depth: 3 })).toEqual({
+      label: "Plugin",
+    });
+  });
+
+  it("maps the generic `limit` onto the server's token_budget", () => {
+    expect(mapToolArgs("graph.query", { question: "q", limit: 4000 })).toEqual({
+      question: "q",
+      token_budget: 4000,
+    });
+  });
+
+  it("passes unknown args through and drops undefined values", () => {
+    expect(mapToolArgs("graph.query", { question: "q", mode: "dfs", nope: undefined })).toEqual({
+      question: "q",
+      mode: "dfs",
+    });
+  });
+
+  it("leaves graph.query's own arg names alone", () => {
+    expect(mapToolArgs("graph.query", { question: "who uses the SDK?" })).toEqual({
+      question: "who uses the SDK?",
+    });
+  });
+
+  it("explains that graph.ingest has no counterpart on this server", async () => {
+    // call fails, then tools/list reveals the tool simply isn't there.
+    const calls = fakeFetch((c) =>
+      sentBody(c).method === "tools/list"
+        ? res({ result: { tools: LIVE_TOOLS } })
+        : res({ error: { message: "Unknown tool: ingest" } }),
+    );
+
+    const out = await plugin.invokeTool!("graph.ingest", { source: "/corpus" }, configured());
+
+    expect(out.ok).toBe(false);
+    if (!out.ok) {
+      expect(out.error).toContain('does not expose a "ingest" tool');
+      expect(out.error).toContain("query_graph");
+      expect(out.error).toContain("mounted corpus");
+    }
+    // Exactly two round trips: the call, then the diagnostic listing.
+    expect(calls).toHaveLength(2);
+  });
+
+  it("does NOT spend a tools/list round trip on the happy path", async () => {
+    const calls = fakeFetch(() => res({ result: { content: [{ type: "text", text: "ok" }] } }));
+    const out = await plugin.invokeTool!("graph.query", { question: "q" }, configured());
+    expect(out.ok).toBe(true);
+    expect(calls).toHaveLength(1);
+    expect(sentBody(callAt(calls, 0)).method).toBe("tools/call");
+  });
+
+  it("memoises tools/list so repeated failures do not storm the server", async () => {
+    const calls = fakeFetch((c) =>
+      sentBody(c).method === "tools/list"
+        ? res({ result: { tools: LIVE_TOOLS } })
+        : res({ error: { message: "Unknown tool" } }),
+    );
+
+    await plugin.invokeTool!("graph.ingest", { source: "a" }, configured());
+    await plugin.invokeTool!("graph.ingest", { source: "b" }, configured());
+    await plugin.invokeTool!("graph.ingest", { source: "c" }, configured());
+
+    // 3 tools/call attempts, but only ONE tools/list.
+    expect(calls.filter((c) => sentBody(c).method === "tools/list")).toHaveLength(1);
+    expect(calls.filter((c) => sentBody(c).method === "tools/call")).toHaveLength(3);
+  });
+
+  it("keeps the server's own error when the tool DOES exist", async () => {
+    fakeFetch((c) =>
+      sentBody(c).method === "tools/list"
+        ? res({ result: { tools: LIVE_TOOLS } })
+        : res({ error: { message: "depth must be <= 6" } }),
+    );
+    const out = await plugin.invokeTool!("graph.query", { question: "q" }, configured());
+    expect(out.ok).toBe(false);
+    if (!out.ok) {
+      expect(out.error).toContain("depth must be <= 6");
+      expect(out.error).not.toContain("does not expose");
+    }
+  });
+
+  it("does not mask the original error when the diagnostic listing also fails", async () => {
+    fakeFetch((c) => {
+      if (sentBody(c).method === "tools/list") throw new Error("ECONNRESET");
+      return res({ error: { message: "boom" } });
+    });
+    const out = await plugin.invokeTool!("graph.query", { question: "q" }, configured());
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.error).toContain("boom");
+  });
+
+  it("still degrades honestly with no server configured (no crash, no network)", async () => {
+    let touched = false;
+    __setFetchForTests(async () => {
+      touched = true;
+      throw new Error("should not be called");
+    });
+    const out = await plugin.invokeTool!("graph.query", { question: "q" }, makeCtx());
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.error).toContain("not configured");
+    expect(touched).toBe(false);
   });
 });

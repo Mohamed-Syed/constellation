@@ -59,20 +59,31 @@ services:
     # `start-dev` = H2 in-memory, no TLS. Realm config does NOT survive a
     # `down`. Fine for proving the SSO seam; swap to `start` + the Postgres
     # datasource before anything real.
-    command: ["start-dev", "--http-relative-path=/auth", "--health-enabled=true"]
+    # The realm is IMPORTED declaratively from infra/keycloak/ on every boot
+    # (--import-realm), so the SSO proof is reproducible after a recreate
+    # instead of depending on hand-clicked runtime state that vanishes.
+    command: ["start-dev", "--http-relative-path=/auth", "--health-enabled=true", "--import-realm"]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-changeme}
       KC_HTTP_ENABLED: "true"
       KC_HOSTNAME_STRICT: "false"
       KC_PROXY_HEADERS: xforwarded
+    volumes:
+      - ./infra/keycloak:/opt/keycloak/data/import:ro
     ports:
       - "${KEYCLOAK_HOST_PORT:-8081}:8080"
     healthcheck:
       # The 26.x images are distroless — no curl/wget. Keycloak exposes its
       # health endpoints on the management port (9000); probe with bash's
       # /dev/tcp, which is all that's available in the container.
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '\"status\": \"UP\"'"]
+      # NOTE: `--http-relative-path=/auth` ALSO prefixes the management
+      # endpoints, so the path is /auth/health/ready — bare /health/ready
+      # returns 404 and the container never goes healthy.
+      # Verified 2026-08-02: this probe only takes effect after the container
+      # is RECREATED (`up -d --force-recreate keycloak`); editing the compose
+      # file alone leaves the old healthcheck baked into the running container.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && echo -e 'GET /auth/health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '\"status\": \"UP\"'"]
       interval: 15s
       timeout: 5s
       retries: 20

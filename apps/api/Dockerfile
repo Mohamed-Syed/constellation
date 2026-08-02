@@ -29,6 +29,8 @@ COPY apps/web/package.json            apps/web/package.json
 COPY packages/plugin-sdk/package.json packages/plugin-sdk/package.json
 COPY packages/cli/package.json        packages/cli/package.json
 COPY plugins/hello-world/package.json plugins/hello-world/package.json
+COPY plugins/browser-use/package.json plugins/browser-use/package.json
+COPY plugins/graphify/package.json    plugins/graphify/package.json
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile
 
@@ -46,6 +48,8 @@ COPY --from=deps /app/apps/web/node_modules             ./apps/web/node_modules
 COPY --from=deps /app/packages/plugin-sdk/node_modules  ./packages/plugin-sdk/node_modules
 COPY --from=deps /app/packages/cli/node_modules         ./packages/cli/node_modules
 COPY --from=deps /app/plugins/hello-world/node_modules  ./plugins/hello-world/node_modules
+COPY --from=deps /app/plugins/browser-use/node_modules  ./plugins/browser-use/node_modules
+COPY --from=deps /app/plugins/graphify/node_modules     ./plugins/graphify/node_modules
 COPY . .
 # Prisma FIRST: `@prisma/client` is a stub until `prisma generate` writes the
 # real client (PrismaClient/Prisma types included). Without this, `nest build`
@@ -55,8 +59,16 @@ RUN pnpm --filter "@constellation/plugin-sdk..." build \
  && pnpm --filter @constellation/api exec prisma generate
 # `...` = "this package and everything it depends on" — and it skips the
 # Next.js portal entirely (that's apps/web/Dockerfile).
+# NOTE: every plugin the api should be able to INVOKE must be built here.
+# The loader reads each plugin's `main` (dist/index.js); a plugin shipped as
+# bare source loads with no runtime, so `POST /api/plugins/:id/invoke` fails
+# with `declares tool "x" but its runtime implements no invokeTool()` even
+# though /api/health reports the plugin as enabled+ok. Verified 2026-08-02:
+# browser-use and graphify were missing here and failed exactly that way.
 RUN pnpm --filter "@constellation/api..." build \
- && pnpm --filter "@constellation/plugin-hello-world..." build
+ && pnpm --filter "@constellation/plugin-hello-world..." build \
+ && pnpm --filter "@constellation/plugin-browser-use..." build \
+ && pnpm --filter "@constellation/plugin-graphify..." build
 
 # --- runtime --------------------------------------------------------------
 FROM base AS runtime

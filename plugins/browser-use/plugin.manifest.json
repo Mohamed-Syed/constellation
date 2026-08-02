@@ -28,6 +28,13 @@
   "featureFlags": [],
   "settings": [
     {
+      "key": "backend",
+      "label": "Backend dialect",
+      "type": "string",
+      "description": "Which wire protocol to speak: 'cloud' (default) = the async browser-use task API at api.browser-use.com, needs an API key; 'steel' = a LOCAL Steel Browser container (ghcr.io/steel-dev/steel-browser, Apache-2.0, $0), needs no key. Falls back to the BROWSER_USE_BACKEND env var, then to 'cloud'. NOTE: this default MUST stay empty — manifest defaults are hydrated into plugin config, so a non-empty default here is always truthy and would shadow the BROWSER_USE_BACKEND env fallback entirely.",
+      "default": ""
+    },
+    {
       "key": "baseUrl",
       "label": "browser-use base URL",
       "type": "string",

@@ -43,12 +43,53 @@ import {
  *   a reason to mark this plugin unhealthy.
  */
 
+/**
+ * ## P4: a second, GENUINELY-LOCAL backend dialect (`steel`)
+ *
+ * The task-API dialect above (`cloud`) requires a paid `api.browser-use.com`
+ * key: upstream ships **no** self-hosted REST image (browser-use issue #658 is
+ * still the open request for one). To satisfy the "$0 / runs locally in
+ * Docker" constraint the plugin now speaks a SECOND dialect against
+ * **Steel Browser** (`ghcr.io/steel-dev/steel-browser`, Apache-2.0, free,
+ * fully local), which is the closest real open-source equivalent.
+ *
+ * Steel's REST API is SYNCHRONOUS rather than task-oriented:
+ *   - `POST {base}/v1/scrape`   `{ url, format:["html","markdown"], delay? }`
+ *   - `POST {base}/v1/sessions` `{ ... }` (session lifecycle)
+ *   - `GET  {base}/v1/health`   liveness
+ *
+ * So `backend` selects the dialect:
+ *   - `cloud` (default) → async browser-use task API, needs an API key
+ *   - `steel`           → local Steel Browser, needs NO key
+ *
+ * Steel is a browser sandbox, not an LLM agent, so it has no natural-language
+ * "act" primitive. `browser.act` is therefore **honestly unsupported** on the
+ * steel dialect and returns a clear error naming the limitation rather than
+ * pretending to have performed the action. `navigate` and `extract` map onto
+ * `/v1/scrape` and do real work end-to-end.
+ */
+
 /** Env vars read when the corresponding plugin settings are absent. */
 const ENV_BASE_URL = "BROWSER_USE_URL";
 const ENV_API_KEY = "BROWSER_USE_API_KEY";
+const ENV_BACKEND = "BROWSER_USE_BACKEND";
+
+/** Which wire dialect to speak. */
+export type Backend = "cloud" | "steel";
+
+/** Backend: `backend` setting → env → `cloud`. Unknown values fall back to cloud. */
+export function resolveBackend(ctx: PluginContext): Backend {
+  const fromConfig = ctx.config.get<string>("backend");
+  const raw = ((fromConfig && fromConfig.trim()) || process.env[ENV_BACKEND]?.trim() || "")
+    .toLowerCase();
+  return raw === "steel" ? "steel" : "cloud";
+}
 
 /** Public cloud default; overridden by the `baseUrl` setting or env for self-hosting. */
 const CLOUD_BASE_URL = "https://api.browser-use.com";
+
+/** Conventional local Steel Browser port (`docker run -p 3000:3000 …`). */
+const STEEL_BASE_URL = "http://localhost:3000";
 
 const DEFAULT_TASK_TIMEOUT_MS = 180_000;
 const DEFAULT_POLL_INTERVAL_MS = 2_000;
@@ -103,11 +144,17 @@ function http(): FetchLike {
   return fetchImpl ?? (globalThis.fetch as FetchLike);
 }
 
-/** Base URL: `baseUrl` setting → env → hosted cloud. Trailing slashes stripped. */
+/**
+ * Base URL: `baseUrl` setting → env → dialect default.
+ *
+ * The steel dialect has no hosted default — a local Steel container is the
+ * whole point — so it falls back to the conventional local port.
+ */
 export function resolveBaseUrl(ctx: PluginContext): string {
   const fromConfig = ctx.config.get<string>("baseUrl");
   const raw = (fromConfig && fromConfig.trim()) || process.env[ENV_BASE_URL]?.trim();
-  return (raw || CLOUD_BASE_URL).replace(/\/+$/, "");
+  const fallback = resolveBackend(ctx) === "steel" ? STEEL_BASE_URL : CLOUD_BASE_URL;
+  return (raw || fallback).replace(/\/+$/, "");
 }
 
 /** API key: `apiKey` setting → env. Undefined when unset. */
@@ -178,6 +225,134 @@ export function buildTaskRequest(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Steel Browser dialect (local, $0)
+// ---------------------------------------------------------------------------
+
+/** What Steel's `POST /v1/scrape` gives back, as much as we read. */
+interface SteelScrapeResponse {
+  content?: { html?: string; markdown?: string; readability?: { title?: string } };
+  metadata?: { title?: string; statusCode?: number; urlSource?: string; description?: string };
+  links?: unknown[];
+}
+
+/** Trim scraped text so a tool result never floods the agent's context. */
+const MAX_EXTRACT_CHARS = 20_000;
+
+/** Build the Steel `/v1/scrape` request body for a tool call. */
+export function buildSteelScrapeRequest(
+  name: string,
+  args: Record<string, unknown>,
+): { url: string; format: string[]; delay?: number } | undefined {
+  const url =
+    name === "browser.navigate"
+      ? String(args.url)
+      : typeof args.startUrl === "string"
+        ? args.startUrl
+        : undefined;
+  if (!url) return undefined;
+  const delay = typeof args.delay === "number" ? args.delay : undefined;
+  return {
+    url,
+    format: name === "browser.navigate" ? ["html"] : ["markdown", "html"],
+    ...(delay ? { delay } : {}),
+  };
+}
+
+/**
+ * Executes one tool against a local Steel Browser instance.
+ *
+ * Kept separate from the cloud path because the two protocols share nothing:
+ * Steel is one synchronous POST, browser-use is create-then-poll.
+ */
+async function invokeSteel(
+  name: string,
+  args: Record<string, unknown>,
+  ctx: PluginContext,
+  baseUrl: string,
+  apiKey: string | undefined,
+  timeoutMs: number,
+): Promise<ToolResult> {
+  if (name === "browser.act") {
+    return {
+      ok: false,
+      error:
+        `"browser.act" is not supported by the "steel" backend: Steel Browser is a browser ` +
+        `sandbox (CDP + scrape/screenshot/pdf), not an LLM agent, so it has no ` +
+        `natural-language action primitive. Use the "cloud" backend for browser.act, or drive ` +
+        `Steel over CDP directly.`,
+    };
+  }
+
+  const body = buildSteelScrapeRequest(name, args);
+  if (!body) {
+    return {
+      ok: false,
+      error: `"${name}" on the "steel" backend requires a "startUrl" argument to scrape.`,
+    };
+  }
+
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (apiKey) headers["x-api-key"] = apiKey;
+
+  try {
+    const res = await http()(`${baseUrl}/v1/scrape`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      return {
+        ok: false,
+        error:
+          `Steel Browser returned HTTP ${res.status} for "${name}"` +
+          (detail ? `: ${detail.slice(0, 500)}` : ""),
+      };
+    }
+
+    const payload = (await res.json().catch(() => undefined)) as SteelScrapeResponse | undefined;
+    if (!payload) {
+      return { ok: false, error: `Steel Browser returned an unreadable body for "${name}"` };
+    }
+
+    const title = payload.metadata?.title ?? payload.content?.readability?.title ?? null;
+    const finalUrl = payload.metadata?.urlSource ?? body.url;
+
+    if (name === "browser.navigate") {
+      ctx.logger.debug(`browser-use/steel navigate -> ${finalUrl}`);
+      return {
+        ok: true,
+        data: {
+          backend: "steel",
+          url: finalUrl,
+          title,
+          statusCode: payload.metadata?.statusCode ?? null,
+          links: Array.isArray(payload.links) ? payload.links.length : 0,
+        },
+      };
+    }
+
+    // browser.extract — hand back the page text plus the query that asked for it.
+    const text = payload.content?.markdown ?? payload.content?.html ?? "";
+    ctx.logger.debug(`browser-use/steel extract -> ${text.length} chars from ${finalUrl}`);
+    return {
+      ok: true,
+      data: {
+        backend: "steel",
+        url: finalUrl,
+        title,
+        query: String(args.query),
+        content: text.slice(0, MAX_EXTRACT_CHARS),
+        truncated: text.length > MAX_EXTRACT_CHARS,
+      },
+    };
+  } catch (err) {
+    return { ok: false, error: `Steel Browser call to "${name}" failed: ${asMessage(err)}` };
+  }
+}
+
 /** Shape of the task record we care about from `GET /api/v2/tasks/{id}`. */
 interface TaskRecord {
   id?: string;
@@ -190,12 +365,14 @@ interface TaskRecord {
 
 export default definePlugin({
   register(ctx: PluginContext): void {
+    const backend = resolveBackend(ctx);
     const baseUrl = resolveBaseUrl(ctx);
-    if (resolveApiKey(ctx)) {
-      ctx.logger.info(`browser-use registered — service at ${baseUrl}`);
+    if (backend === "steel" || resolveApiKey(ctx)) {
+      ctx.logger.info(`browser-use registered — backend=${backend}, service at ${baseUrl}`);
     } else {
       ctx.logger.warn(
-        `browser-use registered but NOT configured — set the "apiKey" setting or ${ENV_API_KEY}. ` +
+        `browser-use registered but NOT configured — set the "apiKey" setting or ${ENV_API_KEY}, ` +
+          `or set backend="steel" (${ENV_BACKEND}) to use a local Steel Browser with no key. ` +
           `Its tools will return a "not configured" error until then.`,
       );
     }
@@ -211,37 +388,51 @@ export default definePlugin({
    * which is a real operational problem worth alerting on.
    */
   async health(ctx: PluginContext): Promise<HealthResult> {
+    const backend = resolveBackend(ctx);
     const apiKey = resolveApiKey(ctx);
     const baseUrl = resolveBaseUrl(ctx);
-    if (!apiKey) {
+
+    // The steel dialect needs NO credentials — a reachable local container is
+    // the whole configuration, so "no api key" is not degraded there.
+    if (backend === "cloud" && !apiKey) {
       return {
         status: "degraded",
         detail: `no browser-use credentials configured (set "apiKey" or ${ENV_API_KEY})`,
         checks: { service: "down" },
       };
     }
+
+    const probeUrl = backend === "steel" ? `${baseUrl}/v1/health` : `${baseUrl}/api/v2/me`;
+    const probeHeaders: Record<string, string> = {};
+    if (backend === "cloud" && apiKey) probeHeaders["X-Browser-Use-API-Key"] = apiKey;
+    else if (apiKey) probeHeaders["x-api-key"] = apiKey;
+
     try {
-      // A cheap authenticated read; also validates the key.
-      const res = await http()(`${baseUrl}/api/v2/me`, {
+      // A cheap read that also validates credentials where they apply.
+      const res = await http()(probeUrl, {
         method: "GET",
-        headers: { "X-Browser-Use-API-Key": apiKey },
+        headers: probeHeaders,
         signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
       });
       if (res.ok) {
-        return { status: "ok", detail: `browser-use reachable at ${baseUrl}`, checks: { service: "ok" } };
+        return {
+          status: "ok",
+          detail: `browser-use (${backend}) reachable at ${baseUrl}`,
+          checks: { service: "ok" },
+        };
       }
       return {
         status: "down",
         detail:
           res.status === 401 || res.status === 403
-            ? `browser-use rejected the configured API key (HTTP ${res.status})`
-            : `browser-use at ${baseUrl} returned HTTP ${res.status}`,
+            ? `browser-use (${backend}) rejected the configured API key (HTTP ${res.status})`
+            : `browser-use (${backend}) at ${baseUrl} returned HTTP ${res.status}`,
         checks: { service: "down" },
       };
     } catch (err) {
       return {
         status: "down",
-        detail: `browser-use at ${baseUrl} unreachable: ${asMessage(err)}`,
+        detail: `browser-use (${backend}) at ${baseUrl} unreachable: ${asMessage(err)}`,
         checks: { service: "down" },
       };
     }
@@ -269,10 +460,18 @@ export default definePlugin({
       return { ok: false, error: `"browser.navigate" requires an absolute http(s) url, got "${value}"` };
     }
 
+    const backend = resolveBackend(ctx);
     const apiKey = resolveApiKey(ctx);
+    const baseUrl = resolveBaseUrl(ctx);
+    const overallTimeoutMs = numberSetting(ctx, "timeoutMs", DEFAULT_TASK_TIMEOUT_MS);
+
+    // --- steel dialect: one synchronous call, no credentials required -------
+    if (backend === "steel") {
+      return invokeSteel(name, args, ctx, baseUrl, apiKey, Math.min(120_000, overallTimeoutMs));
+    }
+
     if (!apiKey) return notConfigured();
 
-    const baseUrl = resolveBaseUrl(ctx);
     const body = buildTaskRequest(name, args);
     if (!body) return { ok: false, error: `browser-use could not build a task for "${name}"` };
 
@@ -280,7 +479,6 @@ export default definePlugin({
       "content-type": "application/json",
       "X-Browser-Use-API-Key": apiKey,
     };
-    const overallTimeoutMs = numberSetting(ctx, "timeoutMs", DEFAULT_TASK_TIMEOUT_MS);
     const pollIntervalMs = numberSetting(ctx, "pollIntervalMs", DEFAULT_POLL_INTERVAL_MS);
     const deadline = Date.now() + overallTimeoutMs;
 

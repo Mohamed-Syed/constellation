@@ -85,6 +85,27 @@ services:
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
+      # --- P3 SSO (OIDC). ALL OPTIONAL and empty by default: with
+      # OIDC_ISSUER_URL unset the OidcJwtVerifier reports itself disabled and
+      # CompositeTokenVerifier logs "SSO not configured — local JWT
+      # verification only", exactly as before SSO existed.
+      #
+      # These were previously MISSING from this service block, which meant
+      # setting them in .env had no effect inside the container and SSO could
+      # never actually be turned on for the containerised api.
+      #
+      # NOTE on the two URLs: OIDC_ISSUER_URL must match the `iss` claim the
+      # BROWSER-issued token carries (http://localhost:8081/... or the proxy
+      # origin), but the api resolves JWKS from INSIDE the compose network
+      # where "localhost" is the api container itself. Hence the explicit
+      # OIDC_JWKS_URI override pointing at the service name.
+      OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:-}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-}
+      OIDC_JWKS_URI: ${OIDC_JWKS_URI:-}
+      OIDC_ROLES_CLAIM: ${OIDC_ROLES_CLAIM:-roles}
+      OIDC_PERMISSIONS_CLAIM: ${OIDC_PERMISSIONS_CLAIM:-permissions}
+      OIDC_EMAIL_CLAIM: ${OIDC_EMAIL_CLAIM:-email}
+      OIDC_CLOCK_SKEW_SEC: ${OIDC_CLOCK_SKEW_SEC:-60}
       PLUGINS_DIR: /app/plugins
       # --- Brain (Graphify) — OPTIONAL. The api must boot fine with the
       # sidecar down, so there is no depends_on here: core/memory reads the
@@ -98,6 +119,21 @@ services:
       # running `make brain`; unset, the api reads the graph off the volume.
       GRAPHIFY_MCP_URL: ${GRAPHIFY_MCP_URL:-}
       BRAIN_VAULT_DIR: /app/brain
+
+      # --- Capability plugin backends (agent plane) -----------------------
+      # These are read by the PLUGINS (plugins/browser-use, plugins/graphify)
+      # as an env fallback behind their per-plugin settings. Distinct from
+      # GRAPHIFY_MCP_URL above, which is the core/memory brain's own transport
+      # — keep the two decoupled (see the note on GRAPHIFY_MCP_URL).
+      # Unset by default: every plugin must stay unconfigured-safe.
+      #   $0 local wiring: BROWSER_USE_BACKEND=steel with a Steel Browser
+      #   container, and GRAPHIFY_URL pointed at the brain sidecar's MCP port.
+      BROWSER_USE_BACKEND: ${BROWSER_USE_BACKEND:-}
+      BROWSER_USE_URL: ${BROWSER_USE_URL:-}
+      BROWSER_USE_API_KEY: ${BROWSER_USE_API_KEY:-}
+      GRAPHIFY_URL: ${GRAPHIFY_URL:-}
+      GRAPHIFY_PLUGIN_MCP_URL: ${GRAPHIFY_PLUGIN_MCP_URL:-}
+      GRAPHIFY_API_KEY: ${GRAPHIFY_API_KEY:-}
     volumes:
       # Read-only: the api consumes the graph, only the sidecar writes it.
       - graphify-out:/brain:ro

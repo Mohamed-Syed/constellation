@@ -85,9 +85,18 @@ Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
 - **Working tree CLEAN at `b5f82b2`.** Nothing pushed. No cloud provisioned. **VPS deferred** — prove everything locally first (user decision 2026-08-01).
 - **Polaris re-verification (2026-08-02):** independently re-ran the gates after the checkpoint — `pnpm build` 7/7 (no cache), `pnpm test` green (**api 95, browser-use 25**, + sdk/cli/graphify = 169 per clau_partner's fuller run), web typecheck clean. State is coherent and on-plan. NB: `pnpm` worked fine from *this* bash shell (the §3 "pnpm broken" trap is shell-specific — turbo-direct is the safe fallback either way).
 - **⚠️ ENVIRONMENT GOTCHAS (confirmed again 2026-08-02 — read before verifying):**
-  1. **`pnpm` is broken on this host.** `corepack enable && pnpm install` dies with
-     `MODULE_NOT_FOUND` on a mangled `C:\c\Users\...\corepack\dist\pnpm.js` path. Use
-     **`./node_modules/.bin/turbo run build|typecheck|test`** instead. Deps are already installed.
+  1. **The `pnpm` SHIM is broken on this host — but pnpm itself is fine.** The wrapper on
+     `PATH` prepends `C:` to an already-MSYS-style path and dies with `MODULE_NOT_FOUND` on a
+     mangled `C:\c\Users\...\corepack\dist\pnpm.js`. **The real `pnpm.js` exists and works.**
+     Corrected 2026-08-02 by clau_partner (supersedes the old "pnpm is broken, never use it"
+     wording, and explains Polaris's note in §2 that pnpm "worked fine from this shell"):
+     - Preferred gate runner (still the safe default, no pnpm needed):
+       `./node_modules/.bin/turbo run build|typecheck|test --force --concurrency=1`
+     - When you genuinely need pnpm (`pnpm run <task>`, `--filter`, `install`), call it directly
+       with a NATIVE Windows path and it works — verified pnpm **9.12.3**, `pnpm run typecheck`
+       8/8 and `pnpm run test` 221 passing, identical to the turbo-direct run:
+       `node "C:\Users\syed.mohamed\AppData\Local\hermes\node\node_modules\corepack\dist\pnpm.js" run <task>`
+     Deps are already installed either way.
   2. **Turbo caching lies.** A plain `turbo run build` reported `7 successful … FULL TURBO` from
      cache on code that had never been built. **Always pass `--force`.**
   3. **Run gates with `--concurrency=1`.** A parallel `--force` run failed `@constellation/web#build`
@@ -124,6 +133,46 @@ Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
 - **⚠️ Two more host facts (2026-08-02):** `make` is **not installed** — run the `make brain*`
   targets as their underlying `docker compose --profile brain …` commands. Looper's
   `looper-gateway` squats host **:4000** — publish the api elsewhere with `API_HOST_PORT=4010`.
+- **🛰️🤖 P3 FEDERATION + P4 CAPABILITY WIRING LIVE-PROVED, COMMITTED (git `<SHA2>`, local only) — 2026-08-02, clau_partner:**
+  the federation overlay booted for the FIRST TIME (11 containers healthy: api, web, caddy, keycloak,
+  prometheus, loki, grafana, postgres, redis, graphify, steel) and the agent plane now invokes REAL
+  backends. Gates on the merged tree: **typecheck 8/8, build 7/7, tests 256** (api 141 · browser-use 47 ·
+  graphify 40 · sdk 19 · cli 9). Full detail + literal evidence in MASTER_PLAN §9.
+  **Reproducible SSO:** real Keycloak RS256 token → `/api/auth/me` **200**, tampered → **401**, local
+  login unaffected, `OIDC_ISSUER_URL` unset → honest "SSO not configured" log.
+  **Real invokes:** `browser.navigate`/`browser.extract` → live Steel Browser (`title:"Example Domain"`,
+  real scraped content); `graph.query`/`graph.related` → live MCP sidecar (144 nodes, real file:line refs).
+  **Seven bugs fixed that only live testing could expose** — 3 by Atlas (Loki `metric_aggregation_enabled`
+  crash-loop, Keycloak `/auth/health/ready` 404, missing `OIDC_*` compose passthrough) and 4 by the
+  orchestrator (see the NEW GOTCHAS in §3 below).
+  **NOT done (explicit):** Orion's Brain-page fixes were root-caused in a real browser but never written —
+  he stopped honestly at the diagnosis line; `open-webui`/`langflow` never booted; docs-mode (Ollama) unrun.
+
+- **⚠️ NEW GOTCHAS (all found the hard way 2026-08-02 — read before verifying containers):**
+  1. **Editing a healthcheck in compose does NOT change a running container.** Atlas's correct
+     Keycloak fix sat in the YAML while the container kept failing the OLD probe 86 times and stayed
+     `unhealthy`. You must `docker compose up -d --force-recreate <svc>`. Always confirm with
+     `docker inspect <c> --format '{{json .Config.Healthcheck.Test}}'` that the probe you *think*
+     you fixed is the one actually baked in.
+  2. **`/api/health` reporting a plugin `enabled`+`ok` does NOT mean its tools work.** Health only
+     probes the backend. `apps/api/Dockerfile` built only `hello-world`, so browser-use/graphify
+     shipped with no `dist/` and every invoke failed `implements no invokeTool()` while health stayed
+     green. **Any plugin you want to invoke must be added to BOTH the deps and builder stages.**
+  3. **Manifest defaults silently shadow env-var fallbacks.** `PluginConfigFactory.hydrate()` seeds
+     manifest defaults into plugin config, so a `"default": "cloud"` made `ctx.config.get("backend")`
+     always truthy and rendered the `BROWSER_USE_BACKEND` fallback unreachable dead code. **If a
+     setting is meant to fall back to env, its manifest default MUST be `""`.**
+  4. **`GRAPHIFY_MCP_URL` is reserved for the CORE brain — never point the plugin at it.** Setting it
+     disables the brain's graph.json fallback and breaks `/api/brain/query` when the sidecar is down.
+     The capability plugin now uses `GRAPHIFY_PLUGIN_MCP_URL` (legacy name still read as a fallback).
+  5. **A 200 + `isError:false` can still be a failure.** The Graphify sidecar answers unsupported tools
+     with exactly that, body `"Unknown tool: ingest"` — which the plugin reported as `ok:true`. Mocked
+     unit tests cannot catch this class of bug; only a live call can. Assert on the body, not just the
+     status flag.
+  6. **In-memory Keycloak (`start-dev`) loses hand-made realms on every recreate.** Runtime-clicked SSO
+     config is not a reproducible proof. The realm is now declarative in
+     `infra/keycloak/realm-constellation.json` and auto-imported via `--import-realm`.
+
 - **Known follow-ups (not blockers):** plugin READ endpoints are `@Public` for P2 (module list isn't sensitive; harden to authed + httpOnly-cookie tokens later); portal token is in-memory+localStorage (XSS caveat noted in code); no committed `prisma/migrations` history yet (Docker entrypoint uses `db push`); a viewer (non-admin) user isn't seeded so the 403 UI path is unit-tested, not live-clicked.
 - **Remaining Docker check:** ~~a full 4-service `docker compose up --wait`~~ **DONE 2026-08-02** —
   postgres + redis + api (+ the graphify sidecar) all booted healthy together during the brain
@@ -166,8 +215,10 @@ constellation/
 
 
 ## 7. How to verify (the standard pass)
-> **`pnpm` is BROKEN on this host — see the gotchas in §3.** Use turbo directly, always
-> `--force` (cache reports false greens) and `--concurrency=1` (parallel runs fail spuriously).
+> **The `pnpm` SHIM is broken on this host, not pnpm — see §3 gotcha 1** (corrected 2026-08-02).
+> Use turbo directly below: always `--force` (cache reports false greens) and `--concurrency=1`
+> (parallel runs fail spuriously). If you specifically need `pnpm run`/`--filter`/`install`, the
+> direct-invocation form in §3 gotcha 1 works (pnpm 9.12.3, verified against the same gates).
 ```bash
 cd C:/Users/syed.mohamed/Claude/Code/constellation
 cd apps/api && ./node_modules/.bin/prisma generate && cd ../..   # needed before the api build
