@@ -106,7 +106,7 @@ Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
      `pnpm install --frozen-lockfile` was proven on 2026-08-02. Note: single-**file** `-v` mounts
      misbehave on this Windows host (mount the directory instead).
 
-- **🧠 BRAIN ROUND DONE, LIVE-VERIFIED, COMMITTED (git `<SHA>`, local only) — 2026-08-02, clau_partner:**
+- **🧠 BRAIN ROUND DONE, LIVE-VERIFIED, COMMITTED (git `32c1ea8`, local only) — 2026-08-02, clau_partner:**
   the platform now has a persistent, queryable memory. SDK 0.2.0 (`memory.ts`, `PluginMemory`,
   `BRAIN_READ`/`BRAIN_WRITE`, `ctx.memory` least-privilege gating) · `apps/api/src/core/memory/**`
   (`BrainService` + `GraphifyAdapter` + guarded `POST /api/brain/query|remember`,
@@ -186,7 +186,7 @@ cd apps/api && DATABASE_URL="postgresql://constellation:constellation@localhost:
 
 ## 8. Pending / next actions (priority order)
 1. ~~**🧠 THE BRAIN (Memory & Knowledge Graph) — TOP PRIORITY (user, 2026-08-02).**~~
-   **DONE, live-verified, COMMITTED (git `<SHA>`)** — see §3 and MASTER_PLAN §9. Graphify adopted
+   **DONE, live-verified, COMMITTED (git `32c1ea8`)** — see §3 and MASTER_PLAN §9. Graphify adopted
    (knowledge graph over MCP, local, $0); design in `docs/BRAIN.md`. **Remaining brain follow-ups
    (small, not blockers):** docs-mode indexing via local Ollama (`GRAPHIFY_MODE=docs`); the
    `remember()` → `brain-rebuild` → note-appears-as-a-node round-trip; clicking the portal Brain
@@ -215,7 +215,7 @@ run `pnpm install` concurrently (pre-install shared deps first), and the orchest
 merges + commits + the final verify.
 
 ## 11. In-flight state & deferred options (updated by clau_partner, 2026-08-02)
-**BRAIN round — ✅ DONE, live-verified, COMMITTED (git `<SHA>`). Nothing in flight from it.**
+**BRAIN round — ✅ DONE, live-verified, COMMITTED (git `32c1ea8`). Nothing in flight from it.**
 clau_partner (acting orchestrator, Polaris paused) resumed the paused round: housekeeping
 (`graphify-out/` git-ignored, synthetic fixture + `navcheck.mts` deleted, stale ports/volumes
 cleared), then closed the one real remaining gap — the **containerized** sidecar — by building a

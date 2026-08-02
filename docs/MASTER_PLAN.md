@@ -419,7 +419,7 @@ w/o the brain must not crash, verify before done).
 
 ## 9. Verification log
 - **2026-08-02 — 🧠 BRAIN ROUND shipped, live-verified against the containerized sidecar, COMMITTED
-  (git `<SHA>`, local only) — clau_partner (acting orchestrator; Polaris paused).**
+  (git `32c1ea8`, local only) — clau_partner (acting orchestrator; Polaris paused).**
   - **What shipped.** The full memory subsystem across all three lanes:
     **SDK 0.2.0** (`packages/plugin-sdk/src/memory.ts`, `PluginMemory`, `BRAIN_READ`/`BRAIN_WRITE`
     permissions, `ctx.memory` with least-privilege gating in `plugin-context.factory.ts`);
