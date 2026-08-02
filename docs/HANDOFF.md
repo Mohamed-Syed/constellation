@@ -8,7 +8,7 @@
 > §1 and keep BOTH this file and `docs/MASTER_PLAN.md` up to date at every
 > milestone — same discipline the primary session follows.**
 >
-> **Last updated:** 2026-08-02 (brain round + P3 federation/P4 capability wiring live-proved & committed; `lint` gate repaired — it had never run) · **Updated by:** clau_partner (acting orchestrator — Polaris paused)
+> **Last updated:** 2026-08-02 (Engine v0 — durable task runtime + Ollama model router committed `28f1125`) · **Updated by:** Polaris
 > **Note for the agents:** the P3/P4 portal + API work IS committed — do not re-label it
 > "uncommitted." Only the orchestrator commits, and only the orchestrator edits this header.
 > **Project root:** `C:\Users\syed.mohamed\Claude\Code\constellation`
@@ -182,6 +182,20 @@ Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
      config is not a reproducible proof. The realm is now declarative in
      `infra/keycloak/realm-constellation.json` and auto-imported via `--import-realm`.
 
+- **🤖 ENGINE v0 DONE, typecheck + build + tests all green, COMMITTED (git `28f1125`, local only) — 2026-08-02, Polaris:**
+  The agentic engine layer is now real. This was the single biggest missing piece (verified by code search: 0 LLM clients, 0 queues, 0 workflow engines in the platform before this commit).
+  - **`bullmq`** installed; **Redis** (already in Compose, unused until now) is now the durable job backend.
+  - **`ModelRouterService`** — provider-agnostic Ollama client (`fetch`-based, `$0` local). Calls `POST /api/chat`, timeout-guarded, health-checkable. Designed for future providers (Claude, GPT) to slot in without touching callers.
+  - **`AgentWorkerService`** — BullMQ `Worker` (concurrency=2). ReAct-style loop: model → parse JSON action → `thought|tool_call|done|error` → dispatch via `PluginToolService` (trusted internal caller, `["platform:admin"]` permissions) → checkpoint every step → resume from checkpoint on restart. Cancellation polled each iteration.
+  - **`TaskService`** — CRUD on `AgentTask` / `TaskStep` / `TaskCheckpoint`. Uses `this.prisma.db` pattern (graceful no-DB degradation, same as every other core service).
+  - **`TaskQueueService`** — BullMQ `Queue` producer. `enqueue(taskId)` → job with retry backoff. `getHealth()` exposes waiting/active/failed counts.
+  - **`EngineController`** — 5 routes: `POST /engine/tasks` (submit), `GET /engine/tasks` (list), `GET /engine/tasks/:id` (detail+steps), `POST /engine/tasks/:id/cancel`, `GET /engine/health` (@Public).
+  - **Prisma schema**: 3 new models (`AgentTask`, `TaskStep`, `TaskCheckpoint`) pushed to DB.
+  - **`.env.example`**: `OLLAMA_BASE_URL`, `DEFAULT_MODEL`, `MODEL_TIMEOUT_MS`, `ENGINE_MAX_STEPS` documented.
+  - **Gates:** typecheck `0 errors` · API tests `141 pass` (0 regressions) · build `7/7`.
+  - **NOT done yet (honest):** engine-specific tests; portal `/engine` task list page; Ollama integration test (kill + restart acceptance criterion requires Ollama running); lint pass with engine files.
+  - **To use locally:** `ollama pull llama3.2` → start stack (`docker compose up -d`) → `POST /api/engine/tasks {"title":"test","prompt":"Say hello"}` → `GET /api/engine/tasks/:id`.
+
 - **Known follow-ups (not blockers):** plugin READ endpoints are `@Public` for P2 (module list isn't sensitive; harden to authed + httpOnly-cookie tokens later); portal token is in-memory+localStorage (XSS caveat noted in code); no committed `prisma/migrations` history yet (Docker entrypoint uses `db push`); a viewer (non-admin) user isn't seeded so the 403 UI path is unit-tested, not live-clicked.
 - **Remaining Docker check:** ~~a full 4-service `docker compose up --wait`~~ **DONE 2026-08-02** —
   postgres + redis + api (+ the graphify sidecar) all booted healthy together during the brain
@@ -192,10 +206,11 @@ Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
 constellation/
 ├── apps/api/            # NestJS core: bootstrap, config, plugin loader/registry/lifecycle/health, DB (Prisma), logging(pino), settings, events
 │   ├── prisma/          # schema.prisma (core schema); prisma.config.ts
-│   └── src/core/{plugins,database,logging,settings,events,health,auth,rbac,audit,federation}
+│   └── src/core/{plugins,database,logging,settings,events,health,auth,rbac,audit,federation,engine}
 │       ├── auth/        # JWT login + guards; TOKEN_VERIFIER seam → local-jwt / oidc-jwt / composite
 │       ├── plugins/     # + plugin-tool.service.ts (agent-plane dispatch) + dto/invoke-tool.dto.ts
-│       └── federation/  # reads config/modules.yaml → GET /api/federation/modules|:id|status
+│       ├── federation/  # reads config/modules.yaml → GET /api/federation/modules|:id|status
+│       └── engine/     # Engine v0: TaskService + TaskQueueService + AgentWorkerService + ModelRouterService + EngineController
 ├── apps/web/            # Next.js App Router portal: shell, manifest-driven sidebar, theme, ⌘K,
 │                        #   modules/detail/admin/settings/login + /tools federated tiles + tool-invoke UI
 ├── packages/plugin-sdk/ # THE contract: manifest (Zod) + Plugin lifecycle + PluginContext + permissions (+ tools, agent-plane)
@@ -246,7 +261,12 @@ cd apps/api && DATABASE_URL="postgresql://constellation:constellation@localhost:
 ```
 
 ## 8. Pending / next actions (priority order)
-1. ~~**🧠 THE BRAIN (Memory & Knowledge Graph) — TOP PRIORITY (user, 2026-08-02).**~~
+1. ~~**🤖 Engine v0 — Durable Task Runtime + Ollama model router.**~~ **DONE (git `28f1125`).** Follow-ups below.
+1a. **Engine tests** — unit tests for `TaskService`, `ModelRouterService`, `TaskQueueService` (mock BullMQ). Same pattern as `plugin-tool.service.test.ts`. Target: raise API test count from 141 → ~165.
+1b. **Portal `/engine` page** — minimal task list: submit form, task table (id/title/status/steps/created), detail drawer with step-by-step log. Client component. No new API routes needed. Orion's lane.
+1c. **Kill-restart acceptance test** — manual: start API + Ollama, submit a task, kill API mid-run, restart, verify task resumes from checkpoint and completes. Documents acceptance criterion met.
+1d. **Lint pass** — run `turbo lint --force` with the new engine files (17 pre-existing warnings; confirm no new errors from engine additions).
+2. ~~**🧠 THE BRAIN (Memory & Knowledge Graph) — TOP PRIORITY (user, 2026-08-02).**~~
    **DONE, live-verified, COMMITTED (git `32c1ea8`)** — see §3 and MASTER_PLAN §9. Graphify adopted
    (knowledge graph over MCP, local, $0); design in `docs/BRAIN.md`. **Remaining brain follow-ups
    (small, not blockers):** docs-mode indexing via local Ollama (`GRAPHIFY_MODE=docs`); the
@@ -275,8 +295,13 @@ CLI sessions that edit this shared tree. Either way: keep lanes disjoint (§6), 
 run `pnpm install` concurrently (pre-install shared deps first), and the orchestrator does all
 merges + commits + the final verify.
 
-## 11. In-flight state & deferred options (updated by clau_partner, 2026-08-02)
-**NOTHING IS IN FLIGHT. Working tree CLEAN, all work COMMITTED LOCALLY, nothing pushed.**
+## 11. In-flight state & deferred options (updated by Polaris, 2026-08-02)
+**NOTHING IS IN FLIGHT. Working tree CLEAN (HANDOFF.md itself is the only staged change), all work COMMITTED LOCALLY (`28f1125`), nothing pushed.**
+
+**Engine v0 is committed and working. The immediate next items (§8 1a/1b/1c/1d) are well-scoped and can be picked up independently:**
+- clau_partner or Orion: portal `/engine` page (§8 1b) — Orion's lane, `apps/web/src/app/engine/`
+- Atlas or Nova: engine unit tests (§8 1a) — Nova's lane, `apps/api/src/core/engine/*.test.ts`
+- Polaris or clau_partner: lint + kill-restart acceptance (§8 1c/1d) — orchestrator verification
 Four commits this session, oldest first:
 `32c1ea8` brain round · `a4f28db` P3 federation + P4 capability wiring · `95f237a` SHA backfill ·
 `db0826f` lint gate repair. **All four gates green: lint 2/2 · typecheck 8/8 · build 7/7 · tests 256.**
