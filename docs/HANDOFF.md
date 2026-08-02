@@ -133,7 +133,7 @@ Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
 - **⚠️ Two more host facts (2026-08-02):** `make` is **not installed** — run the `make brain*`
   targets as their underlying `docker compose --profile brain …` commands. Looper's
   `looper-gateway` squats host **:4000** — publish the api elsewhere with `API_HOST_PORT=4010`.
-- **🛰️🤖 P3 FEDERATION + P4 CAPABILITY WIRING LIVE-PROVED, COMMITTED (git `<SHA2>`, local only) — 2026-08-02, clau_partner:**
+- **🛰️🤖 P3 FEDERATION + P4 CAPABILITY WIRING LIVE-PROVED, COMMITTED (git `a4f28db`, local only) — 2026-08-02, clau_partner:**
   the federation overlay booted for the FIRST TIME (11 containers healthy: api, web, caddy, keycloak,
   prometheus, loki, grafana, postgres, redis, graphify, steel) and the agent plane now invokes REAL
   backends. Gates on the merged tree: **typecheck 8/8, build 7/7, tests 256** (api 141 · browser-use 47 ·

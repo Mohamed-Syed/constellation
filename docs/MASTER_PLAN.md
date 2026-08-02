@@ -419,7 +419,7 @@ w/o the brain must not crash, verify before done).
 
 ## 9. Verification log
 - **2026-08-02 — 🛰️ P3 federation + 🤖 P4 capability wiring LIVE-PROVED and integrated
-  (git `<SHA2>`, local only) — clau_partner (acting orchestrator).** Three agent lanes
+  (git `a4f28db`, local only) — clau_partner (acting orchestrator).** Three agent lanes
   (Atlas/Nova/Orion) landed on the clean brain base `32c1ea8`; the orchestrator integrated,
   found and fixed what live testing exposed, and verified the result.
   - **Gates (merged tree, `--force --concurrency=1`):** typecheck **8/8**, build **7/7**,
