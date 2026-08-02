@@ -410,6 +410,17 @@ w/o the brain must not crash, verify before done).
 - _Status:_ **assigned — not started.** (Verify bar in `docs/BRAIN.md` §7.)
 
 ## 9. Verification log
+- **2026-08-02 — Polaris review + checkpoint (git `b5f82b2`):** integrator review of the P3/P4 +
+  in-flight state. Confirmed P3+P4 committed at `a07dd25` and clau_partner's docs accurate.
+  Checkpointed Orion's uncommitted federated-lib refactor (`federated-api`+`federated-tools` →
+  `lib/federated.ts`; `modules.yaml` → `config/`) at a verified-building point. Re-ran gates:
+  `pnpm build` 7/7 (no cache), tests green (api 95, browser-use 25, +sdk/cli/graphify = 169), web
+  typecheck clean. **Roles/leadership documented** in HANDOFF §0 (user=owner; Polaris=lead
+  orchestrator; clau_partner=backup; Atlas/Nova/Orion=implementers) and the completion-logging
+  convention pinned (HANDOFF §1.7). **Two open gaps carried:** (1) the P3 federation Docker stack
+  (Keycloak/Caddy/Grafana) is built but **UNRUN** — no real SSO round-trip / embedded tile proven
+  yet; (2) **the BRAIN round has not started** (top user priority). Neither blocks the other; the
+  brain is next.
 - **2026-08-02 — Hermes Agent (Atlas) session: P3 infra delivered + a long-standing
   environment misdiagnosis corrected.** No commit, no `git` mutation, no `pnpm install`
   (`git status --porcelain -- pnpm-lock.yaml` empty throughout).

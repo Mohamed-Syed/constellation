@@ -8,10 +8,18 @@
 > §1 and keep BOTH this file and `docs/MASTER_PLAN.md` up to date at every
 > milestone — same discipline the primary session follows.**
 >
-> **Last updated:** 2026-08-02 (P3+P4 committed at git `a07dd25`; docs/lockfile proof at `b6bef93`) · **Updated by:** clau_partner (orchestrator)
+> **Last updated:** 2026-08-02 (Polaris review pass; Orion federated-lib refactor checkpointed at git `b5f82b2`; P3+P4 at `a07dd25`) · **Updated by:** Polaris (lead orchestrator)
 > **Note for the agents:** the P3/P4 portal + API work IS committed — do not re-label it
 > "uncommitted." Only the orchestrator commits, and only the orchestrator edits this header.
 > **Project root:** `C:\Users\syed.mohamed\Claude\Code\constellation`
+
+---
+
+## 0. Roles & leadership (who's who)
+- **The user** — product owner & final decision-maker. Owns direction, the locked decisions (C1–C10), all approvals, and anything with cost/risk (push, cloud, VPS/budget). Nothing irreversible happens without the user.
+- **Polaris** — *lead orchestrator / technical lead* (the primary Claude Code session). Owns the architecture, the work split, cross-boundary wiring, integration, verification, the git history, and this source-of-truth doc set. Named after the guiding star the others navigate by.
+- **clau_partner** — *co-orchestrator / backup lead*. Takes over Polaris's exact role when the primary session is locked or unavailable, following the identical rules. **When both are active, only ONE orchestrates at a time to avoid clobbering: the primary session (Polaris) leads; clau_partner either works an explicitly-handed scope or stands ready.** Whoever is orchestrating is the *only* one who commits and the only one who edits `MASTER_PLAN.md` / `HANDOFF.md`.
+- **Atlas / Nova / Orion** — implementer agents on **disjoint lanes** (§6). They build and report; they never run git, never claim commit/build state, and never edit the orchestrator-only docs.
 
 ---
 
@@ -22,7 +30,11 @@
 4. **$0 / local only.** Never provision cloud or install paid services. No cloud until the user explicitly approves + confirms cost (the VPS is chosen but NOT provisioned).
 5. **Never `git push` and never commit to a remote without an explicit in-the-moment go-ahead.** Local commits are fine and expected.
 6. **Never commit secrets.** `.env` is git-ignored; keep it that way.
-7. **Keep docs current.** Update THIS file and `docs/MASTER_PLAN.md` at every milestone (status, done, pending, next, decisions).
+7. **Keep docs current — log EVERY completed task in these three places (orchestrator only):**
+   (a) `MASTER_PLAN.md §9` — a verification-log entry: what shipped, what was actually verified (gates/live/DB), and the **git SHA**;
+   (b) `MASTER_PLAN.md §8` — tick the lane checkbox for that task;
+   (c) `HANDOFF.md §3` (status) + `§8` (pending list) — move the item from pending → done.
+   Agents report their results to the orchestrator; the **orchestrator** writes these entries (agents never edit these two docs or claim git/build state).
 8. **Respect the Plugin SDK contract.** `packages/plugin-sdk` is load-bearing; evolve it deliberately + additively (versioned `manifestVersion`), and call out any change.
 9. **Two verified bugs must never regress** (see §5).
 10. **The three friends (Atlas/Nova/Orion) work in disjoint file-ownership lanes** (see §6). Keep them disjoint to avoid merge conflicts.
@@ -69,7 +81,9 @@ Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
     lockfile" — CI's `--frozen-lockfile` would have failed).
   - **Gates:** build **7/7** · typecheck **8/8** · test **169** (sdk 13, cli 9, browser-use 25,
     api 95, graphify 27) — all run `--force --concurrency=1`. Live boot + real-Postgres pass. See §9.
-- **Working tree CLEAN at `a07dd25`** (plus this doc update + Orion's uncommitted portal reconciliation). Nothing pushed. No cloud provisioned. **VPS deferred** — prove everything locally first (user decision 2026-08-01).
+- **Orion's federated-lib refactor CHECKPOINTED at `b5f82b2`** (Polaris review, 2026-08-02): consolidated `federated-api.ts`+`federated-tools.ts` → `lib/federated.ts`, `modules.yaml` moved `public/` → `config/`. Verified building at that point.
+- **Working tree CLEAN at `b5f82b2`.** Nothing pushed. No cloud provisioned. **VPS deferred** — prove everything locally first (user decision 2026-08-01).
+- **Polaris re-verification (2026-08-02):** independently re-ran the gates after the checkpoint — `pnpm build` 7/7 (no cache), `pnpm test` green (**api 95, browser-use 25**, + sdk/cli/graphify = 169 per clau_partner's fuller run), web typecheck clean. State is coherent and on-plan. NB: `pnpm` worked fine from *this* bash shell (the §3 "pnpm broken" trap is shell-specific — turbo-direct is the safe fallback either way).
 - **⚠️ ENVIRONMENT GOTCHAS (confirmed again 2026-08-02 — read before verifying):**
   1. **`pnpm` is broken on this host.** `corepack enable && pnpm install` dies with
      `MODULE_NOT_FOUND` on a mangled `C:\c\Users\...\corepack\dist\pnpm.js` path. Use
