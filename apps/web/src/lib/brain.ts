@@ -17,8 +17,7 @@
  *   "unreachable"   — the API itself is down
  * Same "never crash" discipline as PrismaService (BRAIN.md §4).
  */
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
+import { API_BASE } from "./api-base";
 
 /** Permission gating the whole Brain surface (nav item, page, query box). */
 export const BRAIN_READ_PERMISSION = "core:brain:read";

@@ -1,7 +1,5 @@
 import type { AuthMe, AuthUser, LoginResponse } from "./types";
-
-// Same env var / default the rest of the portal uses (see lib/api.ts).
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
+import { API_BASE } from "./api-base";
 
 /**
  * Client-side fetch helpers for the auth endpoints (`POST /api/auth/login`,

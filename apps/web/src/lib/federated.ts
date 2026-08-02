@@ -19,7 +19,7 @@
  * portal shell always renders. No endpoints are invented here.
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
+import { API_BASE } from "./api-base";
 
 /** Mirror of `FederatedModuleDto` returned by `GET /api/federation/modules`. */
 export interface FederatedTool {

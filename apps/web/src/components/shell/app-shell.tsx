@@ -9,6 +9,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { CommandPalette } from "./command-palette";
+import { IdentityBanner } from "./identity-banner";
 
 /** Routes reachable without an authenticated session (Orion P2 task 2). */
 const PUBLIC_ROUTES = new Set(["/login"]);
@@ -61,8 +62,14 @@ export function AppShell({
   }, [pathname, status, router]);
 
   if (isPublicRoute) {
-    // No sidebar/topbar chrome on auth pages.
-    return <div className="min-h-dvh bg-neutral-50 dark:bg-neutral-950">{children}</div>;
+    // No sidebar/topbar chrome on auth pages — but the identity banner still
+    // shows: connecting to the WRONG API matters most at the login screen.
+    return (
+      <div className="min-h-dvh bg-neutral-50 dark:bg-neutral-950">
+        <IdentityBanner />
+        {children}
+      </div>
+    );
   }
 
   if (status !== "authenticated") {
@@ -77,6 +84,7 @@ export function AppShell({
 
   return (
     <div className="min-h-dvh bg-neutral-50 dark:bg-neutral-950">
+      <IdentityBanner />
       <Sidebar navGroups={visibleNavGroups} mobileOpen={mobileNavOpen} onMobileOpenChange={setMobileNavOpen} />
       <div className="flex min-h-dvh flex-col md:pl-64">
         <Topbar onOpenMobileNav={() => setMobileNavOpen(true)} onOpenCommandPalette={() => setCommandOpen(true)} />

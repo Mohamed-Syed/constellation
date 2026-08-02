@@ -30,8 +30,7 @@
  * Same "never throw" discipline as lib/brain.ts: every call returns a
  * discriminated result; callers degrade gracefully and the UI never blanks.
  */
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
+import { API_BASE } from "./api-base";
 
 /** The statuses the engine worker emits today (the API treats status as a free string). */
 export type EngineTaskStatus = "queued" | "running" | "paused" | "completed" | "failed" | "cancelled";

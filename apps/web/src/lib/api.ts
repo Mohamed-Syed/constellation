@@ -1,10 +1,9 @@
 import type { PlatformHealth, PluginDetail, PluginSummary } from "./types";
+import { API_BASE } from "./api-base";
 
 // Note: intentionally not importing the `server-only` package — it isn't in
 // this workspace's installed dependencies. This module is only ever called
 // from Server Components (see apps/web/src/app/**), so it's safe without it.
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
 
 /**
  * Optional bearer token support: these functions run from Server Components
