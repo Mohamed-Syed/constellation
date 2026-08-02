@@ -12,7 +12,7 @@ export default function SettingsPage() {
       <header className="mb-8">
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Settings</h1>
         <p className="mt-2 text-neutral-500 dark:text-neutral-400">
-          Platform preferences. Per-plugin settings (each manifest's `settings` array) land here once the
+          Platform preferences. Per-plugin settings (each manifest&apos;s `settings` array) land here once the
           settings service ships (roadmap A2/P2).
         </p>
       </header>
