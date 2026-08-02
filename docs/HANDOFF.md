@@ -191,3 +191,23 @@ The three "friends" are background subagents driven from the primary session via
 CLI sessions that edit this shared tree. Either way: keep lanes disjoint (§6), never let two
 run `pnpm install` concurrently (pre-install shared deps first), and the orchestrator does all
 merges + commits + the final verify.
+
+## 11. In-flight state & deferred options (Polaris, 2026-08-02)
+**BRAIN round — BUILT, PAUSED, uncommitted, not live-verified.** clau_partner built the full brain
+across all three lanes, then was paused before verify+commit. Uncommitted on top of `596a80f`:
+SDK 0.2.0 (`src/memory.ts`, `PluginMemory`, `BRAIN_READ`/`BRAIN_WRITE`, `ctx.memory` w/ least-privilege
+gating in `plugin-context.factory.ts`), `apps/api/src/core/memory/**` (BrainService + GraphifyAdapter +
+controller + DTOs + tests, mounted in `app.module.ts`), Graphify compose sidecar + `infra/graphify/**` +
+`brain/` vault, portal `apps/web/src/app/brain/**` + `components/brain/**` + `lib/{brain,force-layout}.ts`.
+**Offline gates PASS** (Polaris re-ran 2026-08-02: typecheck 8/8, build 7/7, tests green — api 139,
+cli 9, browser-use 25, graphify 27). **NOT done:** the live Graphify check (build a real `graph.json`,
+sidecar serves MCP, `POST /api/brain/query` → grounded answer + provenance, portal renders it,
+`remember()` writes to `brain/`) per `docs/BRAIN.md §7`; the commit; and `graphify-out/` must be
+git-ignored (generated output — never commit it). **Resume = live-verify → commit → log per §1.7.**
+
+**Deferred option — "Vega" (QA/reviewer agent), NOT active.** A read-only 5th helper that offloads the
+integrator's verification burden: it runs the full gate + a security review on a GIVEN COMMITTED SHA,
+in an ISOLATED checkout (its own worktree/clone, own port e.g. :4055, own docker project), triggered
+BY the orchestrator at an integration boundary — never free-running on the live tree, never commits,
+never edits docs. Decision (user, 2026-08-02): **not needed now; revisit only if the integration/verify
+queue becomes the bottleneck.** Do NOT introduce a new actor mid-round.
