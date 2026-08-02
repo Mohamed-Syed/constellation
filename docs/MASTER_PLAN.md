@@ -456,6 +456,78 @@ engine files · 1b portal `/engine` page (Orion's lane) · Ollama integration te
 
 ## 9. Verification log
 
+- **2026-08-02 — 🤖 ENGINE v0.1 — HARDEN & GATE round, TASK 2 of 5: human-in-the-loop approval gate
+  (git `3a24898`, local only) — clau_partner (orchestrating solo).**
+  - **The defect (Polaris's review):** `AgentWorkerService` invoked every tool with the literal
+    `platform:admin` — the most-privileged caller in the system — bypassing the per-tool permission
+    model, with no human gate before a consequential call. Fixed by leveraging the proven
+    resume-from-checkpoint mechanism.
+  - **What shipped (design confirmed against the brief, then verified):**
+    - **SDK manifest v2, SDK 0.3.0** (`PLATFORM_VERSION` "0.3.0", package version 0.3.0): ADDITIVE
+      `tools[].requiresApproval?: boolean` on `ToolSchema` (default `false`); `manifestVersion`
+      literal 1 → 2. Bumped in ONE sweep: SDK, CLI template, all three in-repo plugin manifests,
+      every test fixture, and the portal's hand-mirrored `PluginDetail`/`PluginTool` types.
+      Documented in `docs/PLUGIN_SDK.md`. Worked examples shipped: **`browser.act`** and
+      **`graph.ingest`** declare `requiresApproval: true`.
+    - **Env `ENGINE_REQUIRE_APPROVAL_ALL`** (default `false`) — supervised mode: when true EVERY
+      tool call pauses for approval regardless of the per-tool flag. Documented in `.env.example`.
+    - **Worker pause:** gated tool_call → records `tool_call` step + `pending_approval` step,
+      `savePendingApproval` on the checkpoint, `markPaused`, then **returns** (releases the BullMQ
+      job — the job completes normally, so BullMQ does NOT retry). Nothing has run.
+    - **Routes (Bearer, audited):** `POST /api/engine/tasks/:id/approve` (grants
+      `approvedStepIndex`, `markQueued` + re-enqueue; if Redis dies mid-flight the task is restored
+      to `paused` + 503 so the human can retry) and `POST /api/engine/tasks/:id/reject` (fails with
+      `Rejected by <email>`). Prisma `TaskCheckpoint` gained `pendingApproval Json?` +
+      `approvedStepIndex Int?` (schema pushed to the local dev DB).
+    - **Named role seam:** the literal `"platform:admin"` is now the exported constant
+      `ENGINE_AGENT_PERMISSIONS`, commented as the seam to scope the agent's privilege down later;
+      the approval gate is the real guardrail.
+  - **Defects found by THIS verification pass (maker/checker — the brief's own addendum demanded
+    re-reading, not just green gates):**
+    1. **Step-index accounting was broken by the `executeToolCall` refactor** — the old inline
+       tool-call branch advanced `stepIndex` inside the branch (tool_call@N, tool_result@N+1,
+       next@N+2); the refactored method never advanced the caller's index, so after ANY tool call
+       the NEXT step landed on the SAME index as the tool_result. On the approve-resume path the
+       tool_result was written at `stepIndex` — the SAME index as the `pending_approval` step —
+       and the `continue` skipped the loop-bottom `++`, so three steps could share one index.
+       No unique constraint → no crash, but the step history (the gate's audit trail) was
+       ambiguous. Fixed: `executeToolCall` returns the NEXT FREE index; the normal path sets
+       `stepIndex = nextFree - 1` (loop-bottom `++` lands one past the tool_result), the approve
+       path sets `stepIndex = nextFree` and persists it via `clearApproval`. Live-proven: unique
+       ascending indexes across pause→approve→continue.
+    2. **`clearApproval` wrote `pendingApproval: null` into a nullable Json column** — Prisma
+       rejects raw `null` for `Json?` updates (`TS2322` on build). Fixed with the runtime
+       `Prisma.DbNull` (SQL NULL, matching the schema comment) + a value import; test assertion
+       updated to match.
+    3. **SDK test fixture needed the new default** — the parsed tool shape now includes
+       `requiresApproval: false`; updated the exact-shape assertion.
+  - **Gates (`--force --concurrency=1`):** lint/build/typecheck/test **15/15**; tests **345**
+    total (api **228** = 212 + 16 new: engine-controller approve/reject 9, task.service approval
+    gate 6 + checkpoint-shape updates; sdk **21**; browser-use 47 · graphify 40 · cli 9).
+  - **LIVE acceptance (real Ollama `qwen2.5-coder:7b` + Postgres + Redis:6380, api:4001) — RUN, not simulated:**
+    - Submit a task prompting a `browser.act` call (`requiresApproval: true`) → status **`paused`**,
+      steps `[0] tool_call` + `[1] pending_approval`, **no `tool_result`** — the tool did NOT run.
+    - `POST /approve` → `{ id, status:"queued", approvedStepIndex: 0 }` → resumed: **`[2] tool_result`
+      exactly ONCE** (the approved call executed), then the model continued (`[3] thought`, chose
+      the tool again → `[4] tool_call` + `[5] pending_approval`) — the NEW call re-paused correctly
+      while step 0 was honoured ONCE (no re-pause on the approved step). Step indexes unique and
+      ascending throughout.
+    - Second task → paused → `POST /reject` → status **`failed`**, error
+      `Rejected by admin@constellation.local`.
+    - **Audit rows (full shape):** `engine.task.approved` → metadata
+      `{ actor: "admin@constellation.local", target: <id>, approvedStepIndex: 0 }`; and
+      `engine.task.rejected` → `{ actor, target }`. Both present.
+    - **Task 1 no-regression:** boot with Redis DOWN (dead port) → `/api/health` `ok`, engine
+      `unavailable` with honest reason, exactly 2 "NOT started" warnings (queue + worker), **0**
+      `ECONNREFUSED`/retry lines.
+  - **Honest notes:** the paused task's approved call returned `ok:false` (`browser.act` wants an
+    `instruction` arg; the test prompt passed `action`/`selector`) — that is the tool EXECUTING and
+    reporting honestly, not a gate failure; the model's retry then paused again, which is a fresh
+    decision, not a re-pause of the approved step. The leftover dev rows (Task 1's failed 1.5b
+    tasks + this pass's tasks) are disposable and go with the volume teardown at round end.
+    `AgentWorkerService` still has no unit test — Task 2's live pass exercises the pause/approve
+    path but is not a unit test (recorded in HANDOFF §8).
+
 - **2026-08-02 — 🤖 ENGINE v0.1 — HARDEN & GATE round, TASK 1 of 5: engine degrades cleanly with no Redis
   (git `e1fd016`, local only) — clau_partner (orchestrating solo, Nova/Orion/Atlas resting).**
   - **The defect (Polaris's architecture review):** `TaskQueueService`/`AgentWorkerService` constructed
