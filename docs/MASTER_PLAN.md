@@ -456,6 +456,47 @@ engine files · 1b portal `/engine` page (Orion's lane) · Ollama integration te
 
 ## 9. Verification log
 
+- **2026-08-02 — 🤖 ENGINE v0.1 — HARDEN & GATE round: ALL 5 TASKS DONE, gate-verified, LIVE-PROVEN (git `e1fd016` → `d5901ba`, local only) — clau_partner (orchestrating solo, Nova/Orion/Atlas resting). ROUND SUMMARY:**
+  - **What the round was:** Polaris's independent architecture review found 6 real issues in Engine
+    v0 (durable task runtime + Ollama router). This round fixed all of them, in order, with no new
+    scope. Per-task entries above this one carry the full detail + literal live evidence.
+  - **Task 1 — Redis degrade (`e1fd016`):** fail-fast Redis options + `EngineAvailabilityService`
+    probe + availability-gated Queue/Worker + clean 503 on submit + honest `/engine/health`.
+    Live-proven both ways.
+  - **Task 2 — Human-in-the-loop approval gate (`3a24898`):** SDK manifest v2 (additive
+    `tools[].requiresApproval`, SDK 0.3.0) + `ENGINE_REQUIRE_APPROVAL_ALL` supervised switch +
+    paused/pending_approval state machine + approve/reject routes (Bearer, audited, honour-once) +
+    `ENGINE_AGENT_PERMISSIONS` named role seam. **Verification found + fixed a real step-index
+    accounting bug in the uncommitted code** (executeToolCall never advanced the caller's index →
+    colliding step indexes on both tool-call paths; now returns the next free index) and a Prisma
+    nullable-Json `null` vs `Prisma.DbNull` type error. Live: pause → approve → run-exactly-once →
+    continue; reject → failed `Rejected by <email>`; both audited.
+  - **Task 3 — Honest ModelProvider + budget cap (`7217568`):** `ModelProvider` interface +
+    `OllamaModelProvider` first implementation + `ModelRouterService` as a real SELECTOR +
+    `TokenBudget` per-task ceiling (`task.maxTokens ?? ENGINE_MAX_TOKENS_PER_TASK`; dollar-cap
+    seam documented). Live: 1-step hello→done through the new interface.
+  - **Task 4 — Portal API base + identity banner (`0c41813`):** shared `lib/api-base.ts`
+    (default `:4001`) + all 7 portal clients import it + `IdentityBanner` asserting
+    `GET /api/identity`. **LIVE in a real browser both ways** (squatted :4000 → banner fires;
+    real :4001 → clean).
+  - **Task 5 — Transient model-error retry (`d5901ba`):** `ModelCallError` transient/terminal
+    classification + `retryTransient()` bounded retry in the worker (`ENGINE_MODEL_RETRIES`=3,
+    500ms*attempt backoff); redis-connection dedup (5b) verified already extracted in Task 1.
+    Live fake-Ollama proof: first-call 503 → task completed; unknown-model 404 → failed
+    terminally.
+  - **Final gates (`--force --concurrency=1`):** lint/build/typecheck/test **20/20** · tests
+    **364** (api **247** · sdk 21 · browser-use 47 · graphify 40 · cli 9) — up from 327 at round
+    start (+37).
+  - **Final end-to-end smoke (real Ollama `qwen2.5-coder:7b` + Postgres + Redis:6380, api:4001):**
+    submit (gated `browser.act`) → `paused` (tool_call + pending_approval, NOTHING ran) →
+    `POST /approve` (`approvedStepIndex: 0`) → tool_result EXACTLY ONCE (the call executed and
+    honestly reported "browser-use is not configured") → `done` → **completed**; step indexes
+    `[0..3]` unique and ascending; audit shows `engine.task.approved` for the task.
+  - **Recorded gaps (HANDOFF §8, not blockers):** checkpoint O(n²) message rewrites (fine at 20
+    steps); `AgentWorkerService` still has no unit test; portal `/engine` page not clicked in a
+    live browser. Leftover dev rows in the local Postgres volume are cleared by the round-end
+    teardown.
+
 - **2026-08-02 — 🤖 ENGINE v0.1 — HARDEN & GATE round, TASK 5 of 5: bounded retry of transient model errors + redis-connection dedup
   (git `d5901ba`, local only) — clau_partner (orchestrating solo).**
   - **The defect (Polaris's review):** transient model failures were TERMINAL — the worker

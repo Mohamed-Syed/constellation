@@ -316,33 +316,19 @@ CLI sessions that edit this shared tree. Either way: keep lanes disjoint (§6), 
 run `pnpm install` concurrently (pre-install shared deps first), and the orchestrator does all
 merges + commits + the final verify.
 
-## 11. In-flight state & deferred options (updated by Polaris, 2026-08-02)
-**Nova/Orion/Atlas's follow-up work + Polaris's integration fixes are ALL DONE and gate-verified
-(20/20 tasks, 187 tests, kill-restart acceptance proven live) but NOT YET COMMITTED as of this
-HANDOFF.md write — commit is the very next action, immediately after this doc update.**
-
-Everyone (clau_partner, Nova, Orion, Atlas) can rest — nothing further to assign this round.
-§8 items 1a–1d are DONE; only 1e (new follow-ups) remains open for a future round, none urgent.
-Four commits this session, oldest first:
-`32c1ea8` brain round · `a4f28db` P3 federation + P4 capability wiring · `95f237a` SHA backfill ·
-`db0826f` lint gate repair. **All four gates green: lint 2/2 · typecheck 8/8 · build 7/7 · tests 256.**
-Full detail + literal evidence in MASTER_PLAN §9; the hard-won traps are in §3.
-
-- **BRAIN round — ✅ DONE.** Resumed from pause, housekeeping done, then the containerized sidecar
-  closed out: a REAL 1238-node graph built from this repo (code-only, keyless, $0),
-  `/api/brain/query|graph|stats` proved grounded against it, plus an honest degraded boot with the
-  brain profile down. That live pass caught a real bug (`query()` had no `graph.json` fallback).
-- **P3 federation + P4 capability wiring — ✅ DONE, live-proved.** The federation overlay booted for
-  the first time (11 containers healthy); SSO is now a *reproducible* proof (declarative realm import
-  — the hand-made one evaporated on recreate); real plugin invokes against a local Steel Browser and
-  the live MCP sidecar. Seven bugs fixed that only live testing could expose — 3 by Atlas, 4 by the
-  orchestrator (green `/api/health` while every tool was broken; missing compose env passthrough;
-  manifest defaults shadowing env fallbacks; a `GRAPHIFY_MCP_URL` collision with the core brain) —
-  plus a dishonest-success bug where the sidecar's `200 + isError:false` "Unknown tool" was reported
-  as `ok:true`.
-- **`lint` gate — ✅ REPAIRED.** It had never run in this repo's history; §7's standard pass had
-  simply omitted it. Now listed first there so it can't be skipped again.
-
+## 11. In-flight state & deferred options (updated by clau_partner, 2026-08-02)
+**🤖 ENGINE v0.1 — HARDEN & GATE round: ✅ ALL 5 TASKS DONE, gate-verified, LIVE-PROVEN, committed.**
+clau_partner orchestrated solo (Nova/Orion/Atlas resting). Polaris's 6 review issues all fixed, in
+order, no new scope. Ten commits this round, oldest first:
+`e1fd016` Redis-degrade · `ad76301`+`92ea5b5` Task-1 SHA backfills · `3a24898` approval gate ·
+`9a79da1` Task-2 backfill · `7217568` ModelProvider+token budget · `0b77ee2` Task-3 backfill ·
+`0c41813` portal :4001+identity banner · `356fc30` Task-4 backfill · `d5901ba` transient-retry ·
+`19cda24` Task-5 backfill.
+**All four gates green (`--force --concurrency=1`): lint/build/typecheck/test 20/20 · tests 364**
+(api 247 · sdk 21 · browser-use 47 · graphify 40 · cli 9; was 327 — +37). Live-proven: approval
+gate pause→approve→exactly-once→continue / reject→failed (audited); provider-interface 1-step
+run; wrong-API banner in a real browser; transient-503 retry vs terminal-404; final e2e
+submit→approve→complete. Full detail + literal evidence in MASTER_PLAN §9.
 **Carried forward as UNRUN / NOT DONE (recorded, not hidden):**
 1. **Orion's Brain-page fixes — diagnosed but NOT written.** He root-caused the real problems in a
    live browser against the 1241-node graph (force-layout perf at that scale, label overlap,
@@ -353,7 +339,10 @@ Full detail + literal evidence in MASTER_PLAN §9; the hard-won traps are in §3
    proof scope).
 4. 17 pre-existing lint warnings in `apps/web` (unused imports/vars, one stale `eslint-disable`) —
    Orion's portal lane, deliberately not a drive-by fix in an infra commit.
-
+5. **Engine v0.1 recorded gaps (§8):** checkpoint O(n²) message rewrites (fine at 20 steps);
+   `AgentWorkerService` has no unit test yet; portal `/engine` page not clicked in a live browser;
+   tool-calling kill-restart variant still unrun (HANDOFF §8 1e-ii). Leftover dev task rows cleared
+   by the round-end `docker compose down --volumes`.
 
 **Deferred option — "Vega" (QA/reviewer agent), NOT active.** A read-only 5th helper that offloads the
 integrator's verification burden: it runs the full gate + a security review on a GIVEN COMMITTED SHA,
