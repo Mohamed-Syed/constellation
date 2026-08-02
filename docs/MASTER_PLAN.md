@@ -418,6 +418,25 @@ w/o the brain must not crash, verify before done).
   → rebuild → node-appears round-trip). See §9.
 
 ## 9. Verification log
+- **2026-08-02 — 🧹 `lint` gate repaired — it had NEVER run (git `db0826f`, local only) — clau_partner.**
+  Found by actually running `pnpm run lint` instead of assuming it didn't exist. `apps/web` declared
+  `"lint": "next lint"` with **no ESLint config and no eslint dependency**, so `next lint` fell into
+  its interactive *"How would you like to configure ESLint?"* prompt and died on non-TTY stdin with
+  exit 1. **Confirmed pre-existing, not a regression:** a worktree at the pre-brain base `2866129`
+  has the same script, still no config, still no eslint dep.
+  - Added `eslint@^9` + `eslint-config-next@^15.1.3` + `@eslint/eslintrc`; new
+    `apps/web/eslint.config.mjs` bridges the still-eslintrc-shaped `eslint-config-next` via
+    `FlatCompat` (`next/core-web-vitals` + `next/typescript`); script switched to `eslint .`
+    (`next lint` is deprecated and removed in Next.js 16).
+  - Fixed the one real error it surfaced: unescaped `'` in `settings/page.tsx` → `&apos;`.
+  - **Gates now (all four, `--force --concurrency=1`): lint 2/2 · typecheck 8/8 · build 7/7 ·
+    tests 256** (api 141 · browser-use 47 · graphify 40 · sdk 19 · cli 9).
+  - **17 warnings left deliberately** (unused imports/vars across pre-existing components, one stale
+    `eslint-disable`): untouched by this round, non-blocking, and they belong to Orion's portal lane
+    rather than a drive-by cleanup inside an infra commit.
+  - **Lesson:** the standard verification pass in HANDOFF §7 never included `lint`, so a gate that
+    had never once passed stayed invisible across every prior round. §7 now lists it first.
+
 - **2026-08-02 — 🛰️ P3 federation + 🤖 P4 capability wiring LIVE-PROVED and integrated
   (git `a4f28db`, local only) — clau_partner (acting orchestrator).** Three agent lanes
   (Atlas/Nova/Orion) landed on the clean brain base `32c1ea8`; the orchestrator integrated,

@@ -8,7 +8,7 @@
 > §1 and keep BOTH this file and `docs/MASTER_PLAN.md` up to date at every
 > milestone — same discipline the primary session follows.**
 >
-> **Last updated:** 2026-08-02 (BRAIN ROUND shipped + live-verified vs the containerized sidecar + committed) · **Updated by:** clau_partner (acting orchestrator — Polaris paused)
+> **Last updated:** 2026-08-02 (brain round + P3 federation/P4 capability wiring live-proved & committed; `lint` gate repaired — it had never run) · **Updated by:** clau_partner (acting orchestrator — Polaris paused)
 > **Note for the agents:** the P3/P4 portal + API work IS committed — do not re-label it
 > "uncommitted." Only the orchestrator commits, and only the orchestrator edits this header.
 > **Project root:** `C:\Users\syed.mohamed\Claude\Code\constellation`
@@ -133,6 +133,15 @@ Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
 - **⚠️ Two more host facts (2026-08-02):** `make` is **not installed** — run the `make brain*`
   targets as their underlying `docker compose --profile brain …` commands. Looper's
   `looper-gateway` squats host **:4000** — publish the api elsewhere with `API_HOST_PORT=4010`.
+- **🧹 `lint` GATE REPAIRED — it had NEVER run (git `db0826f`, local only) — 2026-08-02, clau_partner:**
+  `apps/web` declared `"lint": "next lint"` with **no ESLint config and no eslint dependency**, so it
+  fell into an interactive setup prompt and died on non-TTY stdin. Verified pre-existing at base
+  `2866129` — every prior round's "gates green" claim silently excluded lint. Added eslint 9 +
+  `eslint-config-next` + a `FlatCompat` flat config, switched to `eslint .`, fixed the one real error
+  (unescaped `'` in `settings/page.tsx`). **All four gates now: lint 2/2 · typecheck 8/8 · build 7/7 ·
+  tests 256.** 17 warnings remain (pre-existing unused imports; Orion's portal lane, not a drive-by).
+  **§7's standard pass now lists `lint` FIRST** — that omission is why this went unseen for so long.
+
 - **🛰️🤖 P3 FEDERATION + P4 CAPABILITY WIRING LIVE-PROVED, COMMITTED (git `a4f28db`, local only) — 2026-08-02, clau_partner:**
   the federation overlay booted for the FIRST TIME (11 containers healthy: api, web, caddy, keycloak,
   prometheus, loki, grafana, postgres, redis, graphify, steel) and the agent plane now invokes REAL
@@ -222,9 +231,10 @@ constellation/
 ```bash
 cd C:/Users/syed.mohamed/Claude/Code/constellation
 cd apps/api && ./node_modules/.bin/prisma generate && cd ../..   # needed before the api build
+./node_modules/.bin/turbo run lint      --force --concurrency=1   # expect 2/2  <- DON'T SKIP
 ./node_modules/.bin/turbo run build     --force --concurrency=1   # expect 7/7
 ./node_modules/.bin/turbo run typecheck --force --concurrency=1   # expect 8/8
-./node_modules/.bin/turbo run test      --force --concurrency=1   # expect 169 tests
+./node_modules/.bin/turbo run test      --force --concurrency=1   # expect 256 tests
 # live boot — FIRST free port 4001 (a stale dist/main.js has squatted it twice and served old code):
 powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 4001 -State Listen | ForEach-Object { Stop-Process -Id \$_.OwningProcess -Force }"
 cd apps/api && API_PORT=4001 exec node dist/main.js   # GET /api/health, /api/plugins, /api/federation/status
@@ -266,21 +276,38 @@ run `pnpm install` concurrently (pre-install shared deps first), and the orchest
 merges + commits + the final verify.
 
 ## 11. In-flight state & deferred options (updated by clau_partner, 2026-08-02)
-**BRAIN round — ✅ DONE, live-verified, COMMITTED (git `32c1ea8`). Nothing in flight from it.**
-clau_partner (acting orchestrator, Polaris paused) resumed the paused round: housekeeping
-(`graphify-out/` git-ignored, synthetic fixture + `navcheck.mts` deleted, stale ports/volumes
-cleared), then closed the one real remaining gap — the **containerized** sidecar — by building a
-REAL 1238-node/1937-edge graph from this repo (code-only, keyless, $0), rebuilding the api image and
-proving `/api/brain/query|graph|stats` grounded against it, plus an honest degraded boot with the
-brain profile down. That live pass caught and fixed a genuine bug (`query()` had no `graph.json`
-fallback). Gates at commit: typecheck 8/8 · build 7/7 · tests 221. Details in MASTER_PLAN §9.
-**Carried forward as UNRUN (recorded, not hidden):** docs-mode/Ollama indexing; the
-`remember()`→rebuild→node-appears round-trip; the Brain page in a real browser; and (older) the
-P3 federation stack (Keycloak/Caddy/Grafana).
+**NOTHING IS IN FLIGHT. Working tree CLEAN, all work COMMITTED LOCALLY, nothing pushed.**
+Four commits this session, oldest first:
+`32c1ea8` brain round · `a4f28db` P3 federation + P4 capability wiring · `95f237a` SHA backfill ·
+`db0826f` lint gate repair. **All four gates green: lint 2/2 · typecheck 8/8 · build 7/7 · tests 256.**
+Full detail + literal evidence in MASTER_PLAN §9; the hard-won traps are in §3.
 
-**Next round dispatched on this clean committed base:** Atlas = P3 federation live proof ·
-Nova = P4 live capability wiring · Orion = portal depth + brain-page live polish. Agents report to
-the orchestrator; they never touch git or the orchestrator-only docs.
+- **BRAIN round — ✅ DONE.** Resumed from pause, housekeeping done, then the containerized sidecar
+  closed out: a REAL 1238-node graph built from this repo (code-only, keyless, $0),
+  `/api/brain/query|graph|stats` proved grounded against it, plus an honest degraded boot with the
+  brain profile down. That live pass caught a real bug (`query()` had no `graph.json` fallback).
+- **P3 federation + P4 capability wiring — ✅ DONE, live-proved.** The federation overlay booted for
+  the first time (11 containers healthy); SSO is now a *reproducible* proof (declarative realm import
+  — the hand-made one evaporated on recreate); real plugin invokes against a local Steel Browser and
+  the live MCP sidecar. Seven bugs fixed that only live testing could expose — 3 by Atlas, 4 by the
+  orchestrator (green `/api/health` while every tool was broken; missing compose env passthrough;
+  manifest defaults shadowing env fallbacks; a `GRAPHIFY_MCP_URL` collision with the core brain) —
+  plus a dishonest-success bug where the sidecar's `200 + isError:false` "Unknown tool" was reported
+  as `ok:true`.
+- **`lint` gate — ✅ REPAIRED.** It had never run in this repo's history; §7's standard pass had
+  simply omitted it. Now listed first there so it can't be skipped again.
+
+**Carried forward as UNRUN / NOT DONE (recorded, not hidden):**
+1. **Orion's Brain-page fixes — diagnosed but NOT written.** He root-caused the real problems in a
+   live browser against the 1241-node graph (force-layout perf at that scale, label overlap,
+   degraded/`available:false` UI) and honestly stopped at the diagnosis line when his budget ran out.
+   The analysis is in his transcript; the code does not exist. **This is the obvious next lane.**
+2. docs-mode (Ollama) brain indexing, and the `remember()`→rebuild→node-appears round-trip.
+3. `open-webui` / `langflow` federation tiles — never booted (GB-scale images, outside the SSO/proxy
+   proof scope).
+4. 17 pre-existing lint warnings in `apps/web` (unused imports/vars, one stale `eslint-disable`) —
+   Orion's portal lane, deliberately not a drive-by fix in an infra commit.
+
 
 **Deferred option — "Vega" (QA/reviewer agent), NOT active.** A read-only 5th helper that offloads the
 integrator's verification burden: it runs the full gate + a security review on a GIVEN COMMITTED SHA,
