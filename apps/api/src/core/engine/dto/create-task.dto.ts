@@ -16,4 +16,10 @@ export class CreateTaskDto {
   @Min(1)
   @Max(50)
   maxSteps?: number;
+
+  /** Hard per-task token ceiling. Null = platform default (ENGINE_MAX_TOKENS_PER_TASK). */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  maxTokens?: number;
 }

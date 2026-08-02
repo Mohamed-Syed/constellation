@@ -74,18 +74,20 @@ describe("TaskService — create", () => {
     expect(data.actorId).toBe("user-1");
     expect(data.status).toBe("queued");
     expect(data.maxSteps).toBe(20);
+    expect(data.maxTokens).toBeUndefined();
     expect(data.model).toBeUndefined();
     expect(task).toEqual({ id: "t1", status: "queued" });
   });
 
-  it("honours an explicit model and maxSteps", async () => {
+  it("honours an explicit model, maxSteps, and maxTokens", async () => {
     const { svc, db } = serviceWith(makeDb());
     db.agentTask.create.mockResolvedValue({ id: "t1" });
-    await svc.create(dto({ model: "llama3.2", maxSteps: 5 }), "user-1");
+    await svc.create(dto({ model: "llama3.2", maxSteps: 5, maxTokens: 1000 }), "user-1");
 
     const data = db.agentTask.create.mock.calls[0]![0]!.data;
     expect(data.model).toBe("llama3.2");
     expect(data.maxSteps).toBe(5);
+    expect(data.maxTokens).toBe(1000);
   });
 
   it("works without an actor (anonymous submission)", async () => {
@@ -125,6 +127,7 @@ describe("TaskService — findAll", () => {
       provider: true,
       stepCount: true,
       maxSteps: true,
+      maxTokens: true,
       actorId: true,
       createdAt: true,
       updatedAt: true,

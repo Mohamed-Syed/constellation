@@ -170,6 +170,10 @@ model AgentTask {
   provider    String?
   stepCount   Int       @default(0)
   maxSteps    Int       @default(20)
+  /// Hard per-task token ceiling (Engine v0.1 Task 3). Null = platform
+  /// default (ENGINE_MAX_TOKENS_PER_TASK). The worker fails the task when
+  /// the cumulative model usage crosses it.
+  maxTokens   Int?
   /// User who submitted the task (null = system-initiated).
   actorId     String?
   /// Final summary / output written on completion.

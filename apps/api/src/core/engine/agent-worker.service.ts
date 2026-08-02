@@ -3,6 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import { Worker, type ConnectionOptions, type Job } from "bullmq";
 import { PluginRegistryService } from "../plugins/plugin-registry.service.js";
 import { PluginToolService } from "../plugins/plugin-tool.service.js";
+import { TokenBudget } from "./model-provider.js";
 import type { ChatMessage } from "./model-router.service.js";
 import { ModelRouterService } from "./model-router.service.js";
 import { EngineAvailabilityService } from "./engine-availability.service.js";
@@ -54,6 +55,8 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
   private readonly connection: ReturnType<typeof buildRedisConnectionOptions>;
   /** Global supervised-mode switch: when true, EVERY tool call requires approval. */
   private readonly approveAll: boolean;
+  /** Default per-task token ceiling (overridable per task via `maxTokens`). */
+  private readonly defaultTokenBudget: number;
 
   constructor(
     private readonly taskService: TaskService,
@@ -65,6 +68,7 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
   ) {
     this.connection = buildRedisConnectionOptions(config.get("REDIS_URL", "redis://localhost:6379"));
     this.approveAll = config.get("ENGINE_REQUIRE_APPROVAL_ALL", "false") === "true";
+    this.defaultTokenBudget = Number(config.get("ENGINE_MAX_TOKENS_PER_TASK", "100000"));
   }
 
   async onModuleInit() {
@@ -134,6 +138,12 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
     await this.taskService.markRunning(taskId, "ollama");
 
     const maxSteps = task.maxSteps ?? 20;
+    // Hard per-task token ceiling (Engine v0.1 Task 3): the "budget cap" the
+    // design promised. Every model call's usage is recorded against this;
+    // when the cumulative count crosses it the task stops with an honest
+    // terminal error (a paid provider would enforce a dollar-cap the same
+    // way, via the same tracker — see TokenBudget in model-provider.ts).
+    const budget = new TokenBudget(task.maxTokens ?? this.defaultTokenBudget);
 
     // ── Agent loop ─────────────────────────────────────────────────────────
     while (stepIndex < maxSteps) {
@@ -179,6 +189,15 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
       try {
         const response = await this.modelRouter.chat(messages, task.model ?? undefined);
         rawResponse = response.content;
+
+        // Token budget: stop the task (honest terminal failure) the moment
+        // the ceiling is crossed — no unbounded spend on a runaway loop.
+        if (!budget.record(response.usage)) {
+          const msg = `Token budget exhausted: used ${budget.used} of ${budget.ceiling} tokens`;
+          await this.taskService.addStep(taskId, { stepIndex, type: "error", content: { error: msg } });
+          await this.taskService.markFailed(taskId, msg);
+          return;
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         await this.taskService.addStep(taskId, { stepIndex, type: "error", content: { error: msg } });

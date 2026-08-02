@@ -41,6 +41,7 @@ export class TaskService {
         prompt: dto.prompt,
         model: dto.model,
         maxSteps: dto.maxSteps ?? 20,
+        maxTokens: dto.maxTokens,
         actorId,
         status: "queued",
       },
@@ -55,7 +56,7 @@ export class TaskService {
       take: 100,
       select: {
         id: true, title: true, status: true, model: true, provider: true,
-        stepCount: true, maxSteps: true, actorId: true, createdAt: true,
+        stepCount: true, maxSteps: true, maxTokens: true, actorId: true, createdAt: true,
         updatedAt: true, startedAt: true, completedAt: true, error: true,
       },
     });

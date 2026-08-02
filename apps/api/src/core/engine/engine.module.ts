@@ -3,7 +3,9 @@ import { PluginsModule } from "../plugins/plugins.module.js";
 import { AgentWorkerService } from "./agent-worker.service.js";
 import { EngineAvailabilityService } from "./engine-availability.service.js";
 import { EngineController } from "./engine.controller.js";
+import { MODEL_PROVIDERS } from "./model-provider.js";
 import { ModelRouterService } from "./model-router.service.js";
+import { OllamaModelProvider } from "./ollama-model-provider.js";
 import { TaskQueueService } from "./task-queue.service.js";
 import { TaskService } from "./task.service.js";
 
@@ -27,6 +29,16 @@ import { TaskService } from "./task.service.js";
     TaskService,
     TaskQueueService,
     AgentWorkerService,
+    // Model plane: OllamaModelProvider is the first ModelProvider
+    // implementation; ModelRouterService selects from the MODEL_PROVIDERS
+    // list. Add a second provider by registering it here and appending it to
+    // the factory array — callers never change.
+    OllamaModelProvider,
+    {
+      provide: MODEL_PROVIDERS,
+      useFactory: (ollama: OllamaModelProvider) => [ollama],
+      inject: [OllamaModelProvider],
+    },
     ModelRouterService,
     EngineAvailabilityService,
   ],
