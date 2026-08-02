@@ -457,7 +457,7 @@ engine files · 1b portal `/engine` page (Orion's lane) · Ollama integration te
 ## 9. Verification log
 
 - **2026-08-02 — 🤖 ENGINE v0.1 — HARDEN & GATE round, TASK 1 of 5: engine degrades cleanly with no Redis
-  (git `TASK1_SHA`, local only) — clau_partner (orchestrating solo, Nova/Orion/Atlas resting).**
+  (git `e1fd016`, local only) — clau_partner (orchestrating solo, Nova/Orion/Atlas resting).**
   - **The defect (Polaris's architecture review):** `TaskQueueService`/`AgentWorkerService` constructed
     their BullMQ Queue/Worker UNCONDITIONALLY in `onModuleInit`. With Redis down, ioredis retries
     `ECONNREFUSED` forever (default exponential backoff capped at 20s) — a background log flood and a
