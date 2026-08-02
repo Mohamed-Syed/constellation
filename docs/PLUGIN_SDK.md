@@ -102,7 +102,7 @@ other rigor flags — inherit them rather than loosening.
 
 ```json
 {
-  "manifestVersion": 1,
+  "manifestVersion": 2,
   "id": "hello-world",
   "name": "Hello World",
   "version": "0.1.0",
@@ -230,7 +230,7 @@ half-loading.
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `manifestVersion` | `1` (literal) | yes | Lets the loader evolve the schema without breaking old plugins. Only `1` exists today. |
+| `manifestVersion` | `2` (literal) | yes | Lets the loader evolve the schema without breaking old plugins. **v2 (Engine v0.1, SDK 0.3.0): ADDITIVE — the agent-plane `tools` entries gained an optional `requiresApproval` flag (default `false`).** A v1 manifest is valid apart from the literal stamp: bump it to `2` and nothing else changes. |
 | `id` | string | yes | `^[a-z][a-z0-9-]{1,62}$` — kebab-case, starts with a letter. Also the default Postgres schema name. |
 | `name` | string | yes | Human-readable display name (shown in the portal). |
 | `version` | string | yes | Semver-ish: `^\d+\.\d+\.\d+(?:[-+].+)?$`. |

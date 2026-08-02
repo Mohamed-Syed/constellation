@@ -1,5 +1,5 @@
 {
-  "manifestVersion": 1,
+  "manifestVersion": 2,
   "id": "graphify",
   "name": "Graphify",
   "version": "0.1.0",
@@ -108,7 +108,8 @@
         "required": ["source"],
         "additionalProperties": false
       },
-      "permission": "graphify:ingest"
+      "permission": "graphify:ingest",
+      "requiresApproval": true
     }
   ],
   "entry": "dist/index.js",

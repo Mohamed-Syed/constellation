@@ -2,7 +2,7 @@
  * Memory capability — the plugin-facing view of the platform's "brain"
  * (persistent, queryable knowledge graph; see `docs/BRAIN.md`).
  *
- * ADDITIVE (SDK 0.2.0, `manifestVersion` unchanged at 1): the capability is
+ * ADDITIVE (SDK 0.3.0, `manifestVersion` bumped to 2 for the approval gate): the capability is
  * exposed as an OPTIONAL `memory` field on `PluginContext`. A plugin written
  * against 0.1.0 keeps compiling and running unchanged; a plugin that wants
  * memory must declare `core:brain:read` / `core:brain:write` in its manifest

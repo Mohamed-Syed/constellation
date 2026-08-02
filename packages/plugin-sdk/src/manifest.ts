@@ -100,6 +100,16 @@ export const ToolSchema = z.object({
   inputSchema: z.record(z.string(), z.unknown()).default({}),
   /** Permission the caller must hold to invoke this tool. */
   permission: permission,
+  /**
+   * HUMAN-IN-THE-LOOP (manifest v2): when true, the engine's autonomous agent
+   * PAUSES the task for approval before this tool runs — the tool call is
+   * recorded as a `pending_approval` step and the task goes to "paused"; a
+   * human must POST /api/engine/tasks/:id/approve to let it execute (or
+   * /reject to fail it). Defaults to false (tools run without a gate, as in
+   * manifest v1). The global ENGINE_REQUIRE_APPROVAL_ALL env switch forces
+   * approval for EVERY tool call regardless of this flag (supervised mode).
+   */
+  requiresApproval: z.boolean().default(false),
 });
 export type Tool = z.infer<typeof ToolSchema>;
 
@@ -107,8 +117,15 @@ export type Tool = z.infer<typeof ToolSchema>;
  * The full plugin manifest.
  */
 export const PluginManifestSchema = z.object({
-  /** Manifest format version — lets the loader evolve without breaking plugins. */
-  manifestVersion: z.literal(1),
+  /**
+   * Manifest format version — lets the loader evolve without breaking
+   * plugins. v2 (Engine v0.1, SDK 0.3.0): ADDITIVE — `ToolSchema` gained the
+   * optional `requiresApproval` flag (default false) for the engine's
+   * human-in-the-loop approval gate. A v1 manifest is still valid EXCEPT the
+   * literal version stamp; bump the stamp in your manifest and nothing else
+   * changes.
+   */
+  manifestVersion: z.literal(2),
 
   // --- Identity ---
   id: pluginId,

@@ -1,5 +1,5 @@
 {
-  "manifestVersion": 1,
+  "manifestVersion": 2,
   "id": "browser-use",
   "name": "browser-use",
   "version": "0.1.0",
@@ -115,7 +115,8 @@
         ],
         "additionalProperties": false
       },
-      "permission": "browser:act"
+      "permission": "browser:act",
+      "requiresApproval": true
     },
     {
       "name": "browser.extract",

@@ -215,6 +215,14 @@ model TaskCheckpoint {
   /// Full messages array at the time of checkpointing.
   messages   Json
   stepIndex  Int
+  /// Engine v0.1 approval gate: set when the task is paused for a
+  /// human-in-the-loop decision — { plugin, tool, args, stepIndex } of the
+  /// tool call awaiting approval. Null when no approval is pending.
+  pendingApproval Json?
+  /// Set by POST /api/engine/tasks/:id/approve to the pending tool call's
+  /// stepIndex; the worker honours it ONCE (executes the approved call
+  /// without re-gating) and clears it with pendingApproval.
+  approvedStepIndex Int?
   updatedAt  DateTime  @updatedAt
 
   task       AgentTask @relation(fields: [taskId], references: [id], onDelete: Cascade)

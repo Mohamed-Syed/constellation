@@ -55,6 +55,11 @@ export interface PluginTool {
   inputSchema: Record<string, unknown>;
   /** Permission the caller must hold to invoke this tool. */
   permission: string;
+  /**
+   * Manifest v2: when true, the engine's autonomous agent pauses the task for
+   * human approval before this tool runs (POST /api/engine/tasks/:id/approve).
+   */
+  requiresApproval?: boolean;
 }
 
 /** A declared backend HTTP route the plugin exposes under `/api/plugins/<id>/...`. */
@@ -97,7 +102,7 @@ export interface PluginJob {
  * against the SDK to avoid coupling the workspace packages).
  */
 export interface PluginDetail {
-  manifestVersion: 1;
+  manifestVersion: 2;
   // Identity
   id: string;
   name: string;

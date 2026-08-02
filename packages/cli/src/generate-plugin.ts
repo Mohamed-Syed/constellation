@@ -64,7 +64,7 @@ export function generatePlugin(name: string, options: GeneratePluginOptions = {}
   }
 
   const manifest = parseManifest({
-    manifestVersion: 1,
+    manifestVersion: 2,
     id,
     name,
     version: "0.1.0",

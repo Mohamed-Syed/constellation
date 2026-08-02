@@ -15,7 +15,7 @@ import { PluginToolService } from "./plugin-tool.service.js";
 
 function manifest(overrides: Partial<PluginManifest> = {}): PluginManifest {
   return {
-    manifestVersion: 1,
+    manifestVersion: 2,
     id: "cap",
     name: "cap",
     version: "1.0.0",

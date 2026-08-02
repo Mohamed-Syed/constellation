@@ -16,7 +16,7 @@ import type { PrismaService } from "../database/prisma.service.js";
 
 function manifest(permissions: string[]): PluginManifest {
   return {
-    manifestVersion: 1,
+    manifestVersion: 2,
     id: "memo",
     name: "Memo",
     version: "1.0.0",

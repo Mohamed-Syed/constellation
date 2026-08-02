@@ -4,7 +4,7 @@ import { CorePermissions, hasAllPermissions, hasPermission, isValidPermission, p
 import { PLATFORM_VERSION } from "./index.js";
 
 const validManifest = {
-  manifestVersion: 1,
+  manifestVersion: 2,
   id: "hello-world",
   name: "Hello World",
   version: "0.1.0",
@@ -54,6 +54,7 @@ describe("manifest tools (agent plane)", () => {
       description: "",
       inputSchema: {},
       permission: "browser:navigate",
+      requiresApproval: false,
     });
   });
 
@@ -134,12 +135,30 @@ describe("brain permissions (SDK 0.2.0, additive)", () => {
     expect(hasPermission(["core:brain:read"], CorePermissions.BRAIN_WRITE)).toBe(false);
   });
 
-  it("the additive change bumped the platform version to 0.2.0", () => {
-    expect(PLATFORM_VERSION).toBe("0.2.0");
+  it("the approval-gate change bumped the platform version to 0.3.0", () => {
+    expect(PLATFORM_VERSION).toBe("0.3.0");
   });
 
-  it("manifestVersion is STILL 1 — the manifest contract did not break", () => {
+  it("manifestVersion is now 2 — ADDITIVE contract change for the approval gate", () => {
     const m = parseManifest(validManifest);
-    expect(m.manifestVersion).toBe(1);
+    expect(m.manifestVersion).toBe(2);
+  });
+
+  it("tools default requiresApproval to false — behaviour unchanged unless opted in", () => {
+    const m = parseManifest({
+      ...validManifest,
+      permissions: ["browser:act"],
+      tools: [{ name: "browser.act", permission: "browser:act" }],
+    });
+    expect(m.tools[0]!.requiresApproval).toBe(false);
+  });
+
+  it("accepts an explicitly approval-required tool (human-in-the-loop flag)", () => {
+    const m = parseManifest({
+      ...validManifest,
+      permissions: ["browser:act"],
+      tools: [{ name: "browser.act", permission: "browser:act", requiresApproval: true }],
+    });
+    expect(m.tools[0]!.requiresApproval).toBe(true);
   });
 });

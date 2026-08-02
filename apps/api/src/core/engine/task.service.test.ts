@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { Prisma } from "@prisma/client";
 import type { PrismaService } from "../database/prisma.service.js";
 import type { CreateTaskDto } from "./dto/create-task.dto.js";
 import { TaskService, type TaskStepData } from "./task.service.js";
@@ -26,7 +27,11 @@ interface DbMock {
     update: ReturnType<typeof vi.fn>;
   };
   taskStep: { create: ReturnType<typeof vi.fn> };
-  taskCheckpoint: { upsert: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn> };
+  taskCheckpoint: {
+    upsert: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+  };
   $transaction: ReturnType<typeof vi.fn>;
 }
 
@@ -39,7 +44,7 @@ function makeDb(): DbMock {
       update: vi.fn(),
     },
     taskStep: { create: vi.fn() },
-    taskCheckpoint: { upsert: vi.fn(), findUnique: vi.fn() },
+    taskCheckpoint: { upsert: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     // Mimic Prisma's $transaction over an array of promises.
     $transaction: vi.fn(async (ops: unknown[]) => {
       for (const op of ops) await op;
@@ -319,15 +324,111 @@ describe("TaskService — saveCheckpoint / loadCheckpoint", () => {
     await expect(svc.loadCheckpoint("t1")).resolves.toBeNull();
   });
 
-  it("loadCheckpoint returns messages and stepIndex", async () => {
+  it("loadCheckpoint returns messages, stepIndex, and the approval state", async () => {
     const { svc, db } = serviceWith(makeDb());
     const messages = [{ role: "assistant", content: '{"type":"done"}' }];
-    db.taskCheckpoint.findUnique.mockResolvedValue({ taskId: "t1", messages, stepIndex: 4 });
+    const pendingApproval = { plugin: "browser-use", tool: "browser.act", args: {}, stepIndex: 3 };
+    db.taskCheckpoint.findUnique.mockResolvedValue({
+      taskId: "t1",
+      messages,
+      stepIndex: 4,
+      pendingApproval,
+      approvedStepIndex: 3,
+    });
 
     const cp = await svc.loadCheckpoint("t1");
 
-    expect(cp).toEqual({ messages, stepIndex: 4 });
+    expect(cp).toEqual({ messages, stepIndex: 4, pendingApproval, approvedStepIndex: 3 });
     expect(db.taskCheckpoint.findUnique).toHaveBeenCalledWith({ where: { taskId: "t1" } });
+  });
+
+  it("loadCheckpoint defaults the approval state to null when absent", async () => {
+    const { svc, db } = serviceWith(makeDb());
+    db.taskCheckpoint.findUnique.mockResolvedValue({ taskId: "t1", messages: [], stepIndex: 0 });
+
+    await expect(svc.loadCheckpoint("t1")).resolves.toEqual({
+      messages: [],
+      stepIndex: 0,
+      pendingApproval: null,
+      approvedStepIndex: null,
+    });
+  });
+});
+
+describe("TaskService — approval gate (pause / approve / clear)", () => {
+  it("markPaused sets the status to paused", async () => {
+    const { svc, db } = serviceWith(makeDb());
+    await svc.markPaused("t1");
+    expect(db.agentTask.update).toHaveBeenCalledWith({
+      where: { id: "t1" },
+      data: { status: "paused" },
+    });
+  });
+
+  it("markQueued sets the status back to queued", async () => {
+    const { svc, db } = serviceWith(makeDb());
+    await svc.markQueued("t1");
+    expect(db.agentTask.update).toHaveBeenCalledWith({
+      where: { id: "t1" },
+      data: { status: "queued" },
+    });
+  });
+
+  it("savePendingApproval upserts the pending tool call and clears any prior grant", async () => {
+    const { svc, db } = serviceWith(makeDb());
+    const approval = { plugin: "browser-use", tool: "browser.act", args: {}, stepIndex: 2 };
+
+    await svc.savePendingApproval("t1", [], 3, approval);
+
+    expect(db.taskCheckpoint.upsert).toHaveBeenCalledWith({
+      where: { taskId: "t1" },
+      create: { taskId: "t1", messages: [], stepIndex: 3, pendingApproval: approval },
+      update: { messages: [], stepIndex: 3, pendingApproval: approval, approvedStepIndex: null },
+    });
+  });
+
+  it("approvePendingApproval returns null when nothing is pending", async () => {
+    const { svc, db } = serviceWith(makeDb());
+    db.taskCheckpoint.findUnique.mockResolvedValue({ taskId: "t1", pendingApproval: null });
+
+    await expect(svc.approvePendingApproval("t1")).resolves.toBeNull();
+    expect(db.taskCheckpoint.update).not.toHaveBeenCalled();
+  });
+
+  it("approvePendingApproval grants the pending call and returns its stepIndex", async () => {
+    const { svc, db } = serviceWith(makeDb());
+    db.taskCheckpoint.findUnique.mockResolvedValue({
+      taskId: "t1",
+      pendingApproval: { plugin: "graphify", tool: "graph.ingest", args: {}, stepIndex: 5 },
+    });
+
+    await expect(svc.approvePendingApproval("t1")).resolves.toBe(5);
+
+    expect(db.taskCheckpoint.update).toHaveBeenCalledWith({
+      where: { taskId: "t1" },
+      data: { approvedStepIndex: 5 },
+    });
+  });
+
+  it("clearApproval clears the approval columns and records the new messages/stepIndex", async () => {
+    const { svc, db } = serviceWith(makeDb());
+    const messages = [{ role: "user", content: "Tool result: {}" }];
+
+    await svc.clearApproval("t1", messages, 4);
+
+    expect(db.taskCheckpoint.update).toHaveBeenCalledWith({
+      where: { taskId: "t1" },
+      data: { messages, stepIndex: 4, pendingApproval: Prisma.DbNull, approvedStepIndex: null },
+    });
+  });
+
+  it("approval methods degrade gracefully without a database", async () => {
+    const { svc } = serviceWith(undefined);
+    await expect(svc.markPaused("t1")).resolves.toBeUndefined();
+    await expect(svc.markQueued("t1")).resolves.toBeUndefined();
+    await expect(svc.savePendingApproval("t1", [], 1, { plugin: "p", tool: "t", args: {}, stepIndex: 0 })).resolves.toBeUndefined();
+    await expect(svc.approvePendingApproval("t1")).resolves.toBeNull();
+    await expect(svc.clearApproval("t1", [], 1)).resolves.toBeUndefined();
   });
 });
 

@@ -54,7 +54,13 @@ export interface EngineTaskSummary {
 }
 
 /** Step types the ReAct loop writes (`agent-worker.service.ts`). */
-export type EngineStepType = "thought" | "tool_call" | "tool_result" | "done" | "error";
+export type EngineStepType =
+  | "thought"
+  | "tool_call"
+  | "tool_result"
+  | "pending_approval"
+  | "done"
+  | "error";
 
 /** One entry in a task's step history (`TaskStep` model). `content` is opaque JSON. */
 export interface EngineStep {
@@ -276,6 +282,11 @@ export function stepSummaryText(step: EngineStep): string {
       const plugin = typeof c?.plugin === "string" ? c.plugin : "?";
       const tool = typeof c?.tool === "string" ? c.tool : "?";
       return `${plugin}.${tool}`;
+    }
+    case "pending_approval": {
+      const plugin = typeof c?.plugin === "string" ? c.plugin : "?";
+      const tool = typeof c?.tool === "string" ? c.tool : "?";
+      return `awaiting approval: ${plugin}.${tool}`;
     }
     case "tool_result": {
       if (c?.ok === false) {

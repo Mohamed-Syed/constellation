@@ -86,7 +86,7 @@ function writeFixture(id: string, opts: FixtureOptions = {}): void {
   const dir = join(fixturesRoot, id);
   mkdirSync(dir, { recursive: true });
   const manifest = {
-    manifestVersion: 1,
+    manifestVersion: 2,
     id,
     name: id,
     version: "0.1.0",
@@ -345,7 +345,7 @@ describe("PluginLifecycleService — enable/disable", () => {
     const lifecycle = new PluginLifecycleService(registry);
     registry.register({
       manifest: {
-        manifestVersion: 1,
+        manifestVersion: 2,
         id: "never-enabled",
         name: "never-enabled",
         version: "0.1.0",

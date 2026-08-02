@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ServiceUnavailableException } from "@nestjs/common";
+import { BadRequestException, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import type { AuthPrincipal } from "../auth/token-verifier.js";
 import { EngineUnavailableError } from "./engine-availability.service.js";
 import { EngineController } from "./engine.controller.js";
@@ -7,12 +7,14 @@ import { EngineController } from "./engine.controller.js";
 /**
  * EngineController tests — hand-wired with `new`, no Nest DI container
  * (same offline pattern as the rest of the engine suite). Focus is the
- * Engine v0.1 availability contract:
+ * Engine v0.1 contracts:
  *  - submitTask → clean 503 when the engine is disabled (never a hang), and
  *    the task is NOT created;
  *  - when the queue dies between the check and the enqueue, the task row is
  *    marked failed and the caller still gets a 503;
- *  - `/health` reports engine available/unavailable with a reason.
+ *  - `/health` reports engine available/unavailable with a reason;
+ *  - approve/reject only act on paused tasks, audit the decision, and
+ *    approve re-enqueues while reject fails the task.
  */
 
 function makeTasksStub() {
@@ -27,6 +29,9 @@ function makeTasksStub() {
     findOne: vi.fn(async () => null),
     cancel: vi.fn(async () => true),
     markFailed: vi.fn(async () => undefined),
+    markPaused: vi.fn(async () => undefined),
+    markQueued: vi.fn(async () => undefined),
+    approvePendingApproval: vi.fn(async () => null),
   };
 }
 
@@ -53,19 +58,25 @@ function makeAvailability(enabled: boolean, reason: string | null = null) {
   return { isEnabled: enabled, reason };
 }
 
+function makeAuditStub() {
+  return { record: vi.fn(async () => undefined) };
+}
+
 function makeController(
   availability = makeAvailability(true),
   tasks = makeTasksStub(),
   queue = makeQueueStub(),
   model = makeModelStub(),
+  audit = makeAuditStub(),
 ) {
   const controller = new EngineController(
     tasks as never,
     queue as never,
     model as never,
     availability as never,
+    audit as never,
   );
-  return { controller, tasks, queue, model, availability };
+  return { controller, tasks, queue, model, availability, audit };
 }
 
 const user: AuthPrincipal = { id: "user-1", email: "a@b.c", roles: ["admin"], permissions: ["platform:admin"] };
@@ -138,5 +149,91 @@ describe("EngineController — health", () => {
     expect(health.reason).toContain("REDIS_URL is not set");
     expect(health.queue).toEqual({ enabled: false, reason: "REDIS_URL is not set" });
     expect(queue.getHealth).toHaveBeenCalledOnce();
+  });
+});
+
+describe("EngineController — approve", () => {
+  it("approves a paused task: grants the step, re-enqueues, returns queued", async () => {
+    const tasks = makeTasksStub();
+    tasks.findOne.mockResolvedValueOnce({ id: "t1", status: "paused" });
+    tasks.approvePendingApproval.mockResolvedValueOnce(4);
+    const { controller, queue, audit } = makeController(makeAvailability(true), tasks);
+
+    const result = await controller.approveTask("t1", user);
+
+    expect(result).toEqual({ id: "t1", status: "queued", approvedStepIndex: 4 });
+    expect(tasks.markQueued).toHaveBeenCalledWith("t1");
+    expect(queue.enqueue).toHaveBeenCalledWith("t1");
+    expect(audit.record).toHaveBeenCalledWith("user-1", "engine.task.approved", "t1", {
+      approvedStepIndex: 4,
+      actor: "a@b.c",
+    });
+  });
+
+  it("rejects approving a task that is not paused", async () => {
+    const tasks = makeTasksStub();
+    tasks.findOne.mockResolvedValueOnce({ id: "t1", status: "running" });
+    const { controller, queue } = makeController(makeAvailability(true), tasks);
+
+    await expect(controller.approveTask("t1", user)).rejects.toBeInstanceOf(BadRequestException);
+    expect(queue.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("rejects approving a task with no pending tool call", async () => {
+    const tasks = makeTasksStub();
+    tasks.findOne.mockResolvedValueOnce({ id: "t1", status: "paused" });
+    tasks.approvePendingApproval.mockResolvedValueOnce(null);
+    const { controller, queue } = makeController(makeAvailability(true), tasks);
+
+    await expect(controller.approveTask("t1", user)).rejects.toBeInstanceOf(BadRequestException);
+    expect(queue.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("404s when the task does not exist", async () => {
+    const { controller } = makeController();
+    await expect(controller.approveTask("nope", user)).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("restores paused and 503s when Redis dies during the approve enqueue", async () => {
+    const tasks = makeTasksStub();
+    tasks.findOne.mockResolvedValueOnce({ id: "t1", status: "paused" });
+    tasks.approvePendingApproval.mockResolvedValueOnce(4);
+    const queue = makeQueueStub();
+    queue.enqueue.mockRejectedValueOnce(new EngineUnavailableError("could not enqueue task t1: ECONNREFUSED"));
+    const { controller } = makeController(makeAvailability(true), tasks, queue);
+
+    await expect(controller.approveTask("t1", user)).rejects.toBeInstanceOf(ServiceUnavailableException);
+    // The approval is still pending — the task goes back to paused.
+    expect(tasks.markPaused).toHaveBeenCalledWith("t1");
+    expect(tasks.markQueued).toHaveBeenCalledWith("t1");
+  });
+});
+
+describe("EngineController — reject", () => {
+  it("rejects a paused task: fails it with 'Rejected by <user>' and audits", async () => {
+    const tasks = makeTasksStub();
+    tasks.findOne.mockResolvedValueOnce({ id: "t1", status: "paused" });
+    const { controller, audit } = makeController(makeAvailability(true), tasks);
+
+    const result = await controller.rejectTask("t1", user);
+
+    expect(result).toEqual({ id: "t1", status: "failed", reason: "Rejected by a@b.c" });
+    expect(tasks.markFailed).toHaveBeenCalledWith("t1", "Rejected by a@b.c");
+    expect(audit.record).toHaveBeenCalledWith("user-1", "engine.task.rejected", "t1", { actor: "a@b.c" });
+  });
+
+  it("rejects rejecting a task that is not paused", async () => {
+    const tasks = makeTasksStub();
+    tasks.findOne.mockResolvedValueOnce({ id: "t1", status: "completed" });
+    const { controller, audit } = makeController(makeAvailability(true), tasks);
+
+    await expect(controller.rejectTask("t1", user)).rejects.toBeInstanceOf(BadRequestException);
+    expect(tasks.markFailed).not.toHaveBeenCalled();
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+
+  it("404s when the task does not exist", async () => {
+    const { controller } = makeController();
+    await expect(controller.rejectTask("nope", user)).rejects.toBeInstanceOf(NotFoundException);
   });
 });

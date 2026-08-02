@@ -20,8 +20,17 @@ interface AgentAction {
   error?: string;
 }
 
-/** The fixed permission set granted to the engine agent for tool invocations. */
-const AGENT_PERMISSIONS = ["platform:admin"] as const;
+/**
+ * The engine agent's privilege. The autonomous agent is the most privileged
+ * caller in the system — it can invoke ANY tool any plugin declares — so its
+ * permission set is centralized HERE as the single seam to scope down later
+ * (e.g. give the agent a dedicated "engine:agent" role holding only the
+ * permissions the loop genuinely needs, instead of platform:admin). The
+ * approval gate (per-tool `requiresApproval` / global
+ * `ENGINE_REQUIRE_APPROVAL_ALL`) is the real guardrail; this constant just
+ * makes the privilege honest and auditable in one place.
+ */
+export const ENGINE_AGENT_PERMISSIONS = ["platform:admin"] as const;
 
 /**
  * BullMQ Worker that drives the autonomous agent loop.
@@ -43,6 +52,8 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(AgentWorkerService.name);
   private worker: Worker | undefined;
   private readonly connection: ReturnType<typeof buildRedisConnectionOptions>;
+  /** Global supervised-mode switch: when true, EVERY tool call requires approval. */
+  private readonly approveAll: boolean;
 
   constructor(
     private readonly taskService: TaskService,
@@ -53,6 +64,7 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
     private readonly availability: EngineAvailabilityService,
   ) {
     this.connection = buildRedisConnectionOptions(config.get("REDIS_URL", "redis://localhost:6379"));
+    this.approveAll = config.get("ENGINE_REQUIRE_APPROVAL_ALL", "false") === "true";
   }
 
   async onModuleInit() {
@@ -102,7 +114,7 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
     }
 
     // ── Attempt to resume from checkpoint ──────────────────────────────────
-    const checkpoint = await this.taskService.loadCheckpoint(taskId);
+    let checkpoint = await this.taskService.loadCheckpoint(taskId);
     let messages: ChatMessage[];
     let stepIndex: number;
 
@@ -129,6 +141,37 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
       if (await this.taskService.isCancelled(taskId)) {
         this.logger.log(`Task ${taskId} cancelled mid-run at step ${stepIndex}`);
         return;
+      }
+
+      // ── Approved-pending-approval: execute the just-approved tool call ───
+      // Resume path after POST /api/engine/tasks/:id/approve. The tool_call
+      // step + pending_approval step were recorded when the task paused; the
+      // checkpoint carries the approval. Execute it directly (NO model call —
+      // the model has nothing new to decide) and honour the grant ONCE.
+      if (checkpoint?.approvedStepIndex != null && checkpoint?.pendingApproval) {
+        const approval = checkpoint.pendingApproval;
+        if (approval.stepIndex === checkpoint.approvedStepIndex) {
+          this.logger.log(
+            `Task ${taskId}: executing APPROVED tool call ${approval.plugin}.${approval.tool} (step ${approval.stepIndex})`,
+          );
+          const nextFree = await this.executeToolCall(
+            taskId,
+            approval.plugin,
+            approval.tool,
+            approval.args ?? {},
+            messages,
+            stepIndex,
+            false, // the tool_call step already exists (written when paused)
+          );
+          // The approval is honoured — persist the cleared state and the next
+          // free index so a later restart continues cleanly. `continue`
+          // skips the loop-bottom stepIndex++/saveCheckpoint, so set the
+          // index here.
+          stepIndex = nextFree;
+          await this.taskService.clearApproval(taskId, messages, nextFree);
+          checkpoint = null; // honour once — do not re-check this approval
+          continue;
+        }
       }
 
       // ── Call model ──────────────────────────────────────────────────────
@@ -159,37 +202,24 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
         messages.push({ role: "user", content: "Continue." });
 
       } else if (action.type === "tool_call" && action.plugin && action.tool) {
-        await this.taskService.addStep(taskId, {
-          stepIndex,
-          type: "tool_call",
-          content: { plugin: action.plugin, tool: action.tool, args: action.args ?? {} },
-        });
-
-        stepIndex++;
-        await this.taskService.saveCheckpoint(taskId, messages, stepIndex);
-
-        const invocation = await this.pluginTool.invoke(
+        // ── Approval gate (Engine v0.1): pause for a human before running ──
+        if (this.requiresApproval(action.plugin, action.tool)) {
+          await this.pauseForApproval(taskId, action, messages, stepIndex);
+          return; // release the BullMQ job — the task waits for approve/reject
+        }
+        // executeToolCall writes TWO steps (tool_call + tool_result) and
+        // returns the next free index; the loop-bottom ++ then lands the
+        // following step one past the tool_result.
+        const nextFree = await this.executeToolCall(
+          taskId,
           action.plugin,
           action.tool,
           action.args ?? {},
-          AGENT_PERMISSIONS,
-        );
-
-        const toolResult =
-          invocation.outcome === "completed"
-            ? invocation.result
-            : { ok: false, error: invocation.message };
-
-        await this.taskService.addStep(taskId, {
+          messages,
           stepIndex,
-          type: "tool_result",
-          content: toolResult,
-        });
-
-        messages.push({
-          role: "user",
-          content: `Tool result: ${JSON.stringify(toolResult)}`,
-        });
+          true,
+        );
+        stepIndex = nextFree - 1;
 
       } else if (action.type === "done") {
         await this.taskService.addStep(taskId, {
@@ -216,6 +246,107 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
 
     // Ran out of steps
     await this.taskService.markFailed(taskId, `Reached max steps (${maxSteps}) without completing.`);
+  }
+
+  /**
+   * Run one tool call and append its result step + conversation message.
+   * Returns the NEXT FREE step index (one past the tool_result step), so the
+   * caller's loop accounting stays aligned with the step history.
+   *
+   * `recordCallStep` is true on the normal path (the tool_call step does not
+   * exist yet — the caller passed the tool_call stepIndex); false on the
+   * approve-resume path (the tool_call step was recorded when the task
+   * paused, and `stepIndex` is already the index AFTER it — past the
+   * pending_approval marker). In BOTH cases the tool_result step lands one
+   * index past the passed `stepIndex`, keeping indexes unique and ascending.
+   */
+  private async executeToolCall(
+    taskId: string,
+    plugin: string,
+    tool: string,
+    args: Record<string, unknown>,
+    messages: ChatMessage[],
+    stepIndex: number,
+    recordCallStep: boolean,
+  ): Promise<number> {
+    if (recordCallStep) {
+      await this.taskService.addStep(taskId, {
+        stepIndex,
+        type: "tool_call",
+        content: { plugin, tool, args },
+      });
+      // Checkpoint BEFORE the invoke so a crash mid-call resumes from here.
+      await this.taskService.saveCheckpoint(taskId, messages, stepIndex + 1);
+    }
+
+    const invocation = await this.pluginTool.invoke(plugin, tool, args, ENGINE_AGENT_PERMISSIONS);
+
+    const toolResult =
+      invocation.outcome === "completed"
+        ? invocation.result
+        : { ok: false, error: invocation.message };
+
+    const resultIndex = stepIndex + 1;
+    await this.taskService.addStep(taskId, {
+      stepIndex: resultIndex,
+      type: "tool_result",
+      content: toolResult,
+    });
+
+    messages.push({
+      role: "user",
+      content: `Tool result: ${JSON.stringify(toolResult)}`,
+    });
+
+    return resultIndex + 1;
+  }
+
+  /**
+   * HUMAN-IN-THE-LOOP pause: the agent chose a tool that requires approval.
+   * Record the tool_call + a pending_approval step, write the pending state
+   * onto the checkpoint, set the task to "paused", and STOP (the caller
+   * returns so the BullMQ job is released — nothing has run). A human then
+   * POSTs /api/engine/tasks/:id/approve (executes the call) or /reject
+   * (fails the task).
+   */
+  private async pauseForApproval(
+    taskId: string,
+    action: AgentAction,
+    messages: ChatMessage[],
+    stepIndex: number,
+  ): Promise<void> {
+    const plugin = action.plugin!;
+    const tool = action.tool!;
+    const args = action.args ?? {};
+
+    // The tool_call step makes the request auditable in the step history.
+    await this.taskService.addStep(taskId, {
+      stepIndex,
+      type: "tool_call",
+      content: { plugin, tool, args },
+    });
+
+    const nextIndex = stepIndex + 1;
+    await this.taskService.savePendingApproval(taskId, messages, nextIndex, { plugin, tool, args, stepIndex });
+    await this.taskService.addStep(taskId, {
+      stepIndex: nextIndex,
+      type: "pending_approval",
+      content: { plugin, tool, args },
+    });
+    await this.taskService.markPaused(taskId);
+
+    this.logger.warn(`Task ${taskId} paused at step ${stepIndex} — awaiting approval for ${plugin}.${tool}`);
+  }
+
+  /**
+   * Whether the agent's tool call must wait for a human decision first:
+   * the global ENGINE_REQUIRE_APPROVAL_ALL switch (supervised mode — EVERY
+   * tool call) OR the tool's own manifest `requiresApproval` flag (v2).
+   */
+  private requiresApproval(pluginId: string, toolName: string): boolean {
+    if (this.approveAll) return true;
+    const tool = this.registry.get(pluginId)?.manifest.tools.find((t) => t.name === toolName);
+    return tool?.requiresApproval === true;
   }
 
   private parseAction(raw: string): AgentAction {

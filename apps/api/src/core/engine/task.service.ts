@@ -1,12 +1,24 @@
 import { Injectable, Logger } from "@nestjs/common";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../database/prisma.service.js";
 import type { CreateTaskDto } from "./dto/create-task.dto.js";
 
 export interface TaskStepData {
   stepIndex: number;
-  type: "thought" | "tool_call" | "tool_result" | "done" | "error";
+  type: "thought" | "tool_call" | "tool_result" | "pending_approval" | "done" | "error";
   content: unknown;
+}
+
+/**
+ * A tool call awaiting (or granted) human approval — stored on the task's
+ * checkpoint while the task is paused (Engine v0.1 approval gate).
+ */
+export interface TaskApproval {
+  plugin: string;
+  tool: string;
+  args: Record<string, unknown>;
+  /** stepIndex of the tool_call step this approval refers to. */
+  stepIndex: number;
 }
 
 /**
@@ -85,6 +97,20 @@ export class TaskService {
     });
   }
 
+  /** Pause a running task (approval gate): status -> "paused". */
+  async markPaused(id: string) {
+    const db = this.prisma.db;
+    if (!db) return;
+    await db.agentTask.update({ where: { id }, data: { status: "paused" } });
+  }
+
+  /** Put a paused task back in the queue (approval granted). */
+  async markQueued(id: string) {
+    const db = this.prisma.db;
+    if (!db) return;
+    await db.agentTask.update({ where: { id }, data: { status: "queued" } });
+  }
+
   async cancel(id: string): Promise<boolean> {
     const db = this.prisma.db;
     if (!db) return false;
@@ -131,7 +157,73 @@ export class TaskService {
     if (!db) return null;
     const cp = await db.taskCheckpoint.findUnique({ where: { taskId } });
     if (!cp) return null;
-    return { messages: cp.messages as unknown[], stepIndex: cp.stepIndex };
+    return {
+      messages: cp.messages as unknown[],
+      stepIndex: cp.stepIndex,
+      pendingApproval: (cp.pendingApproval as TaskApproval | null) ?? null,
+      approvedStepIndex: cp.approvedStepIndex ?? null,
+    };
+  }
+
+  /**
+   * Write the approval-pause state into the checkpoint: the pending tool call
+   * plus the next stepIndex to resume at. Clears any prior approval grant.
+   */
+  async savePendingApproval(taskId: string, messages: unknown[], stepIndex: number, approval: TaskApproval) {
+    const db = this.prisma.db;
+    if (!db) return;
+    await db.taskCheckpoint.upsert({
+      where: { taskId },
+      create: {
+        taskId,
+        messages: messages as Prisma.InputJsonValue,
+        stepIndex,
+        pendingApproval: approval as unknown as Prisma.InputJsonValue,
+      },
+      update: {
+        messages: messages as Prisma.InputJsonValue,
+        stepIndex,
+        pendingApproval: approval as unknown as Prisma.InputJsonValue,
+        approvedStepIndex: null,
+      },
+    });
+  }
+
+  /**
+   * Mark the pending tool call approved. Returns the approved stepIndex, or
+   * null when there is no pending approval to grant.
+   */
+  async approvePendingApproval(taskId: string): Promise<number | null> {
+    const db = this.prisma.db;
+    if (!db) return null;
+    const cp = await db.taskCheckpoint.findUnique({ where: { taskId } });
+    const pending = cp?.pendingApproval as TaskApproval | null | undefined;
+    if (!cp || !pending || typeof pending.stepIndex !== "number") return null;
+    await db.taskCheckpoint.update({
+      where: { taskId },
+      data: { approvedStepIndex: pending.stepIndex },
+    });
+    return pending.stepIndex;
+  }
+
+  /**
+   * Clear the approval state after the worker has honoured it (the "honour
+   * ONCE" semantics of the gate) and record the post-execution messages.
+   */
+  async clearApproval(taskId: string, messages: unknown[], stepIndex: number) {
+    const db = this.prisma.db;
+    if (!db) return;
+    await db.taskCheckpoint.update({
+      where: { taskId },
+      data: {
+        messages: messages as Prisma.InputJsonValue,
+        stepIndex,
+        // SQL NULL (Prisma.DbNull) — not JSON null — so the checkpoint's
+        // "no approval pending" state round-trips as a genuine null.
+        pendingApproval: Prisma.DbNull,
+        approvedStepIndex: null,
+      },
+    });
   }
 
   async isCancelled(id: string): Promise<boolean> {

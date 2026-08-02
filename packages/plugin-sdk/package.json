@@ -1,6 +1,6 @@
 {
   "name": "@constellation/plugin-sdk",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Constellation Plugin SDK — the contract, manifest schema, and runtime types every plugin implements.",
   "license": "MIT",
   "type": "module",
