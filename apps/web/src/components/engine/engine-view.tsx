@@ -44,6 +44,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Reveal } from "@/components/motion/reveal";
+import { toast } from "sonner";
 
 const POLL_MS = 5000;
 
@@ -168,10 +170,12 @@ export function EngineView() {
       setPrompt("");
       setModel("");
       setFormSuccess(`Task "${res.task.title}" queued.`);
+      toast.success(`Task queued`, { description: `"${res.task.title}" is now in the engine queue.` });
       setRefreshKey((k) => k + 1);
       setSelectedId(res.task.id); // open the drawer so the user watches it run
     } else {
       setFormError(res.message);
+      toast.error("Couldn't queue task", { description: res.message });
     }
   }
 
@@ -184,6 +188,9 @@ export function EngineView() {
     setRefreshKey((k) => k + 1); // list + (if open) drawer refetch immediately
     if (!res.ok && res.reason !== "not-cancellable") {
       setCancelError(res.message);
+      toast.error("Couldn't cancel task", { description: res.message });
+    } else if (res.ok) {
+      toast.info("Task cancelled");
     }
   }
 
@@ -195,7 +202,12 @@ export function EngineView() {
     const res = await approveEngineTask(taskId, token);
     setDecidingId(null);
     setRefreshKey((k) => k + 1);
-    if (!res.ok) setDecisionError(res.message);
+    if (!res.ok) {
+      setDecisionError(res.message);
+      toast.error("Approval failed", { description: res.message });
+    } else {
+      toast.success("Tool call approved", { description: "It will execute exactly once." });
+    }
   }
 
   /** Reject a paused task's pending tool call (fails the task). */
@@ -206,7 +218,12 @@ export function EngineView() {
     const res = await rejectEngineTask(taskId, token);
     setDecidingId(null);
     setRefreshKey((k) => k + 1);
-    if (!res.ok) setDecisionError(res.message);
+    if (!res.ok) {
+      setDecisionError(res.message);
+      toast.error("Rejection failed", { description: res.message });
+    } else {
+      toast.info("Tool call rejected", { description: "The task will fail." });
+    }
   }
 
   const openTask = (id: string) => {
@@ -217,7 +234,7 @@ export function EngineView() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+    <Reveal className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <header className="mb-8 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight sm:text-3xl">
@@ -605,7 +622,7 @@ export function EngineView() {
           ) : null}
         </DialogContent>
       </Dialog>
-    </div>
+    </Reveal>
   );
 }
 

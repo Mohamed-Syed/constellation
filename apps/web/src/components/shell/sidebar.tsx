@@ -77,8 +77,8 @@ export function Sidebar({ navGroups, mobileOpen, onMobileOpenChange }: SidebarPr
 
   const content = (
     <div className="flex h-full flex-col">
-      <div className="flex h-14 shrink-0 items-center gap-2 border-b border-neutral-200 px-4 dark:border-neutral-800">
-        <span className="flex size-7 items-center justify-center rounded-lg bg-accent text-accent-fg">
+      <div className="flex h-14 shrink-0 items-center gap-2 border-b border-neutral-200/80 px-4 dark:border-white/[0.06]">
+        <span className="flex size-7 items-center justify-center rounded-lg bg-accent text-accent-fg shadow-[0_1px_2px_rgba(109,94,252,0.4)]">
           <Sparkles className="size-4" />
         </span>
         <span className="font-semibold tracking-tight">Constellation</span>
@@ -94,7 +94,7 @@ export function Sidebar({ navGroups, mobileOpen, onMobileOpenChange }: SidebarPr
         />
         <NavSection title="System" items={navGroups.system} pathname={pathname} onNavigate={closeMobile} />
       </nav>
-      <div className="shrink-0 border-t border-neutral-200 px-4 py-3 text-xs text-neutral-400 dark:border-neutral-800 dark:text-neutral-500">
+      <div className="shrink-0 border-t border-neutral-200/80 px-4 py-3 text-xs text-neutral-400 dark:border-white/[0.06] dark:text-neutral-500">
         Constellation Platform · v0.1.0
       </div>
     </div>
@@ -103,7 +103,7 @@ export function Sidebar({ navGroups, mobileOpen, onMobileOpenChange }: SidebarPr
   return (
     <>
       {/* Desktop: persistent sidebar */}
-      <aside className="hidden md:fixed md:inset-y-0 md:left-0 md:z-30 md:flex md:w-64 md:flex-col md:border-r md:border-neutral-200 md:bg-white dark:md:border-neutral-800 dark:md:bg-neutral-900">
+      <aside className="hidden md:fixed md:inset-y-0 md:left-0 md:z-30 md:flex md:w-64 md:flex-col md:border-r md:border-neutral-200/80 md:bg-white/85 md:backdrop-blur dark:md:border-white/[0.06] dark:md:bg-neutral-950/70">
         {content}
       </aside>
 

@@ -1,19 +1,152 @@
+/**  Custom design tokens + motion utilities for the Constellation portal.
+ *
+ *  DESIGN LANGUAGE SOURCE (three open-source AI-design skill repos, installed
+ *  as guidance 2026-08-03):
+ *    - emilkowalski/skills       (Emil Kowalski, ex-Vercel/Linear)   MIT
+ *        Animation decisions, easing curves, component micro-detail.
+ *    - pbakaus/impeccable        (Paul Bakaus)                      Apache-2.0
+ *        Design-quality detector rules (what "AI slop" looks like: generic
+ *        gray borders, harsh shadows, purple gradients, bounce easing).
+ *    - leonxlnx/taste-skill      (Leonxlnx)                         MIT
+ *        High-end visual design language ("$150k agency" output rules).
+ *
+ *  The portal is read as: "B2B internal developer-platform dashboard for
+ *  technical users, Linear-style minimalist language, Tailwind + custom-bezier
+ *  motion, restrained but polished, both light + dark."
+ *
+ *  Derived rules applied here (see docs/DESIGN_SKILL.md for the full playbook):
+ *    - Custom ease-out curve (0.23,1,0.32,1) for enters; NEVER ease-in.
+ *    - Buttons scale to ~0.97 on :active (responsive press feedback).
+ *    - Animate only transform + opacity (GPU-safe). Keep UI anims <300ms.
+ *    - No generic 1px gray borders + harsh shadows; use layered surfaces and
+ *      soft, low-alpha shadows.
+ *    - backdrop-blur only on fixed/sticky surfaces, never scrolling content.
+ *    - System z-index discipline (no arbitrary 9999).
+ *    - Both light and dark palettes tuned; dark is a deep, desaturated ink,
+ *      light is a warm/neutral canvas — NOT pure white #fff everywhere.
+ */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: light dark;
+@layer base {
+  :root {
+    /* Custom strong ease-out (UI enters) — replace default "ease-out". */
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    /* Spring-like ease for on-screen movement (drawers, list items). */
+    --ease-spring: cubic-bezier(0.34, 1.3, 0.2, 1);
+    /* iOS-like drawer curve for panels/modals. */
+    --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+    color-scheme: light;
+  }
+
+  .dark {
+    color-scheme: dark;
+  }
+
+  /* Subtle grain overlay for depth (fixed, pointer-events-none only). */
+  ::selection {
+    @apply bg-accent/20;
+  }
+}
+
+/* ── Motion utilities (GPU-safe: transform + opacity only) ────────────── */
+
+@utility animate-fade-up {
+  animation: fade-up 0.5s var(--ease-out-expo) both;
+}
+
+@utility animate-scale-in {
+  animation: scale-in 0.22s var(--ease-out-expo) both;
+}
+
+@utility animate-drawer-in {
+  animation: drawer-in 0.3s var(--ease-drawer) both;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  /* Never from scale(0) — nothing appears from nothing (emil-design-eng). */
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes drawer-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@utility stagger-[*] {
+  /* Reserved for future per-item stagger delays (see DESIGN_SKILL.md). */
+}
+
+/* Press feedback for any pressable element (emil: scale ~0.97 on :active). */
+@layer utilities {
+  .press-scale {
+    @apply transition-transform duration-150 ease-out;
+  }
+  .press-scale:active {
+    transform: scale(0.97);
+  }
+
+  /* Card layered surface instead of generic border + harsh shadow. */
+  .surface {
+    @apply rounded-xl border border-neutral-200/70 bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04),0_4px_12px_rgba(16,24,40,0.03)] dark:border-white/[0.08] dark:bg-neutral-900 dark:shadow-[0_1px_0_rgba(255,255,255,0.03)_inset,0_8px_24px_rgba(0,0,0,0.4)];
+  }
+  .surface-hover {
+    @apply transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_2px_4px_rgba(16,24,40,0.06),0_12px_28px_rgba(16,24,40,0.07)] dark:hover:shadow-[0_1px_0_rgba(255,255,255,0.04)_inset,0_16px_40px_rgba(0,0,0,0.55)];
+  }
 }
 
 html,
 body {
   padding: 0;
   margin: 0;
+  height: 100%;
 }
 
 body {
   @apply bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100;
+  /* Premium, modern type stack (taste-skill: avoid Inter/Roboto defaults). */
   font-family:
     ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-feature-settings:
+    "cv02",
+    "cv03",
+    "cv04",
+    "cv11";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Thin, precise focus rings reorder z-index layers — never arbitrary 9999. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

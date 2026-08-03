@@ -38,11 +38,11 @@ export function Topbar({ onOpenMobileNav, onOpenCommandPalette }: TopbarProps) {
       <button
         type="button"
         onClick={onOpenCommandPalette}
-        className="flex w-full max-w-sm items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-500 transition-colors hover:border-neutral-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent dark:border-neutral-800 dark:bg-neutral-800/50 dark:text-neutral-400 dark:hover:border-neutral-700"
+        className="press-scale flex w-full max-w-sm items-center gap-2 rounded-lg border border-neutral-200/80 bg-white/70 px-3 py-1.5 text-sm text-neutral-500 shadow-sm transition-colors hover:border-neutral-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent dark:border-white/10 dark:bg-white/[0.03] dark:text-neutral-400 dark:hover:border-white/20 dark:hover:bg-white/[0.06]"
       >
         <Search className="size-4 shrink-0" />
         <span className="truncate">Search modules, pages, actions…</span>
-        <kbd className="ml-auto hidden shrink-0 rounded border border-neutral-300 bg-white px-1.5 py-0.5 font-mono text-[10px] text-neutral-500 sm:inline dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400">
+        <kbd className="ml-auto hidden shrink-0 rounded border border-neutral-200 bg-white px-1.5 py-0.5 font-mono text-[10px] text-neutral-500 sm:inline dark:border-white/10 dark:bg-neutral-900 dark:text-neutral-400">
           Ctrl K
         </kbd>
       </button>

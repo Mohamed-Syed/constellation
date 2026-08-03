@@ -8,6 +8,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Reveal } from "@/components/motion/reveal";
 
 /** Only ever redirect to an in-app path — never follow an absolute/external URL from the query string. */
 function safeRedirectTarget(raw: string | null): string {
@@ -51,8 +52,14 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-dvh items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm">
+    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden px-4 py-12">
+      {/* Subtle brand mesh glow (fixed backdrop, taste-skill "Ethereal Glass"),
+          never on a scrolling container, pointer-events-none. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(60rem_30rem_at_50%_-8%,rgba(109,94,252,0.14),transparent_60%),radial-gradient(40rem_24rem_at_90%_110%,rgba(109,94,252,0.08),transparent_60%)]"
+      />
+      <Reveal className="w-full max-w-sm">
         <div className="mb-6 flex flex-col items-center gap-2 text-center">
           <span className="flex size-11 items-center justify-center rounded-xl bg-accent text-accent-fg">
             <Sparkles className="size-5" />
@@ -133,7 +140,7 @@ function LoginForm() {
         <p className="mt-6 text-center text-xs text-neutral-400 dark:text-neutral-500">
           Constellation Platform · default admin is seeded from <code>ADMIN_EMAIL</code>/<code>ADMIN_PASSWORD</code>.
         </p>
-      </div>
+      </Reveal>
     </div>
   );
 }
