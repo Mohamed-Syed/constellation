@@ -89,6 +89,17 @@ export class OllamaModelProvider implements ModelProvider {
     }
   }
 
+  /** Whether this provider can serve `model` (Engine v0.3 real routing).
+   *  Ollama is the $0 default: no preference → yes; OpenRouter-style
+   *  "org/model" ids (contain "/") → no (those belong to the cloud
+   *  providers); anything else — "ollama:" prefix or plain local names like
+   *  "qwen2.5-coder:7b" — → yes. */
+  canHandleModel(model?: string): boolean {
+    if (model === undefined) return true;
+    if (model.includes("/")) return false;
+    return true;
+  }
+
   async health(): Promise<ModelRouterHealth> {
     try {
       const controller = new AbortController();

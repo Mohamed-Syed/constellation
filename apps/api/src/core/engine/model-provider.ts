@@ -58,6 +58,13 @@ export interface ModelRouterHealth {
   model: string;
   reachable: boolean;
   error?: string;
+  /**
+   * Per-provider health verdicts — present on the router's AGGREGATED
+   * health (Engine v0.3, when 2+ providers are registered; the primary
+   * fields above are the first reachable provider's). Single-provider
+   * health passes the provider's own verdict through unchanged.
+   */
+  providers?: ModelRouterHealth[];
 }
 
 /** A backend that can chat and report its own health. */
