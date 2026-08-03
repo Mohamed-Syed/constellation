@@ -5,7 +5,7 @@
 > over the driver's seat, this file plus `MASTER_PLAN.md` and `HANDOFF.md` are everything
 > you need. Nothing here is secret; everything is grounded in what actually shipped.
 >
-> **Author:** Polaris (lead orchestrator). **Last updated:** 2026-08-03, at commit `ec88534` (Engine v0.5 Reliability round complete).
+> **Author:** Polaris (lead orchestrator). **Last updated:** 2026-08-03, at commit `070fb2d` (Platform hardening v0.6).
 
 ---
 
@@ -59,7 +59,7 @@ Do not import Looper code or reference it in this repo; it is a different codeba
 
 ---
 
-## 2. Where the project is right now (2026-08-03, commit `ec88534`)
+## 2. Where the project is right now (2026-08-03, commit `070fb2d`)
 
 The **platform layer is strong and the agentic engine is real and proven.** Condensed; full
 per-round evidence with SHAs lives in `MASTER_PLAN.md §9`.
@@ -102,8 +102,13 @@ per-round evidence with SHAs lives in `MASTER_PLAN.md §9`.
   a **supervisor** that detects + recovers stuck tasks, and **event-based alerting** (all observable
   via `/api/engine/health` + `/deadletters` + `/alerts`); **proven LIVE** — a stale task was flagged
   + recovered then completed; a re-stale task became a `stalled` dead letter.
+- **Platform hardening v0.6** — a **`viewer` non-admin user seed** (RBAC 403 path now live-testable),
+  **per-plugin Postgres schema bootstrap** (C8), and **httpOnly-cookie token auth** closing the
+  localStorage XSS caveat (login sets an httpOnly SameSite=Lax cookie; the guard falls back to it,
+  bearer flow untouched); **proven LIVE** — cookie-only `/api/auth/me` works, viewer gets 403 on
+  admin-only routes.
 
-**Gates at `ec88534`:** lint/build/typecheck all green; **505 tests** (api 388, browser-use 47,
+**Gates at `070fb2d`:** lint/build/typecheck all green; **519 tests** (api 402, browser-use 47,
 graphify 40, sdk 21, cli 9). Tree clean. **Nothing has ever been pushed. No cloud. $0 spent.**
 
 **Maturity, honestly:** platform ≈ 3.6/5, agentic engine now ≈ 2.8/5 (was 0.7 before these
@@ -125,10 +130,7 @@ In priority order. A new driver should generally continue from here unless the u
 3. ~~**Engine v0.5 — Deeper 24/7 reliability.**~~ **DONE (git `ec88534`, 2026-08-03).** Dead-letter
    handling, supervisor for stuck tasks, event-based alerting. Proven LIVE (stale task recovered;
    re-stale task became a `stalled` dead letter). 505 tests.
-4. **Platform breadth (NEXT)** — committed `prisma/migrations` history (replace `db push`), plugin
-   sandboxing (plugins run in-process with full Node privileges today — contractual isolation, not
-   enforced), per-plugin schema bootstrap, viewer user seed, httpOnly-cookie token hardening, more
-   capability plugins (OpenHands, review). These are P4/deferred platform items + the engine follow-ups.
+4. **Platform breadth (partly DONE — v0.6 landed viewer seed, per-plugin schema bootstrap, httpOnly-cookie auth; git `070fb2d`).** **Remaining:** committed `prisma/migrations` history (replace `db push`), plugin sandboxing (plugins run in-process with full Node privileges today — contractual isolation, not enforced), more capability plugins (OpenHands, review/CodeRabbit), and publish-readiness sanitize (replace the literal `syed.mohamed` username in docs/scripts before any public push). These are P4/deferred platform items + the engine follow-ups.
 5. **Deployment** — VPS via Coolify. **BLOCKED on the user**: provider + monthly budget. Prove
    everything locally first; no cloud without explicit approval + confirmed cost.
 
