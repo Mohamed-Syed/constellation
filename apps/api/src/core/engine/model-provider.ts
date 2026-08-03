@@ -24,15 +24,23 @@ export interface ChatMessage {
  * Token accounting for one model call (the budget-cap seam).
  *
  * Ollama reports `prompt_eval_count` / `eval_count` on non-stream /api/chat
- * responses; a paid provider would report the same from its usage payload.
- * Fields are optional — a provider that omits usage simply contributes 0 to
- * the per-task token ceiling (the ceiling is best-effort on providers that
- * don't report; documented in `.env.example`).
+ * responses; OpenRouter reports OpenAI-style usage (prompt_tokens /
+ * completion_tokens / total_tokens) plus a dollar cost. Fields are optional —
+ * a provider that omits usage simply contributes 0 to the per-task token
+ * ceiling (the ceiling is best-effort on providers that don't report;
+ * documented in `.env.example`).
  */
 export interface ModelUsage {
   inputTokens?: number;
   outputTokens?: number;
   totalTokens?: number;
+  /**
+   * Dollar cost of the call (Engine v0.3 — cost-aware budget). Populated by
+   * paid providers (OpenRouter sends it in its usage payload). The
+   * TokenBudget tracker still enforces on TOKENS; cost is additive metadata
+   * flowing through the same seam a future dollar-cap would enforce on.
+   */
+  costUSD?: number;
 }
 
 export interface ChatResponse {
@@ -57,6 +65,13 @@ export interface ModelProvider {
   readonly name: string;
   chat(messages: ChatMessage[], model?: string): Promise<ChatResponse>;
   health(): Promise<ModelRouterHealth>;
+  /**
+   * Whether this provider can handle the given model name (Engine v0.3 real
+   * routing). Providers that don't implement this default to handling
+   * everything (backward compatible — the router treats a missing
+   * implementation as "yes").
+   */
+  canHandleModel?(model?: string): boolean;
 }
 
 /**
@@ -118,10 +133,11 @@ export const MODEL_PROVIDERS = Symbol("MODEL_PROVIDERS");
  * moment the cumulative count crosses the ceiling — the worker then stops the
  * task with an honest terminal error instead of burning unbounded tokens.
  *
- * Dollar-cap seam (documented, not implemented — Ollama is free): a paid
- * provider would carry a cost in its usage payload and the SAME tracker
- * shape would sum spend instead of tokens; the enforcement point (worker
- * loop) is identical.
+ * Dollar-cap seam (Engine v0.3 — now with REAL data): a paid provider
+ * carries costUSD in its usage payload (OpenRouter populates it), and the
+ * SAME tracker shape would sum spend instead of tokens; the enforcement
+ * point (worker loop) is identical. The tracker itself still sums TOKENS —
+ * cost is additive metadata, recorded per call, enforced later.
  */
 export class TokenBudget {
   private _used = 0;
