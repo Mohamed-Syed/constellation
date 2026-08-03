@@ -5,7 +5,7 @@
 > over the driver's seat, this file plus `MASTER_PLAN.md` and `HANDOFF.md` are everything
 > you need. Nothing here is secret; everything is grounded in what actually shipped.
 >
-> **Author:** Polaris (lead orchestrator). **Last updated:** 2026-08-03, at commit `f70b573` (Engine v0.4 Scheduler round complete).
+> **Author:** Polaris (lead orchestrator). **Last updated:** 2026-08-03, at commit `ec88534` (Engine v0.5 Reliability round complete).
 
 ---
 
@@ -59,7 +59,7 @@ Do not import Looper code or reference it in this repo; it is a different codeba
 
 ---
 
-## 2. Where the project is right now (2026-08-03, commit `f70b573`)
+## 2. Where the project is right now (2026-08-03, commit `ec88534`)
 
 The **platform layer is strong and the agentic engine is real and proven.** Condensed; full
 per-round evidence with SHAs lives in `MASTER_PLAN.md §9`.
@@ -98,8 +98,12 @@ per-round evidence with SHAs lives in `MASTER_PLAN.md §9`.
   event listeners (graceful disabled-engine degradation), and a REST controller; **proven LIVE** — a
   `* * * * *` cron schedule auto-enqueued a system-authored task that completed on local Ollama,
   `runCount` advanced autonomously across consecutive minutes, DELETE + 404 verified.
+- **Engine v0.5 — Deeper 24/7 Reliability** — structured **dead-letter** trail (classified failures),
+  a **supervisor** that detects + recovers stuck tasks, and **event-based alerting** (all observable
+  via `/api/engine/health` + `/deadletters` + `/alerts`); **proven LIVE** — a stale task was flagged
+  + recovered then completed; a re-stale task became a `stalled` dead letter.
 
-**Gates at `f70b573`:** lint/build/typecheck all green; **481 tests** (api 364, browser-use 47,
+**Gates at `ec88534`:** lint/build/typecheck all green; **505 tests** (api 388, browser-use 47,
 graphify 40, sdk 21, cli 9). Tree clean. **Nothing has ever been pushed. No cloud. $0 spent.**
 
 **Maturity, honestly:** platform ≈ 3.6/5, agentic engine now ≈ 2.8/5 (was 0.7 before these
@@ -118,12 +122,13 @@ In priority order. A new driver should generally continue from here unless the u
 2. ~~**Engine v0.4 — Scheduler / autonomous triggers.**~~ **DONE (git `f70b573`, 2026-08-03).**
    Recurring (cron) + event-triggered schedules auto-enqueue tasks. Proven LIVE (auto-enqueue →
    Ollama-complete, runCount advanced autonomously). 481 tests.
-3. **Deeper 24/7 reliability (NEXT)** — dead-letter handling, supervision, alerting; eventually the
-   worker as a *separate process* from the API (today it runs in-process — fine locally, not for HA).
-4. **The deferred platform breadth** — more capability plugins (OpenHands, review/CodeRabbit),
-   real SSO round-trip hardening, DB migrations (currently `db push` only), plugin sandboxing
-   (plugins run in-process with full Node privileges today — contractual isolation, not enforced),
-   marketplace. These are P4/deferred; do not let them starve the engine work.
+3. ~~**Engine v0.5 — Deeper 24/7 reliability.**~~ **DONE (git `ec88534`, 2026-08-03).** Dead-letter
+   handling, supervisor for stuck tasks, event-based alerting. Proven LIVE (stale task recovered;
+   re-stale task became a `stalled` dead letter). 505 tests.
+4. **Platform breadth (NEXT)** — committed `prisma/migrations` history (replace `db push`), plugin
+   sandboxing (plugins run in-process with full Node privileges today — contractual isolation, not
+   enforced), per-plugin schema bootstrap, viewer user seed, httpOnly-cookie token hardening, more
+   capability plugins (OpenHands, review). These are P4/deferred platform items + the engine follow-ups.
 5. **Deployment** — VPS via Coolify. **BLOCKED on the user**: provider + monthly budget. Prove
    everything locally first; no cloud without explicit approval + confirmed cost.
 
