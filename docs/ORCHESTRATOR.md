@@ -5,7 +5,7 @@
 > over the driver's seat, this file plus `MASTER_PLAN.md` and `HANDOFF.md` are everything
 > you need. Nothing here is secret; everything is grounded in what actually shipped.
 >
-> **Author:** Polaris (lead orchestrator). **Last updated:** 2026-08-03, at commit `99b025b` (ORCHESTRATOR.md landed; prior code state was `5115919`).
+> **Author:** Polaris (lead orchestrator). **Last updated:** 2026-08-03, at commit `7f12115` (Engine v0.3 round complete).
 
 ---
 
@@ -59,7 +59,7 @@ Do not import Looper code or reference it in this repo; it is a different codeba
 
 ---
 
-## 2. Where the project is right now (2026-08-03, commit `99b025b`)
+## 2. Where the project is right now (2026-08-03, commit `7f12115`)
 
 The **platform layer is strong and the agentic engine is real and proven.** Condensed; full
 per-round evidence with SHAs lives in `MASTER_PLAN.md §9`.
@@ -74,7 +74,7 @@ per-round evidence with SHAs lives in `MASTER_PLAN.md §9`.
 - Brain: Graphify sidecar over MCP, real repo graph (~1400+ nodes), grounded query proven.
 - Portal: Next.js App Router — modules, admin, login, `/tools` tiles, `/brain`, `/engine`.
 
-**The agentic engine (the last three rounds — the headline work):**
+**The agentic engine (the headline work):**
 - **Engine v0** — durable BullMQ task queue, Ollama model runtime, ReAct agent loop,
   checkpoint-per-step, REST API, portal page. Kill-restart survival proven live.
 - **Engine v0.1 — Harden & Gate** — boot-with-no-infra degradation restored; **human-in-the-loop
@@ -85,8 +85,15 @@ per-round evidence with SHAs lives in `MASTER_PLAN.md §9`.
   graph, got real data, and completed on it**; approval→execute-once proven with a tool that
   really ran; kill-restart proven *across* a tool call (no double-execute); `/engine` portal
   browser-verified (15 screenshots); `AgentWorkerService` unit-tested.
+- **Engine v0.3 — Real Model Providers** — second `ModelProvider`: OpenRouter (one key unlocks
+  GPT-OSS/Qwen/DeepSeek/Claude/…); `ModelRouterService` upgraded to REAL routing + fallback
+  (`canHandleModel` selection; non-default failure → Ollama with DEFAULT_MODEL); **cost-aware
+  budget** (`ModelUsage.costUSD` carries real pricing data); **proven LIVE both ways** — cloud
+  task (`openai/gpt-oss-120b`) completed on real tool data with `provider:\"openrouter\"` honestly
+  recorded, and with NO key the engine stays $0/local (everything falls back to Ollama, nothing
+  crashes). Ollama remains the $0 default; cloud is opt-in per task via the `model` field.
 
-**Gates at `99b025b`:** lint/build/typecheck all green; **376 tests** (api 259, browser-use 47,
+**Gates at `7f12115`:** lint/build/typecheck all green; **412 tests** (api 295, browser-use 47,
 graphify 40, sdk 21, cli 9). Tree clean. **Nothing has ever been pushed. No cloud. $0 spent.**
 
 **Maturity, honestly:** platform ≈ 3.6/5, agentic engine now ≈ 2.8/5 (was 0.7 before these
@@ -99,15 +106,10 @@ engine work.
 
 In priority order. A new driver should generally continue from here unless the user redirects.
 
-1. **Engine v0.3 — Real Model Providers (NEXT).** The engine only runs on local Ollama today.
-   The user has API keys (OpenRouter, DeepSeek, Qwen, Tencent). Build an `OpenRouterModelProvider`
-   first (one OpenAI-compatible key unlocks GPT-OSS-120B, Qwen, DeepSeek and dozens more), upgrade
-   `ModelRouterService` from "first-provider-wins" to real routing + fallback, keep Ollama as the
-   `$0` default, and make the budget cap **cost-aware** (tokens → $). The `ModelProvider` seam
-   already exists for exactly this. **Keys are secrets → `.env` only, never committed, never in
-   `.env.example` (placeholder + docs only).** Providers-before-scheduler is deliberate: prove
-   cost controls against real models *before* anything fires tasks autonomously.
-2. **Scheduler / autonomous triggers.** Recurring (cron) and event-triggered tasks that
+1. ~~**Engine v0.3 — Real Model Providers.**~~ **DONE (git `3d7d635` → `7f12115`, 2026-08-03).**
+   OpenRouter as second ModelProvider; real routing + fallback; cost-aware budget (costUSD flows
+   through); proven LIVE both ways (cloud E2E + no-key → Ollama fallback). 412 tests.
+2. **Scheduler / autonomous triggers (NEXT).** Recurring (cron) and event-triggered tasks that
    auto-enqueue — the actual "runs while I sleep" capability. Nothing like this exists yet; the
    only recurring timer today is the plugin health poller.
 3. **Deeper 24/7 reliability** — dead-letter handling, supervision, alerting; eventually the
