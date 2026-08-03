@@ -64,6 +64,13 @@ This is a data-dense ops tool, not a landing page — variance + motion stay mod
 - `providers.tsx` — Sonner `Toaster` (theme-aware).
 - `components/motion/reveal.tsx` — `Reveal` / `RevealList` (new).
 - `components/engine/engine-view.tsx` — wrapped in `Reveal`; toasts on submit/cancel/approve/reject.
+- `components/dashboard/live-dashboard.tsx` — `Reveal` wrapper + staggered stat cards (`surface-hover`).
+- `app/tools/page.tsx` + `components/modules/federated-tool-tile.tsx` — `Reveal` grid + `surface-hover` tiles.
+- `components/admin/admin-console.tsx` — `Reveal` wrapper + `surface-hover` summary cards.
+- `components/modules/modules-view.tsx` — staggered `Reveal` grid + `surface-hover` cards.
+- `components/brain/brain-view.tsx` — staggered `Reveal` stats + `surface` stat cards.
+- `components/theme/theme-toggle.tsx` — animated sun/moon cross-fade-rotate on switch (GPU-safe).
+- `shell/sidebar.tsx` + `shell/topbar.tsx` — translucent/backdrop-blur surfaces, accent glow, refined search.
 
 ## How to verify you didn't regress into slop
 
