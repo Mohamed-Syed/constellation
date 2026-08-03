@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Reveal } from "@/components/motion/reveal";
 import { healthBadgeVariant, healthLabel, stateBadgeVariant, stateLabel } from "./plugin-state";
 
 type ViewMode = "grid" | "table";
@@ -84,47 +85,49 @@ export function ModulesView({ plugins }: { plugins: PluginSummary[] }) {
         </div>
       ) : view === "grid" ? (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((plugin) => {
+          {filtered.map((plugin, i) => {
             const Icon = resolveIcon(plugin.navigation?.[0]?.icon);
             return (
               <li key={plugin.id}>
-                <Card className="h-full transition hover:shadow-md">
-                  <CardHeader className="flex-row items-start justify-between space-y-0">
-                    <div className="flex items-start gap-3">
-                      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
-                        <Icon className="size-4" />
-                      </span>
-                      <div className="min-w-0">
-                        <CardTitle className="truncate text-base">{plugin.name}</CardTitle>
-                        <CardDescription className="truncate">
-                          {plugin.id} · v{plugin.version}
-                        </CardDescription>
+                <Reveal delay={i * 0.04}>
+                  <Card className="surface-hover h-full">
+                    <CardHeader className="flex-row items-start justify-between space-y-0">
+                      <div className="flex items-start gap-3">
+                        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
+                          <Icon className="size-4" />
+                        </span>
+                        <div className="min-w-0">
+                          <CardTitle className="truncate text-base">{plugin.name}</CardTitle>
+                          <CardDescription className="truncate">
+                            {plugin.id} · v{plugin.version}
+                          </CardDescription>
+                        </div>
                       </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="mb-3 line-clamp-2 min-h-[2.5rem] text-sm text-neutral-500 dark:text-neutral-400">
-                      {plugin.description || "No description provided."}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant={stateBadgeVariant(plugin.state)}>{stateLabel(plugin.state)}</Badge>
-                      {plugin.health ? (
-                        <Badge variant={healthBadgeVariant(plugin.health)}>{healthLabel(plugin.health)}</Badge>
-                      ) : null}
-                      {plugin.permissions.length > 0 ? (
-                        <Badge variant="neutral">
-                          {plugin.permissions.length} permission{plugin.permissions.length === 1 ? "" : "s"}
-                        </Badge>
-                      ) : null}
-                    </div>
-                    {plugin.error ? (
-                      <p className="mt-3 flex items-start gap-1.5 text-xs text-rose-500">
-                        <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-                        <span className="break-words">{plugin.error}</span>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <p className="mb-3 line-clamp-2 min-h-[2.5rem] text-sm text-neutral-500 dark:text-neutral-400">
+                        {plugin.description || "No description provided."}
                       </p>
-                    ) : null}
-                  </CardContent>
-                </Card>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant={stateBadgeVariant(plugin.state)}>{stateLabel(plugin.state)}</Badge>
+                        {plugin.health ? (
+                          <Badge variant={healthBadgeVariant(plugin.health)}>{healthLabel(plugin.health)}</Badge>
+                        ) : null}
+                        {plugin.permissions.length > 0 ? (
+                          <Badge variant="neutral">
+                            {plugin.permissions.length} permission{plugin.permissions.length === 1 ? "" : "s"}
+                          </Badge>
+                        ) : null}
+                      </div>
+                      {plugin.error ? (
+                        <p className="mt-3 flex items-start gap-1.5 text-xs text-rose-500">
+                          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                          <span className="break-words">{plugin.error}</span>
+                        </p>
+                      ) : null}
+                    </CardContent>
+                  </Card>
+                </Reveal>
               </li>
             );
           })}
