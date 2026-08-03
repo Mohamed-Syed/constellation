@@ -50,7 +50,8 @@ agentic system. SEPARATE project from **Looper** (`../loop-engineering`), which 
 Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
 
 ## 3. Current status (2026-08-03)
-- **🤖 ENGINE v0.2 — "Prove It For Real" round ✅ COMPLETE (clau_partner orchestrating SOLO, 2026-08-03). All 5 tasks done, gate-verified, LIVE-PROVEN, committed; Task 6 recorded+skipped per the brief. Final SHA `f92a3a7` (round summary commit) — see MASTER_PLAN §9 + HANDOFF §11 for the full round record.**
+- **🤖 ENGINE v0.3 — REAL MODEL PROVIDERS round IN PROGRESS (clau_partner orchestrating SOLO, 2026-08-03).** Adding OpenRouter as a SECOND ModelProvider (one key → GPT-OSS/Qwen/DeepSeek/Claude/…), real routing + fallback in `ModelRouterService`, cost-aware budget (costUSD now flows through `ModelUsage`), unconfigured-safe ($0/local default — no key, nothing crashes). OpenRouter is OPT-IN per task via the task's `model` field. Live-proof tasks (7–8) pending the user pasting `OPENROUTER_API_KEY` into `.env`.
+  - **TASK 1 DONE (code `3d7d635`):** `OpenRouterModelProvider` — OpenAI-compatible chat completions, Bearer auth, usage + `costUSD` parsing (dollar-cap seam now real), transient/terminal error classification, `health()` never throws (honest "OPENROUTER_API_KEY is not set"), `canHandleModel()` (slash ids + `openrouter:` prefix; false when unkeyed). `ModelUsage.costUSD` + optional `ModelProvider.canHandleModel` added. Unconfigured-safe verified by design + typecheck; provider unit tests land in Task 2. Tests still **376**.
   - **The headline proof:** an agent task called `graphify.graph.query` against the LIVE brain sidecar and completed on real data — `tool_call → tool_result (ok:true, 142 nodes) → done → completed`. Approval gate proven with a tool that REALLY RUNS (approve → execute-once → real data → complete; reject → failed, audited). Kill-restart proven ACROSS a tool call (frozen in Postgres, resumed, no double-execute). Portal `/engine` clicked in a real browser for the first time — submit/auto-refresh/drawer/Cancel/Approve/Reject all live (2 real bugs fixed: CORS :3005 identity-banner false positive + missing approve/reject portal UI). `AgentWorkerService` now unit-tested (12 tests). **Tests: 364 → 376.**
   - **TASK 1 DONE + LIVE-PROVEN (docs commit `d045022`):** an agent task CALLED the graphify `graph.query` tool against the LIVE brain sidecar (real graph: 1469 nodes / 2412 edges), got `tool_result` `ok:true` with real 142-node traversal data (real file:line provenance), and COMPLETED with a `done` summary grounded in that data. Step record `[0] tool_call → [1] tool_result → [2] done`, status `completed`. The headline gap is closed — full literal evidence in MASTER_PLAN §9.
   - **TASK 2 DONE + LIVE-PROVEN (docs commit `edd2ab9`):** approval gate proven with a tool that REALLY RUNS. Pause (nothing ran) → `POST /approve` → tool EXECUTED EXACTLY ONCE against the live sidecar (`ok:true`, 42 real nodes) → `done` grounded in it → `completed`; honour-once held (no re-pause on approved steps). Reject variant: pause → `POST /reject` → `failed` with `Rejected by admin@constellation.local`, all audited (`engine.task.approved` ×2 + `engine.task.rejected`). Full evidence in MASTER_PLAN §9.
@@ -296,6 +297,15 @@ cd apps/api && DATABASE_URL="postgresql://constellation:constellation@localhost:
 ```
 
 ## 8. Pending / next actions (priority order)
+1h. **🤖 ENGINE v0.3 — REAL MODEL PROVIDERS round (clau_partner, orchestrating SOLO — Nova/Orion/Atlas resting).** OpenRouter as a second ModelProvider (user has API keys), real routing + fallback, cost-aware budget. Ollama stays the $0 default; OpenRouter is opt-in per task. NO push, secrets only in `.env`.
+   - [x] **Task 1 — `OpenRouterModelProvider`** (DONE, code `3d7d635`): OpenAI-compatible chat completions + Bearer auth, usage + `costUSD` parsing, transient/terminal error classes, never-throwing `health()`, `canHandleModel()`. `ModelUsage.costUSD` + optional `ModelProvider.canHandleModel` added. Unconfigured-safe.
+   - [ ] **Task 2 — provider unit tests** (`openrouter-model-provider.test.ts`, ~15 tests, mocked fetch).
+   - [ ] **Task 3 — `ModelRouterService` real routing + fallback** (`canHandleModel` selection; OpenRouter failure → Ollama fallback with DEFAULT_MODEL; prefix stripping; aggregated health).
+   - [ ] **Task 4 — router unit tests** (~8 new, keep all existing).
+   - [ ] **Task 5 — wire into EngineModule + AgentWorker** (register provider; record the REAL provider on the task after the first model call, not hardcoded "ollama").
+   - [ ] **Task 6 — `.env.example` OpenRouter section** (placeholder only, never a real key).
+   - [ ] **Task 7 — LIVE-PROVE cloud E2E** (needs user to paste `OPENROUTER_API_KEY` into `.env` first).
+   - [ ] **Task 8 — LIVE-PROVE fallback with no key** (health honest, "/" model falls back to Ollama).
 1g. **🤖 ENGINE v0.2 — "Prove It For Real" round (clau_partner, orchestrating SOLO — Nova/Orion/Atlas resting).** The engine has proven machinery; this round proves the agent actually does REAL WORK with it. NO new features (scheduler is next round).
    - [x] **Task 1 — tool-calling end-to-end PROVEN LIVE** (DONE, docs commit `d045022`): agent task called graphify `graph.query` against the live brain sidecar → real `tool_result` (ok:true, 142 nodes, real provenance) → `done` grounded in it → `completed`. Full evidence in MASTER_PLAN §9. Closes the headline gap.
    - [x] **Task 2 — approval gate proven with a tool that REALLY RUNS** (DONE, docs commit `edd2ab9`): approve → executed exactly once → real data → completed; reject → failed with audited reason. Full evidence in MASTER_PLAN §9.
@@ -346,6 +356,7 @@ run `pnpm install` concurrently (pre-install shared deps first), and the orchest
 merges + commits + the final verify.
 
 ## 11. In-flight state & deferred options (updated by clau_partner, 2026-08-03)
+**🤖 ENGINE v0.3 — REAL MODEL PROVIDERS: IN PROGRESS (clau_partner orchestrating solo).** Task 1 (OpenRouterModelProvider, code `3d7d635`) committed; Tasks 2–6 are code/tests/.env (no live stack); Tasks 7–8 are LIVE-PROOF and need the user to paste `OPENROUTER_API_KEY` into `.env` (git-ignored) — until then the engine stays $0/local on Ollama. This section tracks the round; full evidence in MASTER_PLAN §9.
 **🤖 ENGINE v0.2 — "PROVE IT FOR REAL": ✅ ALL 5 TASKS DONE, gate-verified, LIVE-PROVEN, committed; Task 6 recorded+skipped per the brief.**
 clau_partner orchestrated solo (Nova/Orion/Atlas resting). Commits, oldest first:
 `d045022` (+`de87cd0`) Task-1 tool-calling PROVEN LIVE · `edd2ab9` (+`761d295`) Task-2 approval-with-real-tool ·
