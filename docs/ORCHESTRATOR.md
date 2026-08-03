@@ -5,7 +5,7 @@
 > over the driver's seat, this file plus `MASTER_PLAN.md` and `HANDOFF.md` are everything
 > you need. Nothing here is secret; everything is grounded in what actually shipped.
 >
-> **Author:** Polaris (lead orchestrator). **Last updated:** 2026-08-03, at commit `5115919`.
+> **Author:** Polaris (lead orchestrator). **Last updated:** 2026-08-03, at commit `99b025b` (ORCHESTRATOR.md landed; prior code state was `5115919`).
 
 ---
 
@@ -59,7 +59,7 @@ Do not import Looper code or reference it in this repo; it is a different codeba
 
 ---
 
-## 2. Where the project is right now (2026-08-03, commit `5115919`)
+## 2. Where the project is right now (2026-08-03, commit `99b025b`)
 
 The **platform layer is strong and the agentic engine is real and proven.** Condensed; full
 per-round evidence with SHAs lives in `MASTER_PLAN.md §9`.
@@ -86,7 +86,7 @@ per-round evidence with SHAs lives in `MASTER_PLAN.md §9`.
   really ran; kill-restart proven *across* a tool call (no double-execute); `/engine` portal
   browser-verified (15 screenshots); `AgentWorkerService` unit-tested.
 
-**Gates at `5115919`:** lint/build/typecheck all green; **376 tests** (api 259, browser-use 47,
+**Gates at `99b025b`:** lint/build/typecheck all green; **376 tests** (api 259, browser-use 47,
 graphify 40, sdk 21, cli 9). Tree clean. **Nothing has ever been pushed. No cloud. $0 spent.**
 
 **Maturity, honestly:** platform ≈ 3.6/5, agentic engine now ≈ 2.8/5 (was 0.7 before these
