@@ -5,17 +5,23 @@
 > three helper agents (Atlas, Nova, Orion). Update it **every session**.
 >
 > **Codename:** `constellation` (placeholder — user may rename).
-> **Status:** **Round 1 + 2 + P2 + the first P3/P4 slice done, integrated, verified, committed** (git `a07dd25`, local only — not pushed). Foundation + Prisma data layer + hardened loader + agent-plane tools + portal + Docker/CI + JWT auth/RBAC/audit (all real-Postgres-proven) + **OIDC/SSO verifier seam, `POST /api/plugins/:id/invoke` tool invocation, the `graphify` capability plugin, and portal federation (`config/modules.yaml` + `/api/federation/*` + `/tools` tiles)**. **169 tests green.** See §9. Next: **the BRAIN round** (§8, `docs/BRAIN.md`) — user's top priority. Then: prove a real Keycloak+Caddy SSO round-trip (configs exist, UNRUN). VPS deferred (prove locally first).
+> **Driver / lead orchestrator:** **Polaris.** New driver taking over → read `docs/ORCHESTRATOR.md` first (Polaris's full operating manual + onboarding).
+> **Status:** Platform layer strong + **the agentic engine is real and live-proven** through **Engine v0.2** (git `5115919`, local only — never pushed). Durable BullMQ task runtime, Ollama model runtime via an honest `ModelProvider` interface, ReAct loop with checkpoint/resume (kill-restart proven live, incl. across a real tool call), **human-in-the-loop approval gate** (pause→approve/reject, honour-once, audited), per-task token budget cap, `/engine` portal (browser-verified). An agent task has called a real tool against the live Brain graph, gotten real data, and completed on it. **376 tests green** (api 259, browser-use 47, graphify 40, sdk 21, cli 9). See §9. **Next: Engine v0.3 — Real Model Providers** (OpenRouter first; user has API keys; Ollama stays the $0 default). Then a scheduler. VPS deferred (prove locally first).
 > **Relationship to Looper:** SEPARATE project. Looper (`../loop-engineering`) is untouched.
-> **Last updated:** 2026-08-02 (Polaris — Engine v0 built, integrated, kill-restart acceptance proven)
+> **Last updated:** 2026-08-03 (Polaris — added `docs/ORCHESTRATOR.md` driver handbook; refreshed status through Engine v0.2)
 
 ---
 
 ## 0. How to resume
-Paste: _"Read `constellation/docs/MASTER_PLAN.md` as full project context, confirm where we
-left off, then continue from §7 Roadmap / §8 Task split. Do not rewrite the Plugin SDK contract
-without calling it out. Nothing is committed/pushed or cloud-provisioned without my explicit
-go-ahead + confirmed cost."_
+Paste: _"Read `constellation/docs/ORCHESTRATOR.md` (the driver's handbook) and
+`constellation/docs/MASTER_PLAN.md` as full project context, confirm where we left off, then
+continue from §7 Roadmap / §8 Task split. Do not rewrite the Plugin SDK contract without calling
+it out. Nothing is committed/pushed or cloud-provisioned without my explicit go-ahead + confirmed
+cost."_
+
+**New AI taking over as lead/driver:** start with `docs/ORCHESTRATOR.md` — it is the complete
+operating manual for the Polaris role (mission, method, team, roadmap, required skills, and the
+literal step-by-step onboarding to take the wheel).
 
 Ground rules across sessions:
 - The **Plugin SDK contract** (`packages/plugin-sdk`) is the load-bearing decision — evolve it
