@@ -77,9 +77,9 @@ export function FederatedToolTile({ tool }: { tool: FederatedTool }) {
         href={tool.path}
         target="_blank"
         rel="noreferrer noopener"
-        className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-neutral-950"
+        className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
       >
-        <Card className="h-full transition hover:shadow-md">{inner}</Card>
+        <Card className="surface-hover h-full">{inner}</Card>
       </a>
     );
   }

@@ -10,6 +10,7 @@ import { resolveIcon } from "@/lib/icons";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Reveal } from "@/components/motion/reveal";
 import { stateBadgeVariant, stateLabel } from "@/components/modules/plugin-state";
 
 /**
@@ -35,7 +36,7 @@ export function LiveDashboard({ initial }: { initial: PluginSummary[] }) {
   ];
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+    <Reveal className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <header className="mb-8 flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-accent/10 px-3 py-1 text-xs font-medium text-accent">
@@ -56,18 +57,20 @@ export function LiveDashboard({ initial }: { initial: PluginSummary[] }) {
       </header>
 
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => (
-          <Card key={stat.label}>
-            <CardContent className="flex items-center justify-between p-5">
-              <div>
-                <p className="text-sm text-neutral-500 dark:text-neutral-400">{stat.label}</p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums">{stat.value}</p>
-              </div>
-              <span className="flex size-10 items-center justify-center rounded-lg bg-accent/10 text-accent">
-                <stat.icon className="size-5" />
-              </span>
-            </CardContent>
-          </Card>
+        {stats.map((stat, i) => (
+          <Reveal key={stat.label} delay={i * 0.05}>
+            <Card className="surface-hover">
+              <CardContent className="flex items-center justify-between p-5">
+                <div>
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400">{stat.label}</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums">{stat.value}</p>
+                </div>
+                <span className="flex size-10 items-center justify-center rounded-lg bg-accent/10 text-accent">
+                  <stat.icon className="size-5" />
+                </span>
+              </CardContent>
+            </Card>
+          </Reveal>
         ))}
       </div>
 
@@ -122,6 +125,6 @@ export function LiveDashboard({ initial }: { initial: PluginSummary[] }) {
           )}
         </CardContent>
       </Card>
-    </div>
+    </Reveal>
   );
 }

@@ -6,6 +6,7 @@ import { Boxes, ServerCrash } from "lucide-react";
 import { fetchFederatedModules, type FederatedTool } from "@/lib/federated";
 import { useAuth } from "@/components/auth/auth-provider";
 import { FederatedToolTile } from "@/components/modules/federated-tool-tile";
+import { Reveal } from "@/components/motion/reveal";
 
 export default function ToolsPage() {
   const { token } = useAuth();
@@ -43,7 +44,7 @@ function FederatedToolsView({ token }: { token: string | null }) {
   }, [tools]);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+    <Reveal className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <header className="mb-8">
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Tools</h1>
         <p className="mt-2 max-w-2xl text-neutral-500 dark:text-neutral-400">
@@ -85,9 +86,11 @@ function FederatedToolsView({ token }: { token: string | null }) {
                 {category}
               </h2>
               <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {items.map((tool) => (
+                {items.map((tool, i) => (
                   <li key={tool.id}>
-                    <FederatedToolTile tool={tool} />
+                    <Reveal delay={i * 0.04}>
+                      <FederatedToolTile tool={tool} />
+                    </Reveal>
                   </li>
                 ))}
               </ul>
@@ -95,6 +98,6 @@ function FederatedToolsView({ token }: { token: string | null }) {
           ))}
         </div>
       )}
-    </div>
+    </Reveal>
   );
 }
