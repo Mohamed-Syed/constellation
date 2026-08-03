@@ -462,6 +462,11 @@ engine files · 1b portal `/engine` page (Orion's lane) · Ollama integration te
 
 ## 9. Verification log
 
+- **2026-08-03 — 🤖 ENGINE v0.3 — REAL MODEL PROVIDERS, TASK 5 of 8: wire into EngineModule + honest task provider — clau_partner (orchestrating solo).**
+  - **What ships:** `engine.module.ts` registers `OpenRouterModelProvider`; the `MODEL_PROVIDERS` factory now provides `[ollama, openrouter]` (router order: Ollama first = the $0 default). `agent-worker.service.ts` — the hardcoded `markRunning(taskId, "ollama")` is GONE: the task is marked running WITHOUT a provider (unknown until the router decides), and after the FIRST successful model call `TaskService.markProvider(taskId, response.provider)` records the ACTUAL provider (cloud or fallback) — no dishonest state. New `TaskService.markProvider()` updates only the `provider` column.
+  - **Tests:** 2 new agent-worker tests — (1) provider recorded ONCE from the response, `markRunning` carries no hardcoded "ollama"; (2) a fallback-to-Ollama response is what gets recorded. **api tests 293 → 295**.
+  - **Gates:** typecheck + full api suite green (**295 passed**, 18 files, 0 failures). Code commit `28c56b0`.
+
 - **2026-08-03 — 🤖 ENGINE v0.3 — REAL MODEL PROVIDERS, TASK 4 of 8: `ModelRouterService` routing/fallback/health tests — clau_partner (orchestrating solo).**
   - **What ships:** 12 NEW tests appended to `model-router.service.test.ts` (all 14 existing kept verbatim, still green). New `makeOllamaProvider`/`makeOpenRouterProvider` fakes carrying the real `canHandleModel` semantics.
   - **Coverage:** slash id → OpenRouter · local id → Ollama · no model → Ollama default · `openrouter:`/`ollama:` prefix stripping · no-match → Ollama fallback · OpenRouter TRANSIENT failure → logged fallback to Ollama with DEFAULT_MODEL (warn spy asserted) · OpenRouter TERMINAL failure (bad key) → ALSO falls back · Ollama failure propagates (no re-route) · aggregated health (both reachable → primary=first reachable + `providers[]`) · Ollama-only reachable → engine still "available" · single-provider passthrough shape preserved.
