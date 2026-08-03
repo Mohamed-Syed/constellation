@@ -16,6 +16,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Reveal } from "@/components/motion/reveal";
 import { BrainAskBox } from "./brain-ask-box";
 import { BrainGraphView } from "./brain-graph-view";
 
@@ -172,25 +173,29 @@ function StatsRow({ stats }: { stats: BrainResult<BrainStats> | null }) {
   return (
     <>
       <div className="grid gap-4 sm:grid-cols-4">
-        <StatCard icon={<Database className="size-4" />} label="Nodes" value={data ? formatCount(data.nodes) : "—"} />
-        <StatCard icon={<GitBranch className="size-4" />} label="Edges" value={data ? formatCount(data.edges) : "—"} />
-        <StatCard
-          icon={<FileText className="size-4" />}
-          label="Vault notes"
-          value={data ? formatCount(data.vaultNotes) : "—"}
-        />
-        <StatCard
-          icon={<Clock className="size-4" />}
-          label="Last built"
-          value={data?.lastBuiltAt ? formatWhen(data.lastBuiltAt) : "never"}
-          badge={
-            stats === null ? null : built ? (
-              <Badge variant="success">live</Badge>
-            ) : (
-              <Badge variant="warning">not built</Badge>
-            )
-          }
-        />
+        <Reveal delay={0}><StatCard icon={<Database className="size-4" />} label="Nodes" value={data ? formatCount(data.nodes) : "—"} /></Reveal>
+        <Reveal delay={0.05}><StatCard icon={<GitBranch className="size-4" />} label="Edges" value={data ? formatCount(data.edges) : "—"} /></Reveal>
+        <Reveal delay={0.1}>
+          <StatCard
+            icon={<FileText className="size-4" />}
+            label="Vault notes"
+            value={data ? formatCount(data.vaultNotes) : "—"}
+          />
+        </Reveal>
+        <Reveal delay={0.15}>
+          <StatCard
+            icon={<Clock className="size-4" />}
+            label="Last built"
+            value={data?.lastBuiltAt ? formatWhen(data.lastBuiltAt) : "never"}
+            badge={
+              stats === null ? null : built ? (
+                <Badge variant="success">live</Badge>
+              ) : (
+                <Badge variant="warning">not built</Badge>
+              )
+            }
+          />
+        </Reveal>
       </div>
       {/* The engine's own explanation of why it's unavailable beats our guess. */}
       {data && !built && data.detail ? (
@@ -212,7 +217,7 @@ function StatCard({
   badge?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950">
+    <div className="surface surface-hover rounded-xl p-4">
       <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
         <span className="text-neutral-400">{icon}</span>
         {label}
