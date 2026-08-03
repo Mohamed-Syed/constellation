@@ -5,7 +5,7 @@
 > over the driver's seat, this file plus `MASTER_PLAN.md` and `HANDOFF.md` are everything
 > you need. Nothing here is secret; everything is grounded in what actually shipped.
 >
-> **Author:** Polaris (lead orchestrator). **Last updated:** 2026-08-03, at commit `070fb2d` (Platform hardening v0.6).
+> **Author:** Polaris (lead orchestrator). **Last updated:** 2026-08-03, at commit `d679918` — comprehensive strategic roadmap published (MASTER_PLAN §§7-BIS.1–7-BIS.6).
 
 ---
 
@@ -118,6 +118,12 @@ engine work.
 ---
 
 ## 3. The roadmap ahead (the direction to keep steering)
+
+> **The comprehensive new strategic roadmap lives in `MASTER_PLAN.md §7-BIS`** — read it
+> for the full vision: what we initially planned, what we actually built, the market
+> landscape analysis, the Phase 2.0/3.0/4.0 feature tables with competitor benchmarks,
+> the target architecture diagram, the "top-tier platform" scorecard, and the immediate
+> next actions. This section is the condensed execution summary.
 
 In priority order. A new driver should generally continue from here unless the user redirects.
 

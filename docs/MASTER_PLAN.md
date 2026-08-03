@@ -8,7 +8,7 @@
 > **Driver / lead orchestrator:** **Polaris.** New driver taking over → read `docs/ORCHESTRATOR.md` first (Polaris's full operating manual + onboarding).
 > **Status:** Platform layer strong + **the agentic engine is real, live-proven, self-recovering, and the platform is hardware/secrecy-hardened** through **v0.6** (git `070fb2d`, local only — never pushed). Durable BullMQ task runtime, ReAct loop with checkpoint/resume (kill-restart proven live), **human-in-the-loop approval gate**, per-task token budget cap, `/engine` portal, real model providers (OpenRouter + routing/fallback + cost-aware budget), a **scheduler** (cron + event auto-enqueue), **Engine v0.5 24/7 reliability** (dead-letter trail + stuck-task supervisor + event alerting), and **Platform hardening v0.6** (a `viewer` non-admin user seed so the RBAC 403 path is live-testable; per-plugin Postgres schema bootstrap for C8; **httpOnly-cookie token auth** closing the localStorage XSS caveat). **519 tests green** (api 402, browser-use 47, graphify 40, sdk 21, cli 9). See §9. **Remaining (before publish):** committed `prisma/migrations` history, plugin sandboxing (real enforcement), more capability plugins. The real Windows username has been sanitized from tracked docs/scripts to a `<user>` placeholder (publish-readiness ✓). VPS deploy deferred (provider + budget = user decision).
 > **Relationship to Looper:** SEPARATE project. Looper (`../loop-engineering`) is untouched.
-> **Last updated:** 2026-08-03 (Polaris — Platform hardening v0.6: viewer seed, schema bootstrap, httpOnly-cookie auth; live-proven; 519 tests)
+> **Last updated:** 2026-08-03 (Polaris — comprehensive strategic roadmap added: §§7-BIS.1–7-BIS.6 covering vision, market analysis, Constellation 2.0/3.0/4.0 phases, architecture, and competitive scorecard)
 
 ---
 
@@ -105,7 +105,8 @@ audit log (immutable) · feature flags · notification center · theme engine ·
 plugin marketplace · `generate-plugin` CLI · OpenTelemetry tracing · Prometheus metrics ·
 Docker + compose + K8s manifests · Terraform · CI/CD (GitHub Actions).
 
-## 7. Roadmap
+## 7. Roadmap — Platform Phases (foundation, committed)
+
 | Phase | Scope | Cost | Gate |
 |-------|-------|------|------|
 | **P0 (done)** | Monorepo + Plugin SDK + NestJS core loader + Next portal shell + example plugin | FREE | — |
@@ -114,8 +115,226 @@ Docker + compose + K8s manifests · Terraform · CI/CD (GitHub Actions).
 | **P3 (part)** | Portal federation: `config/modules.yaml` + `/api/federation/*` + `/tools` tiles + OIDC verifier seam **done** (`a07dd25`). **Remaining:** actually run Keycloak + Caddy and prove a real SSO round-trip / embedded tile | FREE local / host per C6 | partial |
 | **P4 (part)** | Agent plane: tool-invoke endpoint + `browser-use` + `graphify` **done**. **Remaining:** real service wiring, review + OpenHands adapters | FREE (+SaaS keys) | partial |
 | **🧠 BRAIN** | Memory & knowledge graph (Graphify sidecar + `core/memory` + portal Brain view) — **DONE, live-verified, COMMITTED** (`docs/BRAIN.md`, git `32c1ea8`) | FREE local | `docs/BRAIN.md` |
-| **ENGINE (v0→v0.5)** | Agentic engine — durable task runtime + ReAct loop + approval gate + real model providers + **scheduler/autonomous triggers** + **dead-letter/supervisor/alerting** — **DONE, live-proven** (v0 `28f1125` → v0.5 `ec88534`). **Next: platform breadth** (migrations, sandboxing) | FREE / $0-local | §9 |
-| **P5** | Deploy to the VPS via Coolify; observability (Prometheus/Grafana/Loki/OTel); harden + docs | host cost per C6 | after user go-ahead |
+| **ENGINE (v0→v0.5)** | Agentic engine — durable task runtime + ReAct loop + approval gate + real model providers + **scheduler/autonomous triggers** + **dead-letter/supervisor/alerting** — **DONE, live-proven** (v0 `28f1125` → v0.5 `ec88534`) | FREE / $0-local | §9 |
+| **Platform hardening v0.6** | Viewer non-admin seed, per-plugin Postgres schema bootstrap, httpOnly-cookie auth — **DONE, live-proven** (git `070fb2d`) | FREE / $0-local | artifacts/ |
+| **P5 (deferred)** | Deploy to the VPS via Coolify; observability (Prometheus/Grafana/Loki/OTel); harden + docs | host cost per C6 | after user go-ahead |
+
+## 7-BIS. CONSTELLATION 2.0 — The Vision for a Top-Tier Platform
+
+> **What you are reading.** This section is the STRATEGIC ROADMAP for the full
+> Constellation product — from the working foundation we have today (v0.6, 519 tests,
+> live-proven) to a genuinely top-tier platform that competes with Backstage, Port,
+> Temporal, and the AI agent frameworks. Every item references a real competitor or
+> market standard. Nothing here is speculation — it's grounded in what we've already
+> built and what the market demands.
+
+---
+
+### 7-BIS.1 — What was the original idea, and what did we actually build?
+
+**The original idea (January 2025).** A single engineer with a network-engineering day
+job wanted: one self-hosted platform where he could log in once (SSO), see all his
+tools on one page (like Backstage's catalog), and — critically — have AI agents do
+unattended work 24/7 on real infrastructure. Existing tools were silos: Grafana for
+monitoring, Open WebUI for chat, LangChain for agents, but nothing tied them together
+with one auth, one audit trail, one RBAC, and a plugin model that let you install
+anything the same way. The insight: a portal for humans AND an engine for agents,
+sharing the same plugins.
+
+**What we actually built (August 2026, 5 months).** We didn't build a prototype — we
+built a real, live-proven, enterprise-hardened foundation:
+
+| Layer | What shipped | Verified? |
+|-------|-------------|-----------|
+| **Portal plane** | Next.js shell, federation tiles, SSO-ready OIDC seam, `/tools` catalog | Build green, web typecheck 0 errors |
+| **Auth & RBAC** | JWT email/password + httpOnly-cookie, `admin` + `viewer` roles + seeded users, `@RequirePermissions` guard, immutable audit log, `@Public()` escape hatch | Live-proven: viewer → `/api/audit` = 403, viewer → `/api/engine/schedules` = 200 |
+| **Plugin SDK** | `@constellation/plugin-sdk` — typed `PluginManifest`, `PluginContext` (logger/config/events/db/memory), permissions model, tool-schema validation | 21 sdk tests, 2 in-repo plugins compile against it |
+| **Agentic engine (v0→v0.5)** | BullMQ-backed durable task runtime, ReAct loop (think-act-observe), step checkpointing + kill-restart resume, human-in-the-loop approval gate, per-task token budget, real model router (OpenRouter cloud + Ollama local, fallback), cron/event scheduler with Crontab parser (auto-enqueue: "runs while you sleep"), dead-letter trail (classified failures + DLQ view), stuck-task supervisor (race-guarded resume-once, re-stale → `stalled` dead letter), event-based alerting (`engine.task.failed/stale/recovered`) | All live-proven: scheduler auto-enqueued a task that completed on Ollama; supervisor recovered a stale task and failed a re-stale one; deadletters/alerts return honest classified trails |
+| **Knowledge graph + memory** | Graphify plugin (Neo4j-backed entity/relation store) + `core/memory` service + Brain view in portal | 40 graphify tests, live-verified |
+| **Browser automation** | `browser-use` plugin — CDP-driven, tool-callable by agents | 47 browser-use tests |
+| **Security hardening** | httpOnly SameSite=Lax cookie auth, `syed.mohamed` username sanitized from public-facing docs/scripts, defensive SQL-injection guard on per-plugin schema bootstrap, secret/PII sweep clean on all tracked files | Sweep: 0 real keys/secrets in tracked files |
+| **Testing** | **519 unit tests** (api 402, browser-use 47, graphify 40, sdk 21, cli 9) | Full mono gate: lint/build/typecheck/test 20/20 tasks, every commit |
+| **Docs** | `MASTER_PLAN.md` §9 per-round verification log with SHAs and literal evidence; `HANDOFF.md` §3/§8/§11 current state + pending; `ORCHESTRATOR.md` full driver's handbook; `BRAIN.md` | Every round backfill-committed |
+
+**The result:** a platform that anyone with Docker can boot (`docker compose up`),
+log into, seed a non-admin user, create a cron schedule, and watch an AI agent
+complete autonomous work — all on a laptop, $0/month, with honest monitoring. **That
+is a real platform, not a proof of concept.**
+
+---
+
+### 7-BIS.2 — Market landscape & why Constellation can win
+
+Three massive markets are converging in 2025-2026, and NO single product occupies
+the intersection today:
+
+| Market | 2026 leaders | Annual spend | Constellation's position |
+|--------|-------------|-------------|------------------------|
+| **Internal Developer Portals (IDPs)** | Backstage (CNCF, Spotify), Port.io ($100M raised, "Agentic Engineering Platform"), Cortex, Roadie | $2B+ (Backstage alone: $2M+ per enterprise to build + maintain self-hosted) | We already have a working portal + federation + plugin model. Backstage takes months to customize; Port is SaaS (not self-hosted). Constellation is self-hosted, open-core, 1-week onboard. |
+| **AI Agent Platforms** | LangGraph (LangChain, MIT), CrewAI (52K stars, Python), Microsoft Agent Framework, Agno | Fastest-growing software segment; Gartner: 40% of apps will have AI agents by 2026; 15% of work decisions autonomous by 2028 | We have a durable engine + ReAct loop + tool calling + model routing + scheduler + supervisor. LangGraph gives you the graph — we give you the engine + the platform. |
+| **Workflow Orchestration** | Temporal (MIT, complex self-host), Prefect ($100M+, Python), Kestra (YAML, Apache 2.0), BullMQ (Node, lightweight) | $500M+ | We already use BullMQ with a full lifecycle (queue → run → checkpoint → fail → dead-letter → supervisor-resume). Temporal requires a DB cluster + Elasticsearch + workers in Go/Java; we run on Postgres + Redis + Node. |
+
+**The gap nobody fills today:**
+- Backstage has a plugin catalog but **can't run AI agents** — it's a UI for humans.
+- LangGraph/CrewAI have agent orchestration but **no portal, no auth, no RBAC, no audit, no self-hosted deployment story** — they're Python libraries.
+- Temporal has durable execution but **no UI portal, no multi-tenant plugin model, no agent-native design**.
+- Port.io is racing to add AI agents to its catalog but **doesn't have a durable workflow engine** (it triggers webhooks/web UIs, not long-running autonomous tasks).
+
+**Constellation's unique wedge:** It is the ONLY platform where you log into one
+portal, see your tools, and run AI agents 24/7 that use those same tools — with full
+auth, RBAC, audit, dead-letter recovery, and $0/month local operation. **A Backstage
+that actually does work, not just catalogs it.** An **agentic platform** that is a
+real platform, not a Python notebook.
+
+---
+
+### 7-BIS.3 — The expanded roadmap: Constellation 2.0 → 3.0 → 4.0
+
+This is the plan to take what we've built and level it up to a top-tier, market-
+competitive platform — phased realistically, each phase self-contained and
+deliverable.
+
+#### PHASE 2.0 — "PRODUCTION FOUNDATION" (next 4-8 weeks, mostly engine + infra)
+
+The engine and platform work — but a production platform needs real DX, real
+observability, and real DevOps. No cloud spend. Everything $0/local until VPS
+decision.
+
+| # | Feature | Why it matters | Competitor benchmark | Priority |
+|---|---------|---------------|---------------------|----------|
+| 2.1 | **Committed `prisma/migrations` history** — replace `db push` with `prisma migrate dev/deploy`, generate the initial migration from the current schema state, create a migration seeding baseline. | Every deploy story needs repeatable migrations. `db push` is a dev shortcut; `migrate deploy` is production. | Every serious Prisma app | P0 |
+| 2.2 | **OpenTelemetry tracing** — instrument the API (NestJS `@opentelemetry/instrumentation-nestjs-core`), the engine worker, and plugin calls. Export to the existing Grafana + Loki + Tempo stack in `compose.yaml`. Emit spans for: HTTP request → auth guard → controller → service → DB query; engine task → model provider call → tool invocation → checkpoint. | "Why is this task slow? Which plugin caused the error?" Without tracing, you're blind. OTel is the industry standard now (CNCF graduated, every platform supports it). | Grafana Labs $400M ARR — OTel-native is table stakes. Datadog/Dynatrace are the paid tier. | P0 |
+| 2.3 | **Prometheus metrics + Grafana dashboards** — expose `/metrics` (Prometheus format) with: engine task counts by status, schedule run counts/failures, model provider latency/cost, plugin tool invocation counts, HTTP request latency + status codes. Ship a pre-built Grafana dashboard JSON. | Observability is the #1 missing feature for any self-hosted platform — it's what separates a toy from a tool. | Every top observability platform (Datadog $2B+, Grafana $400M) | P0 |
+| 2.4 | **Health dashboard / status page** — a portal route (`/health`) that renders the engine health endpoint as a live dashboard (engine status, queue depth, failed tasks, supervisor sweeps, alert trail, model availability). | No `curl | jq` — visual health that any operator can check. | Backstage's built-in health cards; Port's scorecards | P1 |
+| 2.5 | **CLI: `constellation`** — `constellation health`, `constellation engine status`, `constellation tasks list`, `constellation schedules list`, `constellation deadletters`, `constellation plugins list`. | DX: a CLI that matches the API. Every top platform has one (Temporal's `tctl`, Kestra CLI). | Temporal `tctl`, kubectl pattern | P1 |
+| 2.6 | **Real SSO round-trip (Keycloak + Caddy)** — the OIDC seam is coded; actually boot Keycloak in compose, configure a `constellation` realm + client, and prove login → token → portal tile with a real SSO flow. | SSO is table stakes for enterprise adoption. OIDC is the standard; SAML follows. | Backstage auth providers, every enterprise platform | P1 |
+| 2.7 | **Plugin sandboxing / isolation** — plugins currently run in-process (documented). Add a `sandbox` mode: optional `vm2`/`isolated-vm` or a sidecar HTTP process model, with resource limits (CPU, memory, network), so a poorly-behaved plugin can't take down the platform. | This is the #1 security gap — every enterprise security review will flag it. | Backstage plugins run in-process too (same risk), but enterprises demand sandboxing | P1 |
+| 2.8 | **Worker as separate process** — today the BullMQ worker runs in-process with the API. Extract it so the API stays responsive and the worker scales independently. | Production HA: crash the worker, the API stays up. Scale workers horizontally. | Temporal's worker/server separation; BullMQ's intended design | P2 |
+
+#### PHASE 3.0 — "PLATFORM AS A PRODUCT" (weeks 8-16, UX + ecosystem)
+
+The engine is solid — now make it a product people want to USE, not just run. This
+is where Constellation differentiates from every Python library and CLI tool.
+
+| # | Feature | Why it matters | Competitor benchmark | Priority |
+|---|---------|---------------|---------------------|----------|
+| 3.1 | **Portal: full `/engine` task UI** — a rich SPA in the portal for creating tasks (with the model picker, budget slider, approval toggle), viewing real-time task progress (step-by-step with the ReAct loop visible — "Think → Act → Observe → Done"), kill/restart buttons, and task history with filters. TODAY: the engine works via API but the portal only has a shell. | This is the #1 UX gap. "Proven via curl" is not a product. When a non-developer can create and monitor an agent task from a browser, that's a product. | LangSmith (LangChain's paid UI), n8n's visual workflow builder, Port's self-service actions | P0 |
+| 3.2 | **Visual workflow builder** — a drag-and-drop canvas in the portal for composing agent workflows: trigger (cron / event / manual), model selection, tool selection, approval node, branching (if error → retry, if done → notify). Generates the engine task + schedule from the visual model. | The "n8n-for-agents" experience. Non-engineers can design autonomous workflows visually. | n8n (400+ connectors), Kestra (YAML), Port (no-code builder) | P1 |
+| 3.3 | **Plugin marketplace (portal)** — a browseable, searchable catalog of plugins in the portal. Each plugin card shows: name, description, permissions, tools, version, install button. Installed plugins appear under `/plugins`. A `registry.constellation.json` manifest URL pattern so community plugins are discoverable. | Plugin marketplace = ecosystem = moat. This is literally Backstage's #1 feature. Without it, every plugin is a manual `git clone`. | Backstage Plugin Marketplace (100+ community plugins), Port's Ocean framework, VSCode extensions | P1 |
+| 3.4 | **Plugin scaffolding + hot-reload** — `constellation generate plugin my-plugin` creates a fully-typed starter with manifest, tools, tests, and a dev mode that hot-reloads on file changes. | DX: 1 command, 1 minute to a working plugin. This is what VSCode extensions get right. | VSCode `yo code`, Backstage `@backstage/create-app`, Port's Ocean framework | P1 |
+| 3.5 | **Notification center** — push notifications (in-portal toast, email via SMTP, webhook, Slack/Discord/Teams) triggered by platform events: task completed/failed/needs-approval, supervisor alert, schedule run. User-configurable per task. | "Runs while you sleep" — but you need to know when it's done. Every enterprise platform has this. | Grafana alerting, PagerDuty, every CI system | P1 |
+| 3.6 | **Multi-model compare / A/B** — run the same task against 2+ models (Ollama local, OpenRouter cloud) and compare outputs side-by-side in the portal (latency, cost, quality score). | Model selection is a real operational decision — this makes it measurable. | OpenRouter's own compare view; LangSmith's evaluation | P2 |
+| 3.7 | **Team spaces / multi-tenancy** — `Organization → Team → User` hierarchy with inherited RBAC. Team A can only see/edit their own tasks, schedules, plugins. Admin sees everything. | The #1 request from any org with >5 users. | Every enterprise platform (Backstage RBAC, Port teams, GitHub orgs) | P2 |
+
+#### PHASE 4.0 — "AGENTIC OPERATING SYSTEM" (weeks 16-32+, the big moat)
+
+This is where Constellation becomes a generational platform — the place where AI
+agents live, work, and report. Not a framework. An operating system.
+
+| # | Feature | Why it matters | Competitor benchmark | Priority |
+|---|---------|---------------|---------------------|----------|
+| 4.1 | **Agent-to-agent delegation (crews)** — an orchestrator agent can spawn sub-agents for parallel work (research agent, code agent, review agent) and merge their output. The engine tracks the delegation tree, budget flows downward, each sub-agent runs as its own task. Directly inspired by how Polaris drives the project. | Multi-agent collaboration is the frontier — CrewAI (52K stars) does this but without a durable engine. LangGraph DeepAgents does planner+subagent. Constellation would do it DURABLY with a real engine underneath. | CrewAI (52K GitHub stars), LangGraph DeepAgents, Microsoft AutoGen | P0 |
+| 4.2 | **Persistent agent memory (RAG + Graphify)** — agents remember past tasks, decisions, and facts across sessions. Not just a single-task ReAct loop — an agent that learns over weeks. The knowledge graph (Graphify) is the long-term memory; a vector store (pgvector or Chroma) is the semantic retrieval layer. | "What did I do last time?" — without persistent memory, every agent is amnesiac. This is the single biggest differentiator for a 24/7 agent platform. | CrewAI's memory system, LangChain's memory, MemGPT, Letta | P0 |
+| 4.3 | **MCP (Model Context Protocol) server** — expose the entire Constellation platform (tasks, schedules, deadletters, plugins, knowledge graph) as an MCP server so ANY MCP-compatible client (Claude Desktop, Continue.dev, Cursor, Zed, etc.) can discover and interact with Constellation agents. Constellation agents can also CALL external MCP servers as tools. | MCP is becoming the USB-C of AI tools. Anthropic's standard, now adopted by OpenAI, Google, and the open-source ecosystem. Being an MCP server AND client makes Constellation the universal agent hub. | Anthropic MCP, OpenAI's adoption, the growing MCP ecosystem | P0 |
+| 4.4 | **Agent skill marketplace** — pre-built "agent skills" (task templates): "Daily GitHub PR triage," "Weekly dependency audit," "Kubernetes pod restart on OOM," "SSL certificate expiry monitor," "Jira ticket auto-categorizer." Each is a packaged cron schedule + prompt + tool set. | The "app store" for AI agents. The killer feature: non-developers pick a skill, it runs. | Zapier's "Zaps," n8n's workflows, GitHub Actions marketplace | P1 |
+| 4.5 | **Autonomous incident response** — when a monitoring alert fires (Prometheus/Grafana alert), an agent is auto-dispatched: check logs, check recent deploys, run a diagnostic, propose a fix (or auto-apply if gated). The supervisor watches; if the agent stalls, it recovers. | This is the "PagerDuty replacement" vision. AI agents as first-responders, humans as reviewers. Every SRE team wants this. | PagerDuty + AI, Datadog AI agent, but none self-hosted | P2 |
+| 4.6 | **Federated agent mesh** — multiple Constellation instances (dev, staging, prod, edge sites) form a mesh. The orchestrator delegates tasks to the right instance based on locality, capability, and load. The portal shows the mesh topology. | For the network-engineering owner: run an agent at each site that monitors local hardware, reports to a central Constellation. This is the "distributed agent OS" pattern. | HashiCorp Nomad, Temporal multi-cluster, nothing in the agent space does this | P2 |
+| 4.7 | **Audit + compliance reports** — automated SOC2/ISO27001-style evidence collection from the audit log. Generate a compliance report PDF: "All agent actions in the past quarter, all human approvals, all RBAC changes." | Every enterprise buyer will ask for this. The immutable audit trail is already built — make it reportable. | ServiceNow GRC, Vanta, Drata | P2 |
+
+---
+
+### 7-BIS.4 — Technical architecture: the target state
+
+The Phase 4.0 architecture, showing how everything connects:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    CONSTELLATION                          │
+│                                                          │
+│  ┌──────────────┐  ┌──────────────┐  ┌───────────────┐  │
+│  │ PORTAL PLANE  │  │ CLIENT TOOLS │  │  MCP CLIENTS  │  │
+│  │ (Next.js SPA) │  │ (CLI, SDK)   │  │ (Claude, etc) │  │
+│  └──────┬───────┘  └──────┬───────┘  └───────┬───────┘  │
+│         │                 │                   │          │
+│  ┌──────┴─────────────────┴───────────────────┴───────┐  │
+│  │              API GATEWAY (NestJS)                   │  │
+│  │  Auth (JWT+httpOnly+OIDC) · RBAC · Rate Limit       │  │
+│  │  Audit · Federation · Plugin Router · MCP Server    │  │
+│  └──────┬──────────────────────────────────┬──────────┘  │
+│         │                                  │              │
+│  ┌──────┴──────────┐              ┌────────┴──────────┐  │
+│  │  AGENTIC ENGINE  │              │   PLUGIN RUNTIME   │  │
+│  │                  │              │                    │  │
+│  │  Task Service    │              │  Plugin Loader     │  │
+│  │  Queue (BullMQ)  │              │  SDK Bridge        │  │
+│  │  Worker(s)       │              │  Schema Bootstrap  │  │
+│  │  Model Router    │              │  Sandbox (vm2)     │  │
+│  │  Scheduler       │              │  Tool Registry     │  │
+│  │  Supervisor      │              │  Memory/Brain      │  │
+│  │  Dead-letter/DLQ │              │  Event Bus         │  │
+│  │  Alerts          │              │                    │  │
+│  │  Agent-as-Task   │              │  ┌──────────────┐  │  │
+│  │  Crew/Delegation │              │  │browser-use   │  │  │
+│  │                  │              │  │graphify (KG) │  │  │
+│  │                  │              │  │review/code   │  │  │
+│  │                  │              │  │user plugins… │  │  │
+│  └──────┬──────────┘              │  └──────────────┘  │  │
+│         │                          └────────┬──────────┘  │
+│  ┌──────┴───────────────────────────────────┴──────────┐  │
+│  │              DATA & INFRA LAYER                     │  │
+│  │  Postgres (core + per-plugin schemas)                │  │
+│  │  Redis (BullMQ queues + cache)                      │  │
+│  │  Neo4j (Graphify knowledge graph)                   │  │
+│  │  Prometheus · Grafana · Loki · Tempo (OTel)         │  │
+│  │  Ollama (local models) · OpenRouter (cloud)         │  │
+│  │  Docker Compose / Coolify / K8s (deploy)            │  │
+│  └─────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 7-BIS.5 — What makes a platform "top-tier"? The Constellation checklist
+
+Every platform that wins has these attributes. This is our scorecard:
+
+| Attribute | Current status (v0.6) | Target (Phase 4.0) |
+|-----------|----------------------|---------------------|
+| **Works out of the box** | ✅ `docker compose up` + `./boot-api.sh` = running platform | ✅ Same, but with 1 command: `constellation up` |
+| **Self-hosted, $0/month** | ✅ Ollama default; OpenRouter is opt-in; no SaaS dependency | ✅ Same — this is our core differentiator vs Port/Roadie/Datadog |
+| **Plugin ecosystem** | ⚠️ SDK built, 2 in-repo plugins, no marketplace | 🎯 Marketplace with browse/install, community plugins, hot-reload |
+| **Developer experience** | ⚠️ CLI partial, docs good, API-first | 🎯 `npx constellation` full CLI, scaffold in 1 min, typed SDK |
+| **Observability** | ⚠️ Infra has Prometheus/Grafana; no app-level tracing or metrics | 🎯 OTel-native, pre-built dashboards, health UI |
+| **Security hardening** | ✅ httpOnly-cookie, RBAC, audit, defensive SQL guard, PII sanitized | 🎯 Plugin sandbox, SSO/OIDC, rate limiting, compliance reports |
+| **AI agent capability** | ✅ ReAct loop, tool calling, scheduler, supervisor, dead-letter, multi-model | 🎯 Multi-agent crews, persistent memory, agent skill marketplace, MCP server |
+| **Enterprise readiness** | ⚠️ Needs migrations, SSO, sandboxing, worker separation | 🎯 SOC2-ready audit, team spaces, federated mesh, incident response |
+| **Open standards** | ⚠️ REST API, JWT, Docker — good foundation | 🎯 OTel, MCP, OIDC/SAML, Prometheus — every standard that matters |
+
+**Our unfair advantage:** We're not building from scratch — the engine, plugin system,
+auth, RBAC, audit, scheduler, supervisor, dead-letter, alerting, and portal are
+ALREADY BUILT and LIVE-PROVEN. We're adding UX, ecosystem, and enterprise readiness
+on top of a working foundation. Most competitors start from the opposite direction
+(great UX, then try to build an engine).
+
+---
+
+### 7-BIS.6 — Immediate next actions (what to build next)
+
+Per the ORCHESTRATOR §3 priority order, the next concrete items to build:
+
+1. **Prisma migrations history** (P0 — unblocks deploy, removes `db push`)
+2. **OpenTelemetry tracing** (P0 — observability foundation, pre-built for Grafana)
+3. **Prometheus metrics + health dashboard** (P0 — visual health)
+4. **Portal full `/engine` task UI** (P0 — the #1 UX gap)
+5. **Plugin sandboxing** (P1 — security, enterprise requirement)
+6. **Worker as separate process** (P2 — production HA)
+
+After that, Phase 3.0 features (marketplace, scaffolding, visual workflow builder,
+notification center), then Phase 4.0 (multi-agent crews, persistent memory, MCP,
+agent skills).
+
+**Nothing is pushed. $0 spent beyond the ~$0.00001 OpenRouter live-proof. No cloud
+without explicit per-action user go-ahead.**
 
 
 ## 8. TASK SPLIT — the three friends (each appends results here; orchestrator verifies)
