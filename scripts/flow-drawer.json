@@ -1,0 +1,15 @@
+[
+  { "act": "goto", "url": "http://localhost:3005/login" },
+  { "act": "wait", "expr": "document.querySelector('#email') !== null" },
+  { "act": "sleep", "ms": 1200 },
+  { "act": "fill", "selector": "#email", "t": "admin@constellation.local" },
+  { "act": "fill", "selector": "#password", "t": "changeme" },
+  { "act": "click", "selector": "button[type=submit]" },
+  { "act": "wait", "expr": "location.pathname !== '/login'", "wait": 20000 },
+  { "act": "goto", "url": "http://localhost:3005/engine" },
+  { "act": "wait", "expr": "document.body.innerText.includes('T1 tool-call proof')", "wait": 20000 },
+  { "act": "eval", "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => x.textContent.includes('T1 tool-call proof')); if (!b) return 'NO-ROW'; b.click(); return 'clicked row'; })()" },
+  { "act": "sleep", "ms": 2500 },
+  { "act": "shot", "shot": "05-step-drawer-t1" },
+  { "act": "text" }
+]

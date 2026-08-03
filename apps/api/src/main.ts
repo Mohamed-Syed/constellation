@@ -15,7 +15,12 @@ async function bootstrap(): Promise<void> {
   app.use(helmet());
 
   // --- CORS: only the configured portal origins ---
-  const origins = (process.env.CORS_ORIGINS ?? "http://localhost:3000")
+  // :3005 is the documented WEB_HOST_PORT remap for dev hosts where :3000 is
+  // taken. If the portal's origin is missing here, browser fetches are
+  // blocked and the IdentityBanner probe FAILS OPEN to a false "wrong API"
+  // banner even when the API is correct (found live in the v0.2 browser
+  // pass). Keep the list in sync with the portal dev ports.
+  const origins = (process.env.CORS_ORIGINS ?? "http://localhost:3000,http://localhost:3005")
     .split(",")
     .map((o) => o.trim())
     .filter(Boolean);

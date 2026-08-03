@@ -1,0 +1,15 @@
+[
+  { "act": "goto", "url": "http://localhost:3005/login" },
+  { "act": "wait", "expr": "document.querySelector('#email') !== null" },
+  { "act": "sleep", "ms": 1200 },
+  { "act": "fill", "selector": "#email", "t": "admin@constellation.local" },
+  { "act": "fill", "selector": "#password", "t": "changeme" },
+  { "act": "click", "selector": "button[type=submit]" },
+  { "act": "wait", "expr": "location.pathname !== '/login'", "wait": 20000 },
+  { "act": "goto", "url": "http://localhost:3005/engine" },
+  { "act": "wait", "expr": "document.body.innerText.includes('T4 portal-submitted')", "wait": 20000 },
+  { "act": "eval", "expr": "(() => { const row = Array.from(document.querySelectorAll('tr, [role=row]')).find(r => r.textContent.includes('T4 portal-submitted')); if (!row) return 'NO-ROW'; const btn = Array.from(row.querySelectorAll('button')).find(b => /cancel/i.test(b.textContent)); if (!btn) return 'NO-CANCEL-BTN in row: ' + row.textContent.slice(0,80); btn.click(); return 'clicked Cancel'; })()" },
+  { "act": "sleep", "ms": 3000 },
+  { "act": "eval", "expr": "(() => { const row = Array.from(document.querySelectorAll('tr, [role=row]')).find(r => r.textContent.includes('T4 portal-submitted')); return row ? 'AFTER: ' + row.textContent.replace(/\\s+/g,' ').trim().slice(0, 120) : 'row gone'; })()" },
+  { "act": "shot", "shot": "09-cancelled" }
+]

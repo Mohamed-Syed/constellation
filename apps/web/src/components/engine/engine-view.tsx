@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 import {
+  approveEngineTask,
   cancelEngineTask,
   fetchEngineHealth,
   fetchEngineTask,
@@ -27,6 +28,7 @@ import {
   formatWhen,
   isCancellableStatus,
   isTerminalStatus,
+  rejectEngineTask,
   statusVariant,
   stepSucceeded,
   stepSummaryText,
@@ -80,6 +82,9 @@ export function EngineView() {
   const [detailState, setDetailState] = React.useState<"loading" | "error" | "not-found" | "idle">("loading");
   const [cancellingId, setCancellingId] = React.useState<string | null>(null);
   const [cancelError, setCancelError] = React.useState<string | null>(null);
+  // ── Human-in-the-loop decisions (approve / reject a paused task) ────────
+  const [decidingId, setDecidingId] = React.useState<string | null>(null);
+  const [decisionError, setDecisionError] = React.useState<string | null>(null);
 
   // Live poll: task list + engine health every 5s. On failure we keep the
   // last good snapshot and flip the error flag (the render decides what to
@@ -182,6 +187,28 @@ export function EngineView() {
     }
   }
 
+  /** Approve a paused task's pending tool call (executes it exactly once). */
+  async function handleApprove(taskId: string) {
+    if (decidingId) return;
+    setDecidingId(taskId);
+    setDecisionError(null);
+    const res = await approveEngineTask(taskId, token);
+    setDecidingId(null);
+    setRefreshKey((k) => k + 1);
+    if (!res.ok) setDecisionError(res.message);
+  }
+
+  /** Reject a paused task's pending tool call (fails the task). */
+  async function handleReject(taskId: string) {
+    if (decidingId) return;
+    setDecidingId(taskId);
+    setDecisionError(null);
+    const res = await rejectEngineTask(taskId, token);
+    setDecidingId(null);
+    setRefreshKey((k) => k + 1);
+    if (!res.ok) setDecisionError(res.message);
+  }
+
   const openTask = (id: string) => {
     setDetail(null);
     setDetailState("loading");
@@ -273,7 +300,7 @@ export function EngineView() {
                   id="engine-task-model"
                   value={model}
                   onChange={(e) => setModel(e.target.value)}
-                  placeholder="default (llama3.2)"
+                  placeholder="default"
                   disabled={!token || submitting}
                   maxLength={120}
                 />
@@ -378,25 +405,63 @@ export function EngineView() {
                             {formatRelativeTime(task.createdAt)}
                           </td>
                           <td className="py-2.5 text-right">
-                            {isCancellableStatus(task.status) ? (
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  void handleCancel(task.id);
-                                }}
-                                disabled={cancellingId === task.id || !token}
-                              >
-                                {cancellingId === task.id ? (
-                                  <Loader2 className="size-3.5 animate-spin" />
-                                ) : (
-                                  <XCircle className="size-3.5" />
-                                )}
-                                Cancel
-                              </Button>
-                            ) : null}
+                            <div className="flex items-center justify-end gap-1.5">
+                              {task.status === "paused" ? (
+                                <>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      void handleApprove(task.id);
+                                    }}
+                                    disabled={decidingId === task.id || !token}
+                                    title="Approve the pending tool call — it will execute exactly once"
+                                  >
+                                    {decidingId === task.id ? (
+                                      <Loader2 className="size-3.5 animate-spin" />
+                                    ) : (
+                                      <CheckCircle2 className="size-3.5" />
+                                    )}
+                                    Approve
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      void handleReject(task.id);
+                                    }}
+                                    disabled={decidingId === task.id || !token}
+                                    title="Reject the pending tool call — the task fails"
+                                  >
+                                    <XCircle className="size-3.5" />
+                                    Reject
+                                  </Button>
+                                </>
+                              ) : null}
+                              {isCancellableStatus(task.status) ? (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void handleCancel(task.id);
+                                  }}
+                                  disabled={cancellingId === task.id || !token}
+                                >
+                                  {cancellingId === task.id ? (
+                                    <Loader2 className="size-3.5 animate-spin" />
+                                  ) : (
+                                    <XCircle className="size-3.5" />
+                                  )}
+                                  Cancel
+                                </Button>
+                              ) : null}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -482,7 +547,43 @@ export function EngineView() {
                 </p>
               ) : null}
 
+              {decisionError ? (
+                <p role="alert" className="text-xs text-rose-600 dark:text-rose-400">
+                  {decisionError}
+                </p>
+              ) : null}
+
               <div className="mt-2 flex items-center justify-end gap-2">
+                {detail.status === "paused" ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleApprove(detail.id)}
+                      disabled={decidingId !== null}
+                      title="Approve the pending tool call — it will execute exactly once"
+                    >
+                      {decidingId === detail.id ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="size-3.5" />
+                      )}
+                      Approve
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleReject(detail.id)}
+                      disabled={decidingId !== null}
+                      title="Reject the pending tool call — the task fails"
+                    >
+                      <XCircle className="size-3.5" />
+                      Reject
+                    </Button>
+                  </>
+                ) : null}
                 {isCancellableStatus(detail.status) ? (
                   <Button
                     type="button"

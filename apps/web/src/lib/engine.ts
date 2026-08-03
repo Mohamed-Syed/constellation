@@ -213,6 +213,76 @@ export async function cancelEngineTask(id: string, token: string | null): Promis
   }
 }
 
+/**
+ * `POST /api/engine/tasks/:id/approve` — grant a PAUSED task's pending tool
+ * call. The engine then executes the approved call exactly once and resumes
+ * (see AgentWorkerService + engine.controller.ts). 400 = not paused / no
+ * pending call, which we surface as a plain message (the list poll will
+ * refresh the row to its real state).
+ */
+export type ApproveTaskOutcome =
+  | { ok: true; id: string; approvedStepIndex?: number }
+  | { ok: false; reason: "unauthenticated" | "forbidden" | "not-paused" | "unreachable" | "error"; message: string };
+
+export async function approveEngineTask(id: string, token: string | null): Promise<ApproveTaskOutcome> {
+  if (!token) {
+    return { ok: false, reason: "unauthenticated", message: "You must be signed in to approve tasks." };
+  }
+  try {
+    const res = await fetch(`${API_BASE}/engine/tasks/${encodeURIComponent(id)}/approve`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.status === 400) {
+      return { ok: false, reason: "not-paused", message: "Task isn't paused — nothing to approve." };
+    }
+    if (res.status === 401 || res.status === 403) {
+      return { ok: false, reason: "forbidden", message: "You don't have permission to approve tasks." };
+    }
+    if (!res.ok) return { ok: false, reason: "error", message: `Approve failed (HTTP ${res.status}).` };
+    const body = (await res.json()) as { id?: unknown; approvedStepIndex?: unknown };
+    return {
+      ok: true,
+      id: typeof body.id === "string" ? body.id : id,
+      approvedStepIndex: typeof body.approvedStepIndex === "number" ? body.approvedStepIndex : undefined,
+    };
+  } catch {
+    return { ok: false, reason: "unreachable", message: "Can't reach the Constellation API." };
+  }
+}
+
+/** `POST /api/engine/tasks/:id/reject` — fail a PAUSED task ("rejected by <user>"). */
+export type RejectTaskOutcome =
+  | { ok: true; id: string; reason?: string }
+  | { ok: false; reason: "unauthenticated" | "forbidden" | "not-paused" | "unreachable" | "error"; message: string };
+
+export async function rejectEngineTask(id: string, token: string | null): Promise<RejectTaskOutcome> {
+  if (!token) {
+    return { ok: false, reason: "unauthenticated", message: "You must be signed in to reject tasks." };
+  }
+  try {
+    const res = await fetch(`${API_BASE}/engine/tasks/${encodeURIComponent(id)}/reject`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.status === 400) {
+      return { ok: false, reason: "not-paused", message: "Task isn't paused — nothing to reject." };
+    }
+    if (res.status === 401 || res.status === 403) {
+      return { ok: false, reason: "forbidden", message: "You don't have permission to reject tasks." };
+    }
+    if (!res.ok) return { ok: false, reason: "error", message: `Reject failed (HTTP ${res.status}).` };
+    const body = (await res.json()) as { id?: unknown; reason?: unknown };
+    return {
+      ok: true,
+      id: typeof body.id === "string" ? body.id : id,
+      reason: typeof body.reason === "string" ? body.reason : undefined,
+    };
+  } catch {
+    return { ok: false, reason: "unreachable", message: "Can't reach the Constellation API." };
+  }
+}
+
 /** `GET /api/engine/health` — public; no token needed. */
 export async function fetchEngineHealth(): Promise<EngineResult<EngineHealth>> {
   try {

@@ -1,0 +1,21 @@
+[
+  { "act": "goto", "url": "http://localhost:3005/login" },
+  { "act": "wait", "expr": "document.querySelector('#email') !== null" },
+  { "act": "sleep", "ms": 1200 },
+  { "act": "fill", "selector": "#email", "t": "admin@constellation.local" },
+  { "act": "fill", "selector": "#password", "t": "changeme" },
+  { "act": "click", "selector": "button[type=submit]" },
+  { "act": "wait", "expr": "location.pathname !== '/login'", "wait": 20000 },
+  { "act": "goto", "url": "http://localhost:3005/engine" },
+  { "act": "wait", "expr": "document.querySelector('#engine-task-title') !== null", "wait": 20000 },
+  { "act": "fill", "selector": "#engine-task-title", "t": "T4 portal-submitted" },
+  { "act": "fill", "selector": "#engine-task-prompt", "t": "Use the graph.query tool from the graphify plugin with question set to: what does the plugin loader do? Use limit 100. Then after the tool result, finish with a done action summarizing the answer." },
+  { "act": "shot", "shot": "06-form-filled" },
+  { "act": "click", "selector": "button[type=submit]" },
+  { "act": "sleep", "ms": 3000 },
+  { "act": "shot", "shot": "07-after-submit" },
+  { "act": "eval", "expr": "(() => { const rows = Array.from(document.querySelectorAll('tr, [role=row]')).map(r => r.textContent.replace(/\\s+/g,' ').trim()).filter(t => t.includes('T4 portal-submitted')); return rows.length ? 'FOUND: ' + rows[0].slice(0, 140) : 'not yet'; })()" },
+  { "act": "sleep", "ms": 25000 },
+  { "act": "eval", "expr": "(() => { const rows = Array.from(document.querySelectorAll('tr, [role=row]')).map(r => r.textContent.replace(/\\s+/g,' ').trim()).filter(t => t.includes('T4 portal-submitted')); return rows.length ? 'LIVE: ' + rows[0].slice(0, 180) : 'not yet'; })()" },
+  { "act": "shot", "shot": "08-live-progress" }
+]

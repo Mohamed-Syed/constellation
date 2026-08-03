@@ -1,0 +1,11 @@
+[
+  { "act": "goto", "url": "http://localhost:3005/login" },
+  { "act": "wait", "expr": "document.querySelector('#email') !== null" },
+  { "act": "sleep", "ms": 1200 },
+  { "act": "fill", "selector": "#email", "t": "admin@constellation.local" },
+  { "act": "fill", "selector": "#password", "t": "changeme" },
+  { "act": "eval", "expr": "(() => { const btn = document.querySelector('button[type=submit]'); const form = btn ? btn.closest('form') : null; window.__submitted = 0; if (form) form.addEventListener('submit', () => window.__submitted++); if (btn) btn.addEventListener('click', () => window.__btnclicked = (window.__btnclicked||0)+1); return 'btnType=' + btn?.type + ' inForm=' + !!form + ' formAction=' + (form ? form.action : 'N/A') + ' btnText=' + (btn?.textContent||'').trim(); })()" },
+  { "act": "click", "selector": "button[type=submit]" },
+  { "act": "sleep", "ms": 2000 },
+  { "act": "eval", "expr": "(() => { return 'submitted=' + window.__submitted + ' btnClicked=' + window.__btnclicked + ' path=' + location.pathname; })()" }
+]
