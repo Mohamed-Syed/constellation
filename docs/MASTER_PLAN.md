@@ -456,6 +456,25 @@ engine files · 1b portal `/engine` page (Orion's lane) · Ollama integration te
 
 ## 9. Verification log
 
+- **2026-08-03 — 🤖 ENGINE v0.2 — PROVE IT FOR REAL, TASK 5 of 5: the skipped unit test — `AgentWorkerService` — clau_partner (orchestrating solo).**
+  - **What this closes:** the recorded gap (HANDOFF §8 1e-i / 1f-b) — `AgentWorkerService`, the engine's loop, had NO unit test since Engine v0 ("too many deps for a first pass"). It is now the most-tested service in the engine module.
+  - **Method (the mocking strategy that made it possible):** hand-wired with `new` (the established offline pattern — no Nest DI), and the BullMQ `Worker` is NEVER constructed because the fake `EngineAvailabilityService` reports `isEnabled:false` — the exact production gate that skips worker creation. The loop is driven through the private `processJob` seam with a fake BullMQ `Job` (`{id, data:{taskId}}`). Collaborators are all `vi.fn()` fakes: taskService (11 methods), modelRouter (scripted `chat()`), pluginTool (`invoke()`), registry (`get()` → manifest tools), config (env knobs). No Redis, no Ollama, no sockets.
+  - **NEW `apps/api/src/core/engine/agent-worker.service.test.ts` — 12 tests** covering the brief's whole control-flow list:
+    1. **thought → continue** — thought step recorded, model called again, completes on `done`.
+    2. **tool_call → dispatch + checkpoint** — `invoke` called with `(plugin, tool, args, ENGINE_AGENT_PERMISSIONS)`, `tool_call` + `tool_result` steps, checkpoint written.
+    3. **unavailable tool → honest `ok:false`** — an `outcome:"error"` invoke becomes a `tool_result` with `{ok:false,error}` (no throw, no hallucinated success).
+    4. **approval-required → pause + NO dispatch** — tool never invoked; `savePendingApproval` persists `{plugin,tool,args,stepIndex}`; `pending_approval` step; `markPaused`; loop stops after ONE model call.
+    5. **approved-once → dispatch then clear** — paused checkpoint with `approvedStepIndex` resumes: the approved call invokes EXACTLY once (honour-once), `tool_result` lands at the right index, `clearApproval` persists the next free index, then completes.
+    6. **approved-once honour** — a pending approval whose stepIndex ≠ approvedStepIndex does NOT dispatch (stale grant ignored).
+    7. **done → complete** — done step + `markCompleted({summary})`.
+    8. **maxSteps → fail** — `markFailed("Reached max steps (2) without completing.")` after exactly maxSteps model calls.
+    9. **transient model error → bounded retry then fail** — `ModelCallError(transient)` with `ENGINE_MODEL_RETRIES=2` → exactly 3 chat attempts, then `markFailed` (the retry seam, pinned).
+    10. **terminal model error → fail immediately** — non-transient error → 1 chat attempt, no retries.
+    11. **cancelled task → no-op** — no markRunning/completed.
+    12. **onModuleInit with engine unavailable** — never constructs a Worker (the degrade path), onModuleDestroy safe.
+  - **Gates:** full api suite **259 passed** (was **247**, +12), 17 files, 0 failures, no regressions. Full four-gate pass at round end.
+  - **What it proves:** the loop's control flow — dispatch, gating, honour-once resume, budget/retry seams — is now pinned by unit tests, independent of the live-stack proofs in Tasks 1–3.
+
 - **2026-08-03 — 🤖 ENGINE v0.2 — PROVE IT FOR REAL, TASK 4 of 5: portal `/engine` clicked in a REAL browser + two real bugs fixed — clau_partner (orchestrating solo).**
   - **What this closes:** the recorded gap "portal `/engine` not clicked in a live browser" (HANDOFF §8 1b/1f-c). The page was only ever verified by gates. This task drove it end-to-end in a real Chrome, exercised every control against live tasks, and fixed what live clicking exposed.
   - **Method — real browser, zero deps:** new `scripts/cdp-browser.mjs` (Chrome DevTools Protocol over Node 22 native WebSocket + fetch; spawns a dedicated headless Chrome, real rendering, real clicks/typing, real `Page.captureScreenshot`). Reusable for all future browser checks. (Note: driving the USER's Chrome via cua-driver was attempted first — this host's Windows foreground-lock blocks text input without UIAccess; the CDP instance sidesteps it cleanly and doesn't touch the user's browser.)
