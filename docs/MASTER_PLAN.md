@@ -462,6 +462,15 @@ engine files · 1b portal `/engine` page (Orion's lane) · Ollama integration te
 
 ## 9. Verification log
 
+- **2026-08-03 — 🤖 ENGINE v0.3 — REAL MODEL PROVIDERS, TASK 8 of 8: LIVE-PROVEN fallback with NO key — clau_partner (orchestrating solo).**
+  - **What was proven (full stack live: real Postgres + Redis:6380 + brain sidecar :8791 + Ollama 7b, api:4001, OpenRouter key ABSENT — the $0 invariant):**
+  - **Boot:** clean, no crash, no hang — `Nest application successfully started`, `AgentWorker started`, `Constellation API listening on http://localhost:4001/api`. `GET /api/engine/health` (literal): `engine:"available"` · primary `model:{provider:"ollama", model:"qwen2.5-coder:7b", reachable:true}` · `providers:[{ollama, reachable:true}, {openrouter, reachable:false, error:"OPENROUTER_API_KEY is not set"}]` — the honest unconfigured report.
+  - **Task A — no model specified** (`cmsdaob630006r4fxtqh8cklj`): `[0] done` → `completed`, `provider:"ollama"` (the honest markProvider — not a hardcoded value).
+  - **Task B — `model:"openai/gpt-oss-120b"` (slash id, NO key)** (`cmsdap64c0008r4fxyruff08c`): router finds NO provider whose canHandleModel matches (OpenRouter refuses when unkeyed; Ollama refuses "/" ids) → **no-match fallback to Ollama with ITS DEFAULT_MODEL** (the Task 3 follow-up `aa18f7b` — handing the raw id to Ollama would 404 terminally). Literal log: `WARN [ModelRouterService] Model router: no provider can handle "openai/gpt-oss-120b" — falling back to Ollama (ollama) with its default model` → `[0] done` → **`completed` on ollama** (provider field honest: `"ollama"`). This is the round's "task completes on Ollama when the cloud provider is unavailable" acceptance, proven live.
+  - **Task C — `model:"qwen2.5-coder:7b"`** (`cmsdapcbl000ar4fxy54r4io9`): canHandleModel matches Ollama directly (no slash) → `[0] done` → `completed` on ollama, no fallback log.
+  - **Literal task records committed:** `artifacts/engine-v0.3/task8-*.json` (id/title/model/status/provider/steps per task). Reusable driver: `scripts/live-task8-fallback.py`; boot: `scripts/boot-api-v0.3.sh`.
+  - **Honest note on ordering:** the user was away when Task 7's key was requested, so Task 8 (the no-key proof) ran first in the prepared stack; Task 7 (cloud E2E) remains pending the key and will be run when it lands. Commits `a32f6e7` (tooling+evidence) + docs backfill.
+
 - **2026-08-03 — 🤖 ENGINE v0.3 — REAL MODEL PROVIDERS, TASK 6 of 8: `.env.example` OpenRouter section — clau_partner (orchestrating solo).**
   - **What ships:** new OPT-IN section before the SSO block — `OPENROUTER_API_KEY=` (empty placeholder ONLY, never a real key), commented `OPENROUTER_BASE_URL`/`OPENROUTER_DEFAULT_MODEL` overrides, docs for the per-task `"model"` unlock + the $0/local invariant (key unset → Ollama only, nothing breaks).
   - **Verified:** the section sits before SSO; placeholder empty; repo-wide four-gate pass at this point **20/20 tasks green** (lint/build/typecheck/test, all `--force --concurrency=1`; api **295**). Code commit `fe4b215`.
