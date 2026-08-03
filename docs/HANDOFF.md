@@ -50,7 +50,7 @@ agentic system. SEPARATE project from **Looper** (`../loop-engineering`), which 
 Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
 
 ## 3. Current status (2026-08-03)
-- **🤖 ENGINE v0.2 — "Prove It For Real" round ✅ COMPLETE (clau_partner orchestrating SOLO, 2026-08-03). All 5 tasks done, gate-verified, LIVE-PROVEN, committed; Task 6 recorded+skipped per the brief. Final SHA `7692a12` (round summary commit) — see MASTER_PLAN §9 + HANDOFF §11 for the full round record.**
+- **🤖 ENGINE v0.2 — "Prove It For Real" round ✅ COMPLETE (clau_partner orchestrating SOLO, 2026-08-03). All 5 tasks done, gate-verified, LIVE-PROVEN, committed; Task 6 recorded+skipped per the brief. Final SHA `f92a3a7` (round summary commit) — see MASTER_PLAN §9 + HANDOFF §11 for the full round record.**
   - **The headline proof:** an agent task called `graphify.graph.query` against the LIVE brain sidecar and completed on real data — `tool_call → tool_result (ok:true, 142 nodes) → done → completed`. Approval gate proven with a tool that REALLY RUNS (approve → execute-once → real data → complete; reject → failed, audited). Kill-restart proven ACROSS a tool call (frozen in Postgres, resumed, no double-execute). Portal `/engine` clicked in a real browser for the first time — submit/auto-refresh/drawer/Cancel/Approve/Reject all live (2 real bugs fixed: CORS :3005 identity-banner false positive + missing approve/reject portal UI). `AgentWorkerService` now unit-tested (12 tests). **Tests: 364 → 376.**
   - **TASK 1 DONE + LIVE-PROVEN (docs commit `d045022`):** an agent task CALLED the graphify `graph.query` tool against the LIVE brain sidecar (real graph: 1469 nodes / 2412 edges), got `tool_result` `ok:true` with real 142-node traversal data (real file:line provenance), and COMPLETED with a `done` summary grounded in that data. Step record `[0] tool_call → [1] tool_result → [2] done`, status `completed`. The headline gap is closed — full literal evidence in MASTER_PLAN §9.
   - **TASK 2 DONE + LIVE-PROVEN (docs commit `edd2ab9`):** approval gate proven with a tool that REALLY RUNS. Pause (nothing ran) → `POST /approve` → tool EXECUTED EXACTLY ONCE against the live sidecar (`ok:true`, 42 real nodes) → `done` grounded in it → `completed`; honour-once held (no re-pause on approved steps). Reject variant: pause → `POST /reject` → `failed` with `Rejected by admin@constellation.local`, all audited (`engine.task.approved` ×2 + `engine.task.rejected`). Full evidence in MASTER_PLAN §9.
@@ -351,7 +351,7 @@ clau_partner orchestrated solo (Nova/Orion/Atlas resting). Commits, oldest first
 `d045022` (+`de87cd0`) Task-1 tool-calling PROVEN LIVE · `edd2ab9` (+`761d295`) Task-2 approval-with-real-tool ·
 `5d6f078` (+`716bbaa`) Task-3 kill-restart across a tool call · `9d27834` (+`d54b0c0`) Task-4 portal live-browser
 (two real bugs fixed: CORS identity-banner false positive + missing approve/reject UI) · `64ab70c` (+`7692a12`)
-Task-5 AgentWorkerService unit tests · round summary at `7692a12`.
+Task-5 AgentWorkerService unit tests · round summary at `f92a3a7`.
 **Gates (`--force --concurrency=1`): lint/build/typecheck/test all green · tests 376 (api 259 · sdk 21 ·
 browser-use 47 · graphify 40 · cli 9) — was 364 (+12).** Live-proven end-to-end: agent tasks completed on REAL
 tool data (graph.query/graph.related → live 1469-node brain graph), approval gate executes approved calls
