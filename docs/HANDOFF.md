@@ -313,6 +313,14 @@ cd apps/api && DATABASE_URL="postgresql://constellation:constellation@localhost:
 ```
 
 ## 8. Pending / next actions (priority order)
+
+**⚠️ USER DECISIONS BLOCKING (see MASTER_PLAN §7-BIS.7):**
+- **D1 — VPS provider + monthly budget** ($10–20/month VPS unblocks Coolify deploy, migrations, live Grafana)
+- **D2 — GitHub push go-ahead** (repo publish-clean, waiting for explicit "push now")
+- **D3 — Phase 2.0 priority** (infra/devops first, or portal UI first?)
+
+**1a. Phase 2.0 — PRODUCTION FOUNDATION (NEXT, after user decisions):** See MASTER_PLAN §7-BIS.3 Phase 2.0 table for the full 8-feature list. Priority order: Prisma migrations (P0), OTel tracing (P0), Prometheus metrics + dashboards (P0), portal health dashboard (P1), `constellation` CLI (P1), SSO round-trip (P1), plugin sandboxing (P1), worker as separate process (P2).
+
 1k. **🛡️ PLATFORM HARDENING v0.6 (Polaris via delegate_task, 2026-08-03).** Viewer seed, per-plugin schema bootstrap, httpOnly-cookie auth. **DONE — verified, LIVE-PROVEN, COMMITTED (git `070fb2d`).** See MASTER_PLAN §9.
 1j. **🤖 ENGINE v0.5 — DEEPER 24/7 RELIABILITY round (Polaris via delegate_task, 2026-08-03).** Dead-letter handling, supervisor for stuck tasks, event-based alerting. **DONE — all tasks, gate-verified, LIVE-PROVEN, COMMITTED (git `ec88534`).** See MASTER_PLAN §9.
 1i. **🤖 ENGINE v0.4 — SCHEDULER / AUTONOMOUS TRIGGERS round (Polaris via delegate_task, 2026-08-03).** Recurring (cron) + event-triggered schedules auto-enqueue tasks. **DONE — all tasks, gate-verified, LIVE-PROVEN, COMMITTED (git `f70b573`).** See MASTER_PLAN §9.

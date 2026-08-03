@@ -336,6 +336,39 @@ agent skills).
 **Nothing is pushed. $0 spent beyond the ~$0.00001 OpenRouter live-proof. No cloud
 without explicit per-action user go-ahead.**
 
+### 7-BIS.7 — User decisions pending (blocking next actions)
+
+The following questions require explicit, in-the-moment user answers before the
+next phase can be executed. None of these are auto-decided by Polaris.
+
+| # | Decision | Context | Impact |
+|---|----------|---------|--------|
+| **D1** | **VPS provider + monthly budget** | The roadmap targets self-hosted deployment. A $10–20/month VPS (Hetzner CX22, DigitalOcean $12 droplet, or your own hardware/VM) runs the full stack. Coolify handles the deploy. | Unblocks: Coolify deploy, real Prisma migrations, OTel → live Grafana. Without this, everything stays on the laptop. |
+| **D2** | **GitHub push go-ahead** | The repo is publish-clean: secret/PII sweep passed (0 real keys, no employer identity), username sanitized to `<user>` placeholder, README has Author's note, 519 tests green. Target: your personal GitHub (`Mohamed-Syed`). | Unblocks: public visibility, issue tracking, CI/CD. This is a separate, explicit go-ahead — nothing will be pushed without you saying "push now" in the moment. |
+| **D3** | **Priority order for Phase 2.0 start** | Two P0 paths: (A) **Infra/devops** — Prisma migrations + OTel tracing + Prometheus metrics (unblocks deploy, makes the platform observable). (B) **UX** — Portal full `/engine` task UI (unblocks demo-ability, makes the engine visible to non-developers). | The engine works via `curl` today. A portal UI makes it a product. But migrations + tracing make it deployable. Which first? |
+
+### 7-BIS.8 — Polaris session summary (2026-08-03) — what was built, who built it, what's verified
+
+This is the consolidated round-by-round record of the autonomous build session
+under Polaris, from Engine v0.3 through the strategic roadmap. Every round was
+either driven by clau_partner (solo) or dispatched via `delegate_task` (maker
+subagent builds; Polaris independently re-runs gates, writes missing tests, live-
+proves, commits, and updates docs — the checker).
+
+| Round | Who built it | What shipped | SHA (code) | SHA (docs backfill) | Tests | Live-proven? |
+|-------|-------------|-------------|-----------|-------------------|-------|-------------|
+| **Engine v0.3** | clau_partner (solo) | OpenRouterModelProvider, real routing + fallback, cost-aware budget, cloud + no-key live proofs | `3d7d635` → `7f12115` | — (clau_partner self-documented) | 376 → **412** | ✅ Both ways |
+| **Engine v0.4** | Subagent (maker) + Polaris (checker: tests, DI fix, live-proof) | Scheduler: cron + event auto-enqueue, Crontab parser, ScheduledTaskService, SchedulerEngineService, REST controller | `f70b573` | `be221d8` | 412 → **481** | ✅ Cron auto-enqueued → Ollama-complete |
+| **Engine v0.5** | Subagent (maker) + Polaris (checker: DI fix, tests, live-proof) | Dead-letter (classified failures + DLQ), stuck-task supervisor (race-guard, resume-once, stall → dead letter), event alerting (`engine.task.*` + ring buffer) | `ec88534` | `58092f3` | 481 → **505** | ✅ Stale task recovered → completed; re-stale → `stalled` dead letter |
+| **Platform hardening v0.6** | Subagent (maker) + Polaris (checker: test fix, DB guard, live-proof) | Viewer user seed (RBAC 403 path), per-plugin schema bootstrap (C8, defensive check), httpOnly-cookie auth (login sets cookie, guard falls back, portal `credentials:include`) | `070fb2d` | `0705658` | 505 → **519** | ✅ Cookie-only `/me` works; viewer → audit = 403 |
+| **Publish-readiness** | Polaris (solo) | Username sanitize (`<user>` placeholder in docs/scripts), README Author's note, final secret/PII sweep (0 findings) | `d679918` | — (self-documented) | 519 (no change) | ✅ Sweep clean |
+| **Strategic roadmap** | Polaris (solo, research + writing) | MASTER_PLAN §7-BIS: vision, market analysis, Phase 2.0/3.0/4.0 (22 features), target architecture, scorecard | `a63dae9` | — (contains itself) | 519 (no change) | N/A (docs) |
+
+**Final tree at `a63dae9`:** clean (only untracked `Prompt to Clau_Partner.txt`).
+**Nothing pushed. $0/month. No cloud.** The engine, scheduler, supervisor, dead-
+letter, platform hardening, and auth are all **live-proven on real local infra**
+(postgres:5432, redis:6380, ollama qwen2.5-coder:7b, api:4001). The decisions in
+§7-BIS.7 are the only blockers to the next phase.
 
 ## 8. TASK SPLIT — the three friends (each appends results here; orchestrator verifies)
 Helper agents: **Atlas** (platform/infra), **Nova** (Plugin SDK + agent capabilities), **Orion**
