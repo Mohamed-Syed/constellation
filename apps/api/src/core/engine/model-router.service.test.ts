@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { Logger } from "@nestjs/common";
 import type { ModelProvider } from "./model-provider.js";
 import { ModelCallError, TokenBudget, retryTransient } from "./model-provider.js";
 import { ModelRouterService, type ChatMessage } from "./model-router.service.js";
@@ -20,6 +21,32 @@ function makeProvider(overrides: Partial<ModelProvider> = {}): ModelProvider {
 }
 
 const messages: ChatMessage[] = [{ role: "user", content: "Say hello" }];
+
+/**
+ * Engine v0.3 provider fakes — stand-ins for the real Ollama/OpenRouter
+ * providers, carrying the canHandleModel routing semantics the router
+ * selects on (no real HTTP anywhere in this file).
+ */
+function makeOllamaProvider(overrides: Partial<ModelProvider> = {}): ModelProvider {
+  return makeProvider({
+    name: "ollama",
+    chat: vi.fn(async () => ({ content: "ollama says hi", model: "qwen2.5-coder:7b", provider: "ollama", durationMs: 1 })),
+    // Ollama is the $0 default: no preference or plain/local names → yes;
+    // "org/model" cloud ids → no.
+    canHandleModel: (model?: string) => model === undefined || !model.includes("/"),
+    ...overrides,
+  });
+}
+
+function makeOpenRouterProvider(overrides: Partial<ModelProvider> = {}): ModelProvider {
+  return makeProvider({
+    name: "openrouter",
+    chat: vi.fn(async () => ({ content: "cloud says hi", model: "openai/gpt-oss-120b", provider: "openrouter", durationMs: 1 })),
+    // Slash-style ids and the explicit openrouter: prefix are OpenRouter's.
+    canHandleModel: (model?: string) => model !== undefined && (model.includes("/") || model.startsWith("openrouter:")),
+    ...overrides,
+  });
+}
 
 describe("ModelRouterService — selection", () => {
   it("delegates chat() to the first registered provider", async () => {
@@ -162,5 +189,190 @@ describe("retryTransient — bounded retry of TRANSIENT model failures (Task 5)"
 
     expect(delays).toEqual([0]); // one backoff for the one retry
     expect(Date.now() - started).toBeGreaterThanOrEqual(30);
+  });
+});
+
+describe("ModelRouterService — real routing by canHandleModel (Engine v0.3)", () => {
+  it("routes a slash-style model id to the OpenRouter provider", async () => {
+    const ollama = makeOllamaProvider();
+    const openrouter = makeOpenRouterProvider();
+    const router = new ModelRouterService([ollama, openrouter]);
+
+    const res = await router.chat(messages, "openai/gpt-oss-120b");
+
+    expect(openrouter.chat).toHaveBeenCalledWith(messages, "openai/gpt-oss-120b");
+    expect(ollama.chat).not.toHaveBeenCalled();
+    expect(res.provider).toBe("openrouter");
+  });
+
+  it("routes a local-style model id (no slash) to the Ollama provider", async () => {
+    const ollama = makeOllamaProvider();
+    const openrouter = makeOpenRouterProvider();
+    const router = new ModelRouterService([ollama, openrouter]);
+
+    const res = await router.chat(messages, "qwen2.5-coder:7b");
+
+    expect(ollama.chat).toHaveBeenCalledWith(messages, "qwen2.5-coder:7b");
+    expect(openrouter.chat).not.toHaveBeenCalled();
+    expect(res.provider).toBe("ollama");
+  });
+
+  it("defaults to the Ollama provider when no model is specified ($0 default)", async () => {
+    const ollama = makeOllamaProvider();
+    const openrouter = makeOpenRouterProvider();
+    const router = new ModelRouterService([ollama, openrouter]);
+
+    const res = await router.chat(messages);
+
+    expect(ollama.chat).toHaveBeenCalledWith(messages, undefined);
+    expect(openrouter.chat).not.toHaveBeenCalled();
+    expect(res.provider).toBe("ollama");
+  });
+
+  it("strips the openrouter: prefix before calling OpenRouter (it is for the router, not the API)", async () => {
+    const ollama = makeOllamaProvider();
+    const openrouter = makeOpenRouterProvider();
+    const router = new ModelRouterService([ollama, openrouter]);
+
+    await router.chat(messages, "openrouter:openai/gpt-oss-120b");
+
+    expect(openrouter.chat).toHaveBeenCalledWith(messages, "openai/gpt-oss-120b");
+    expect(ollama.chat).not.toHaveBeenCalled();
+  });
+
+  it("strips the ollama: prefix before calling Ollama", async () => {
+    const ollama = makeOllamaProvider();
+    const openrouter = makeOpenRouterProvider();
+    const router = new ModelRouterService([ollama, openrouter]);
+
+    await router.chat(messages, "ollama:qwen2.5-coder:7b");
+
+    expect(ollama.chat).toHaveBeenCalledWith(messages, "qwen2.5-coder:7b");
+    expect(openrouter.chat).not.toHaveBeenCalled();
+  });
+
+  it("when NO provider matches, falls back to Ollama (providers[0])", async () => {
+    // OpenRouter unavailable (key unset → canHandleModel false everywhere),
+    // and Ollama refuses the "/" cloud id → the router's no-match rule kicks in.
+    const ollama = makeOllamaProvider();
+    const openrouter = makeOpenRouterProvider({ canHandleModel: () => false });
+    const router = new ModelRouterService([ollama, openrouter]);
+
+    const res = await router.chat(messages, "openai/gpt-oss-120b");
+
+    expect(ollama.chat).toHaveBeenCalledWith(messages, "openai/gpt-oss-120b");
+    expect(openrouter.chat).not.toHaveBeenCalled();
+    expect(res.provider).toBe("ollama");
+  });
+});
+
+describe("ModelRouterService — fallback to Ollama on provider failure (Engine v0.3)", () => {
+  it("OpenRouter TRANSIENT failure → logs and falls back to Ollama with DEFAULT_MODEL", async () => {
+    const warnSpy = vi.spyOn(Logger.prototype, "warn");
+    const ollama = makeOllamaProvider();
+    const openrouter = makeOpenRouterProvider({
+      chat: vi.fn(async () => {
+        throw new ModelCallError("OpenRouter 503: overloaded", true);
+      }),
+    });
+    const router = new ModelRouterService([ollama, openrouter]);
+
+    const res = await router.chat(messages, "openai/gpt-oss-120b");
+
+    // Fallback: Ollama is called WITHOUT the cloud model — it uses its own
+    // DEFAULT_MODEL (the requested "/" model was meant for OpenRouter).
+    expect(ollama.chat).toHaveBeenCalledWith(messages, undefined);
+    expect(res.provider).toBe("ollama");
+    expect(res.content).toBe("ollama says hi");
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("falling back to Ollama"));
+    warnSpy.mockRestore();
+  });
+
+  it("OpenRouter TERMINAL failure (bad key) also falls back — the fallback is not transient-only", async () => {
+    const ollama = makeOllamaProvider();
+    const openrouter = makeOpenRouterProvider({
+      chat: vi.fn(async () => {
+        throw new ModelCallError("OpenRouter 401: invalid api key", false);
+      }),
+    });
+    const router = new ModelRouterService([ollama, openrouter]);
+
+    const res = await router.chat(messages, "openai/gpt-oss-120b");
+
+    expect(ollama.chat).toHaveBeenCalledWith(messages, undefined);
+    expect(res.provider).toBe("ollama");
+  });
+
+  it("an Ollama failure is NOT re-routed — it propagates (Ollama failing is the task failing)", async () => {
+    const ollama = makeOllamaProvider({
+      chat: vi.fn(async () => {
+        throw new ModelCallError("Ollama 404: model not found", false);
+      }),
+    });
+    const openrouter = makeOpenRouterProvider();
+    const router = new ModelRouterService([ollama, openrouter]);
+
+    await expect(router.chat(messages, "qwen2.5-coder:7b")).rejects.toMatchObject({
+      transient: false,
+      message: expect.stringContaining("Ollama 404"),
+    });
+    expect(openrouter.chat).not.toHaveBeenCalled();
+  });
+});
+
+describe("ModelRouterService — aggregated health (Engine v0.3)", () => {
+  it("aggregates both providers when they are reachable — primary is the first reachable", async () => {
+    const ollama = makeOllamaProvider({
+      health: vi.fn(async () => ({ provider: "ollama", model: "qwen2.5-coder:7b", reachable: true })),
+    });
+    const openrouter = makeOpenRouterProvider({
+      health: vi.fn(async () => ({ provider: "openrouter", model: "openai/gpt-oss-120b", reachable: true })),
+    });
+    const router = new ModelRouterService([ollama, openrouter]);
+
+    await expect(router.health()).resolves.toEqual({
+      provider: "ollama",
+      model: "qwen2.5-coder:7b",
+      reachable: true,
+      providers: [
+        { provider: "ollama", model: "qwen2.5-coder:7b", reachable: true },
+        { provider: "openrouter", model: "openai/gpt-oss-120b", reachable: true },
+      ],
+    });
+  });
+
+  it("reports the engine available when at least Ollama is reachable even if OpenRouter is unconfigured", async () => {
+    const ollama = makeOllamaProvider({
+      health: vi.fn(async () => ({ provider: "ollama", model: "qwen2.5-coder:7b", reachable: true })),
+    });
+    const openrouter = makeOpenRouterProvider({
+      health: vi.fn(async () => ({ provider: "openrouter", model: "", reachable: false, error: "OPENROUTER_API_KEY is not set" })),
+    });
+    const router = new ModelRouterService([ollama, openrouter]);
+
+    const health = await router.health();
+
+    expect(health.reachable).toBe(true);
+    expect(health.provider).toBe("ollama");
+    expect(health.providers).toHaveLength(2);
+    expect(health.providers![1]).toEqual({
+      provider: "openrouter",
+      model: "",
+      reachable: false,
+      error: "OPENROUTER_API_KEY is not set",
+    });
+  });
+
+  it("keeps the single-provider passthrough shape (no aggregate wrapper)", async () => {
+    const ollama = makeOllamaProvider({
+      health: vi.fn(async () => ({ provider: "ollama", model: "qwen2.5-coder:7b", reachable: true })),
+    });
+    const router = new ModelRouterService([ollama]);
+
+    await expect(router.health()).resolves.toEqual({
+      provider: "ollama",
+      model: "qwen2.5-coder:7b",
+      reachable: true,
+    });
   });
 });
