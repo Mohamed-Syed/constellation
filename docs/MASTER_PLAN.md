@@ -456,6 +456,18 @@ engine files · 1b portal `/engine` page (Orion's lane) · Ollama integration te
 
 ## 9. Verification log
 
+- **2026-08-03 — 🤖 ENGINE v0.2 — PROVE IT FOR REAL, TASK 3 of 5: kill-restart survival ACROSS a tool call (no double-execute) — clau_partner (orchestrating solo).**
+  - **What this closes:** the v0 kill-restart acceptance only spanned "thought" steps. This task proves the checkpoint/resume path spans a REAL tool call: kill the api right after a tool_result, freeze in Postgres, restart, resume WITHOUT re-running the completed tool call.
+  - **Method:** normal mode (approval off), graphify `graph.query` with `limit:100` (small result → fast generation). Task `cmsd2dnqi…` submitted; polled every 5s; the instant `stepCount` hit 2 (`[0] tool_call` + `[1] tool_result` written) the api process was **killed with the API fully down**.
+  - **Frozen state — queried Postgres DIRECTLY while the api was down (proving durability, not in-memory state):**
+    - `agent_tasks`: `status=running, stepCount=2` (frozen exactly where the kill landed).
+    - `task_steps`: `[0] tool_call (graph.query)` + `[1] tool_result` — the tool call had COMPLETED and been checkpointed before the kill.
+    - `task_checkpoints`: `stepIndex=2, messages present, pendingApproval null` — the full conversation incl. the tool result is durable.
+  - **Resume (api restarted, same task still in Redis as a stalled BullMQ job):** `stepCount` held at 2 through the stalled-job lock window, then **resumed from the checkpoint and completed** — terminal record: `[0] tool_call → [1] tool_result → [2] done`, status `completed`.
+  - **No double-execute — the acceptance criterion:** the final step history has **EXACTLY ONE tool_call and EXACTLY ONE tool_result** for that call (verified in both the API record and direct SQL: 3 rows, indexes 0/1/2 unique and ascending). The completed call was NOT re-run on resume. The `done` summary reflects the real data (`PluginRegistryService … methods like .get() and .setState()` — real graph nodes).
+  - **Honest boundary (documented, not hidden):** the kill landed in the window AFTER the tool_result was written+checkpointed (mid next model call). The narrower mid-INVOKE window (between the pre-invoke checkpoint at `stepIndex+1` and the tool_result write) is at-least-once by design — on resume the model is asked to continue from a conversation that ends in an unanswered tool_call, so the call may legitimately be re-issued. For READ tools like `graph.query` that is harmless; for write tools the approval gate + `requiresApproval` is the guardrail. Worth a dedicated exactly-once pass if write-tool idempotency ever matters (recorded in HANDOFF §8).
+  - **Gates:** no source change — docs-only commit (`<SHA-T3>`). Full four-gate pass at round end.
+
 - **2026-08-03 — 🤖 ENGINE v0.2 — PROVE IT FOR REAL, TASK 2 of 5: approval gate proven with a tool that REALLY RUNS (not just pauses) — clau_partner (orchestrating solo).**
   - **What this closes:** v0.1 Task 2's live test proved the pause/approve/reject PLUMBING but the approved call ran a tool that honestly reported "not configured" (`ok:false`). This task proves the approved tool then EXECUTES FOR REAL and its result feeds completion.
   - **Method:** `ENGINE_REQUIRE_APPROVAL_ALL=true` (supervised mode) + the graphify READ tool (`graph.query`) so the approved call returns REAL data from the live MCP sidecar. Same stack as Task 1 (real Postgres, Redis:6380, 7b, api:4001, brain sidecar :8791 — 1469 nodes/2412 edges).
