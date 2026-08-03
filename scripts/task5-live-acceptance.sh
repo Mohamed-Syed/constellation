@@ -4,7 +4,7 @@
 # succeeds; the worker must retry and the task must COMPLETE. A second probe
 # with a 404 (unknown model) must fail TERMINALLY with no retry.
 set -u
-cd /c/Users/syed.mohamed/Claude/Code/constellation/apps/api || exit 1
+cd /c/Users/<user>/Claude/Code/constellation/apps/api || exit 1
 
 # --- fake Ollama on :11435 (NOT the real 11434) ---
 FAKE_DIR="$HOME/.constellation-t5"

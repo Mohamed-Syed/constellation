@@ -130,7 +130,7 @@ In priority order. A new driver should generally continue from here unless the u
 3. ~~**Engine v0.5 — Deeper 24/7 reliability.**~~ **DONE (git `ec88534`, 2026-08-03).** Dead-letter
    handling, supervisor for stuck tasks, event-based alerting. Proven LIVE (stale task recovered;
    re-stale task became a `stalled` dead letter). 505 tests.
-4. **Platform breadth (partly DONE — v0.6 landed viewer seed, per-plugin schema bootstrap, httpOnly-cookie auth; git `070fb2d`).** **Remaining:** committed `prisma/migrations` history (replace `db push`), plugin sandboxing (plugins run in-process with full Node privileges today — contractual isolation, not enforced), more capability plugins (OpenHands, review/CodeRabbit), and publish-readiness sanitize (replace the literal `syed.mohamed` username in docs/scripts before any public push). These are P4/deferred platform items + the engine follow-ups.
+4. **Platform breadth (partly DONE — v0.6 landed viewer seed, per-plugin schema bootstrap, httpOnly-cookie auth; git `070fb2d`).** **Remaining:** committed `prisma/migrations` history (replace `db push`), plugin sandboxing (plugins run in-process with full Node privileges today — contractual isolation, not enforced), more capability plugins (OpenHands, review/CodeRabbit). Publish-readiness sanitize DONE (real Windows username replaced with `<user>` placeholder in docs/scripts). These are P4/deferred platform items + the engine follow-ups.
 5. **Deployment** — VPS via Coolify. **BLOCKED on the user**: provider + monthly budget. Prove
    everything locally first; no cloud without explicit approval + confirmed cost.
 
@@ -237,7 +237,7 @@ paste verbatim.
    independent architecture review, `BRAIN.md` and `PLUGIN_SDK.md` for those subsystems.
 2. **Confirm the state is what the docs say:**
    ```
-   cd C:/Users/syed.mohamed/Claude/Code/constellation
+   cd C:/Users/<user>/Claude/Code/constellation
    git log --oneline -15 && git status        # expect clean, HEAD matches the docs
    cd apps/api && ./node_modules/.bin/prisma generate && cd ../..
    ./node_modules/.bin/turbo run lint build typecheck test --force --concurrency=1

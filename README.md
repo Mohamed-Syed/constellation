@@ -8,6 +8,19 @@
 > _Codename `constellation` (placeholder — rename freely). Separate from the
 > Looper project._
 
+## Author's note
+
+**Constellation was built with AI assistance** — a small team of AI coding agents
+(an orchestrator plus focused implementers) drove the architecture, the engine,
+and the platform hardening under a human product owner. The owner's day job is
+**network engineering**, and this project exists to adapt modern agentic + plugin
+platform technology (NestJS, BullMQ, Prisma, Graphify, OpenRouter, …) into a
+shaped, self-hosted, $0-by-default foundation for the kind of unattended,
+24/7 automation systems that traditionally live on data-center hardware. The
+code is real, tested (519 unit tests), and live-proven locally — nothing here is
+scaffolding. The docs in `docs/` tell the honest story of every round, including
+what is and isn't verified.
+
 ## Why this exists
 
 Instead of one monolith, Constellation is two cooperating planes:

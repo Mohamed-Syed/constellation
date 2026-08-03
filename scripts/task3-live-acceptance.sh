@@ -2,7 +2,7 @@
 # Task 3 live acceptance — 1-step "say hello, then done" through the new
 # ModelProvider interface (OllamaModelProvider behind ModelRouterService).
 set -u
-cd /c/Users/syed.mohamed/Claude/Code/constellation/apps/api || exit 1
+cd /c/Users/<user>/Claude/Code/constellation/apps/api || exit 1
 DATABASE_URL="postgresql://constellation:constellation@localhost:5432/constellation?schema=core" \
   PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=1 ./node_modules/.bin/prisma db push --accept-data-loss 2>&1 | tail -2
 powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 4001 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id \$_.OwningProcess -Force }" >/dev/null 2>&1

@@ -11,7 +11,7 @@
 > **Last updated:** 2026-08-03 (Platform hardening v0.6 COMPLETE — viewer seed, schema bootstrap, httpOnly-cookie auth LIVE-PROVEN, 519 tests) · **Updated by:** Polaris
 > **Note for the agents:** the P3/P4 portal + API work IS committed — do not re-label it
 > "uncommitted." Only the orchestrator commits, and only the orchestrator edits this header.
-> **Project root:** `C:\Users\syed.mohamed\Claude\Code\constellation`
+> **Project root:** `C:\Users\<user>\Claude\Code\constellation`
 
 ---
 
@@ -113,7 +113,7 @@ Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
      - When you genuinely need pnpm (`pnpm run <task>`, `--filter`, `install`), call it directly
        with a NATIVE Windows path and it works — verified pnpm **9.12.3**, `pnpm run typecheck`
        8/8 and `pnpm run test` 221 passing, identical to the turbo-direct run:
-       `node "C:\Users\syed.mohamed\AppData\Local\hermes\node\node_modules\corepack\dist\pnpm.js" run <task>`
+       `node "C:\Users\<user>\AppData\Local\hermes\node\node_modules\corepack\dist\pnpm.js" run <task>`
      Deps are already installed either way.
   2. **Turbo caching lies.** A plain `turbo run build` reported `7 successful … FULL TURBO` from
      cache on code that had never been built. **Always pass `--force`.**
@@ -127,7 +127,7 @@ Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
   5. **Background API boots die when their shell closes** — launch with `exec node dist/main.js`.
   6. **Host-blocked pnpm/CI checks are still runnable — don't defer them.** Reproduce CI in a
      throwaway container instead:
-     `docker run --rm -v "//c/Users/syed.mohamed/Claude/Code/constellation:/src:ro" node:22-bookworm-slim bash -c '...'`
+     `docker run --rm -v "//c/Users/<user>/Claude/Code/constellation:/src:ro" node:22-bookworm-slim bash -c '...'`
      — inside, `tar`-copy only manifests + lockfile (**exclude `node_modules`**, or the copy takes
      >10min), `corepack prepare pnpm@9.12.3 --activate`, then run the real gate. This is how
      `pnpm install --frozen-lockfile` was proven on 2026-08-02. Note: single-**file** `-v` mounts
@@ -290,7 +290,7 @@ constellation/
 > (parallel runs fail spuriously). If you specifically need `pnpm run`/`--filter`/`install`, the
 > direct-invocation form in §3 gotcha 1 works (pnpm 9.12.3, verified against the same gates).
 ```bash
-cd C:/Users/syed.mohamed/Claude/Code/constellation
+cd C:/Users/<user>/Claude/Code/constellation
 cd apps/api && ./node_modules/.bin/prisma generate && cd ../..   # needed before the api build
 ./node_modules/.bin/turbo run lint      --force --concurrency=1   # expect 2/2  <- DON'T SKIP
 ./node_modules/.bin/turbo run build     --force --concurrency=1   # expect 7/7

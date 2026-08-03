@@ -2,7 +2,7 @@
 # FINAL round smoke — end-to-end: submit -> paused -> approve -> tool runs
 # EXACTLY ONCE -> task completes, against REAL Ollama + Postgres + Redis:6380.
 set -u
-cd /c/Users/syed.mohamed/Claude/Code/constellation/apps/api || exit 1
+cd /c/Users/<user>/Claude/Code/constellation/apps/api || exit 1
 powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 4001 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id \$_.OwningProcess -Force }" >/dev/null 2>&1
 sleep 1
 API_PORT=4001 JWT_SECRET=devsecret DATABASE_URL="postgresql://constellation:constellation@localhost:5432/constellation?schema=core" REDIS_URL="redis://localhost:6380" DEFAULT_MODEL="qwen2.5-coder:7b" node dist/main.js > /tmp/final-boot.log 2>&1 &

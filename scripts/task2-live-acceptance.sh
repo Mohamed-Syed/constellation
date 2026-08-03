@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Task 2 live acceptance — approval gate. Real Ollama + Postgres + Redis:6380, api:4001.
 set -u
-cd /c/Users/syed.mohamed/Claude/Code/constellation/apps/api || exit 1
+cd /c/Users/<user>/Claude/Code/constellation/apps/api || exit 1
 
 export API_PORT=4001
 export JWT_SECRET=devsecret
