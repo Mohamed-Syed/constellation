@@ -16,6 +16,7 @@ import { AuditService } from "../audit/audit.service.js";
 import { CreateTaskDto } from "./dto/create-task.dto.js";
 import { EngineAvailabilityService, EngineUnavailableError } from "./engine-availability.service.js";
 import { ModelRouterService } from "./model-router.service.js";
+import { SchedulerEngineService } from "./scheduler-engine.service.js";
 import { TaskQueueService } from "./task-queue.service.js";
 import { TaskService } from "./task.service.js";
 
@@ -52,6 +53,7 @@ export class EngineController {
     private readonly modelRouter: ModelRouterService,
     private readonly availability: EngineAvailabilityService,
     private readonly audit: AuditService,
+    private readonly scheduler: SchedulerEngineService,
   ) {}
 
   @Post("tasks")
@@ -168,11 +170,13 @@ export class EngineController {
   async health() {
     const model = await this.modelRouter.health();
     const queue = await this.queue.getHealth();
+    const scheduler = await this.scheduler.getHealth();
     return {
       engine: this.availability.isEnabled ? "available" : "unavailable",
       reason: this.availability.reason,
       queue,
       model,
+      scheduler,
       timestamp: new Date().toISOString(),
     };
   }

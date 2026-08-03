@@ -20,6 +20,9 @@ export ENGINE_MAX_STEPS="${ENGINE_MAX_STEPS:-20}"
 export MODEL_TIMEOUT_MS="${MODEL_TIMEOUT_MS:-180000}"
 # Supervised mode: ENGINE_REQUIRE_APPROVAL_ALL=true pauses EVERY tool call.
 export ENGINE_REQUIRE_APPROVAL_ALL="${ENGINE_REQUIRE_APPROVAL_ALL:-false}"
+# Engine v0.4 — Scheduler poll cadence (ms); the autonomous-trigger loop checks
+# due cron schedules every this many ms. 5000 here makes the live proof snappy.
+export SCHEDULER_POLL_INTERVAL_MS="${SCHEDULER_POLL_INTERVAL_MS:-30000}"
 # OPT-IN cloud provider (Engine v0.3): read the key from root .env if set.
 # NEVER commit the key — .env is git-ignored.
 if grep -q '^OPENROUTER_API_KEY=.' .env; then

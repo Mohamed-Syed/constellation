@@ -62,12 +62,26 @@ function makeAuditStub() {
   return { record: vi.fn(async () => undefined) };
 }
 
+function makeSchedulerStub() {
+  return {
+    getHealth: vi.fn(async () => ({
+      enabled: true,
+      pollIntervalMs: 30000,
+      lastSweepAt: null,
+      dueCount: 0,
+      registeredEvents: 0,
+    })),
+    refreshEventListeners: vi.fn(async () => 0),
+  };
+}
+
 function makeController(
   availability = makeAvailability(true),
   tasks = makeTasksStub(),
   queue = makeQueueStub(),
   model = makeModelStub(),
   audit = makeAuditStub(),
+  scheduler = makeSchedulerStub(),
 ) {
   const controller = new EngineController(
     tasks as never,
@@ -75,8 +89,9 @@ function makeController(
     model as never,
     availability as never,
     audit as never,
+    scheduler as never,
   );
-  return { controller, tasks, queue, model, availability, audit };
+  return { controller, tasks, queue, model, availability, audit, scheduler };
 }
 
 const user: AuthPrincipal = { id: "user-1", email: "a@b.c", roles: ["admin"], permissions: ["platform:admin"] };

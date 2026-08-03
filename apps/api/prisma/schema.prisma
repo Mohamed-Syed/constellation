@@ -211,6 +211,54 @@ model TaskStep {
   @@schema("core")
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Engine v0.4 — Scheduler / Autonomous Triggers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A recurring or event-triggered task schedule (Engine v0.4). Each row holds
+/// a task TEMPLATE (title/prompt/model/maxSteps/maxTokens, mirrored from
+/// AgentTask's submit fields) plus the trigger spec, so the scheduler engine
+/// can auto-enqueue a task on a cron cadence or when a platform event fires.
+///
+/// `kind` is "cron" (fired by the poll loop once `nextRunAt` elapses) or
+/// "event" (fired only when the named event occurs on the EventBus; the poll
+/// loop skips these). The remaining trigger columns are a Json bag so future
+/// trigger types can extend without a migration:
+///   - cron schedules:  `spec.cron    = "<5-field crontab expr>"` optional
+///                      `spec.timezone = "<IANA tz>"` (defaults to the server tz)
+///   - event schedules: `spec.event   = "<platform event topic>"` e.g. "scheduler.ping"
+model ScheduledTask {
+  id        String    @id @default(cuid())
+  /// Human-friendly display name for the schedule.
+  name      String
+  /// Task template enqueued when this schedule fires.
+  title     String
+  prompt    String
+  /// Model identifier forwarded to the model router. Null = platform default.
+  model     String?
+  maxSteps  Int       @default(20)
+  maxTokens Int?
+  /// "cron" | "event". Event schedules fire on an EventBus event, not the clock.
+  kind      String    @default("cron")
+  /// Trigger spec: { cron?, timezone? } for kind="cron"; { event? } for kind="event".
+  spec      Json
+  enabled   Boolean   @default(true)
+  /// When the poll loop last ran this schedule (and when the next run is due).
+  nextRunAt DateTime?
+  lastRunAt DateTime?
+  /// Number of times the schedule has fired.
+  runCount  Int       @default(0)
+  /// Last enqueue/parse error (cleared on the next successful run).
+  lastError String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([enabled, kind])
+  @@index([enabled, nextRunAt])
+  @@map("scheduled_tasks")
+  @@schema("core")
+}
+
 /// The last known conversation state for a running/paused task.
 /// Written after every step so the worker can resume from here on restart.
 model TaskCheckpoint {
