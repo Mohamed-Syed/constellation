@@ -5,7 +5,7 @@
 > over the driver's seat, this file plus `MASTER_PLAN.md` and `HANDOFF.md` are everything
 > you need. Nothing here is secret; everything is grounded in what actually shipped.
 >
-> **Author:** Polaris (lead orchestrator). **Last updated:** 2026-08-03, at commit `7f12115` (Engine v0.3 round complete).
+> **Author:** Polaris (lead orchestrator). **Last updated:** 2026-08-03, at commit `f70b573` (Engine v0.4 Scheduler round complete).
 
 ---
 
@@ -59,7 +59,7 @@ Do not import Looper code or reference it in this repo; it is a different codeba
 
 ---
 
-## 2. Where the project is right now (2026-08-03, commit `7f12115`)
+## 2. Where the project is right now (2026-08-03, commit `f70b573`)
 
 The **platform layer is strong and the agentic engine is real and proven.** Condensed; full
 per-round evidence with SHAs lives in `MASTER_PLAN.md §9`.
@@ -92,8 +92,14 @@ per-round evidence with SHAs lives in `MASTER_PLAN.md §9`.
   task (`openai/gpt-oss-120b`) completed on real tool data with `provider:\"openrouter\"` honestly
   recorded, and with NO key the engine stays $0/local (everything falls back to Ollama, nothing
   crashes). Ollama remains the $0 default; cloud is opt-in per task via the `model` field.
+- **Engine v0.4 — Scheduler / Autonomous Triggers** — recurring (cron) + event-triggered schedules
+  that **auto-enqueue tasks** (the "runs while you sleep" capability): a `ScheduledTask` Prisma
+  model, a zero-dep hand-rolled 5-field cron parser, a `SchedulerEngineService` poll loop + EventBus
+  event listeners (graceful disabled-engine degradation), and a REST controller; **proven LIVE** — a
+  `* * * * *` cron schedule auto-enqueued a system-authored task that completed on local Ollama,
+  `runCount` advanced autonomously across consecutive minutes, DELETE + 404 verified.
 
-**Gates at `7f12115`:** lint/build/typecheck all green; **412 tests** (api 295, browser-use 47,
+**Gates at `f70b573`:** lint/build/typecheck all green; **481 tests** (api 364, browser-use 47,
 graphify 40, sdk 21, cli 9). Tree clean. **Nothing has ever been pushed. No cloud. $0 spent.**
 
 **Maturity, honestly:** platform ≈ 3.6/5, agentic engine now ≈ 2.8/5 (was 0.7 before these
@@ -109,10 +115,10 @@ In priority order. A new driver should generally continue from here unless the u
 1. ~~**Engine v0.3 — Real Model Providers.**~~ **DONE (git `3d7d635` → `7f12115`, 2026-08-03).**
    OpenRouter as second ModelProvider; real routing + fallback; cost-aware budget (costUSD flows
    through); proven LIVE both ways (cloud E2E + no-key → Ollama fallback). 412 tests.
-2. **Scheduler / autonomous triggers (NEXT).** Recurring (cron) and event-triggered tasks that
-   auto-enqueue — the actual "runs while I sleep" capability. Nothing like this exists yet; the
-   only recurring timer today is the plugin health poller.
-3. **Deeper 24/7 reliability** — dead-letter handling, supervision, alerting; eventually the
+2. ~~**Engine v0.4 — Scheduler / autonomous triggers.**~~ **DONE (git `f70b573`, 2026-08-03).**
+   Recurring (cron) + event-triggered schedules auto-enqueue tasks. Proven LIVE (auto-enqueue →
+   Ollama-complete, runCount advanced autonomously). 481 tests.
+3. **Deeper 24/7 reliability (NEXT)** — dead-letter handling, supervision, alerting; eventually the
    worker as a *separate process* from the API (today it runs in-process — fine locally, not for HA).
 4. **The deferred platform breadth** — more capability plugins (OpenHands, review/CodeRabbit),
    real SSO round-trip hardening, DB migrations (currently `db push` only), plugin sandboxing
