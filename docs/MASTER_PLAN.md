@@ -462,6 +462,10 @@ engine files · 1b portal `/engine` page (Orion's lane) · Ollama integration te
 
 ## 9. Verification log
 
+- **2026-08-03 — 🤖 ENGINE v0.3 — REAL MODEL PROVIDERS, TASK 6 of 8: `.env.example` OpenRouter section — clau_partner (orchestrating solo).**
+  - **What ships:** new OPT-IN section before the SSO block — `OPENROUTER_API_KEY=` (empty placeholder ONLY, never a real key), commented `OPENROUTER_BASE_URL`/`OPENROUTER_DEFAULT_MODEL` overrides, docs for the per-task `"model"` unlock + the $0/local invariant (key unset → Ollama only, nothing breaks).
+  - **Verified:** the section sits before SSO; placeholder empty; repo-wide four-gate pass at this point **20/20 tasks green** (lint/build/typecheck/test, all `--force --concurrency=1`; api **295**). Code commit `fe4b215`.
+
 - **2026-08-03 — 🤖 ENGINE v0.3 — REAL MODEL PROVIDERS, TASK 5 of 8: wire into EngineModule + honest task provider — clau_partner (orchestrating solo).**
   - **What ships:** `engine.module.ts` registers `OpenRouterModelProvider`; the `MODEL_PROVIDERS` factory now provides `[ollama, openrouter]` (router order: Ollama first = the $0 default). `agent-worker.service.ts` — the hardcoded `markRunning(taskId, "ollama")` is GONE: the task is marked running WITHOUT a provider (unknown until the router decides), and after the FIRST successful model call `TaskService.markProvider(taskId, response.provider)` records the ACTUAL provider (cloud or fallback) — no dishonest state. New `TaskService.markProvider()` updates only the `provider` column.
   - **Tests:** 2 new agent-worker tests — (1) provider recorded ONCE from the response, `markRunning` carries no hardcoded "ollama"; (2) a fallback-to-Ollama response is what gets recorded. **api tests 293 → 295**.
