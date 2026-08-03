@@ -467,7 +467,7 @@ engine files · 1b portal `/engine` page (Orion's lane) · Ollama integration te
   - **Audit trail (the human decision trail):** `engine.task.approved` ×2 (`approvedStepIndex: 0` and `4`) + `engine.task.rejected`, all with `actor: admin@constellation.local` + target.
   - **What it proves:** an approved tool call executes for real against a live backend, returns genuine data, and the task completes on the basis of it; the approval is honoured ONCE; rejection fails the task with an audited reason. Both transitions recorded above with the real tool_results.
   - **Honest notes:** the second task's model kept re-issuing the call with the wrong arg key (`query` vs `question`) — a small-model quirk; each approved attempt executed once and failed honestly, and the eventual reject terminated the loop (the gate did its job). Supervised mode means EVERY fresh tool call pauses, which is the designed behavior (a new call is a new decision).
-  - **Gates:** no source change — docs-only commit (`<SHA-T2>`). Full four-gate pass at round end.
+  - **Gates:** no source change — docs-only commit (`edd2ab9`). Full four-gate pass at round end.
 
 - **2026-08-03 — 🤖 ENGINE v0.2 — PROVE IT FOR REAL, TASK 1 of 5: tool-calling end-to-end PROVEN LIVE (the headline gap) — clau_partner (orchestrating solo).**
   - **What this closes:** every prior live proof exercised "thought" steps or approval PLUMBING — no agent task had ever CALLED a working plugin tool, received real data, and completed on the basis of it. This task does exactly that, end to end, against the real local stack.
