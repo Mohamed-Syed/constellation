@@ -1,0 +1,32 @@
+{
+  "id": "cmsdapcbl000ar4fxy54r4io9",
+  "title": "v0.3 T8 local-model route",
+  "prompt": "Say the word 'done'. Do not call any tools.",
+  "status": "completed",
+  "model": "qwen2.5-coder:7b",
+  "provider": "ollama",
+  "stepCount": 1,
+  "maxSteps": 3,
+  "maxTokens": null,
+  "actorId": "cmsdajzwp0005nkfxf61b466l",
+  "result": {
+    "summary": "Task completed."
+  },
+  "error": null,
+  "createdAt": "2026-08-03T13:59:14.337Z",
+  "updatedAt": "2026-08-03T13:59:16.571Z",
+  "startedAt": "2026-08-03T13:59:14.348Z",
+  "completedAt": "2026-08-03T13:59:16.571Z",
+  "steps": [
+    {
+      "id": "cmsdape1d000br4fx5tzrxbgh",
+      "taskId": "cmsdapcbl000ar4fxy54r4io9",
+      "stepIndex": 0,
+      "type": "done",
+      "content": {
+        "result": "Task completed."
+      },
+      "createdAt": "2026-08-03T13:59:16.561Z"
+    }
+  ]
+}

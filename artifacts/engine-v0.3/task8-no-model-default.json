@@ -1,0 +1,32 @@
+{
+  "id": "cmsdaob630006r4fxtqh8cklj",
+  "title": "v0.3 T8 no-model default",
+  "prompt": "Say the word 'done'. Do not call any tools.",
+  "status": "completed",
+  "model": null,
+  "provider": "ollama",
+  "stepCount": 1,
+  "maxSteps": 3,
+  "maxTokens": null,
+  "actorId": "cmsdajzwp0005nkfxf61b466l",
+  "result": {
+    "summary": "The task is finished."
+  },
+  "error": null,
+  "createdAt": "2026-08-03T13:58:26.187Z",
+  "updatedAt": "2026-08-03T13:58:59.508Z",
+  "startedAt": "2026-08-03T13:58:26.214Z",
+  "completedAt": "2026-08-03T13:58:59.506Z",
+  "steps": [
+    {
+      "id": "cmsdap0vb0007r4fx4qjmv4g5",
+      "taskId": "cmsdaob630006r4fxtqh8cklj",
+      "stepIndex": 0,
+      "type": "done",
+      "content": {
+        "result": "The task is finished."
+      },
+      "createdAt": "2026-08-03T13:58:59.495Z"
+    }
+  ]
+}

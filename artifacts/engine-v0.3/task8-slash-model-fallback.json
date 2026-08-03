@@ -1,0 +1,32 @@
+{
+  "id": "cmsdap64c0008r4fxyruff08c",
+  "title": "v0.3 T8 slash-model fallback",
+  "prompt": "Say the word 'done'. Do not call any tools.",
+  "status": "completed",
+  "model": "openai/gpt-oss-120b",
+  "provider": "ollama",
+  "stepCount": 1,
+  "maxSteps": 3,
+  "maxTokens": null,
+  "actorId": "cmsdajzwp0005nkfxf61b466l",
+  "result": {
+    "summary": "Task completed: Say the word 'done'."
+  },
+  "error": null,
+  "createdAt": "2026-08-03T13:59:06.301Z",
+  "updatedAt": "2026-08-03T13:59:09.648Z",
+  "startedAt": "2026-08-03T13:59:06.325Z",
+  "completedAt": "2026-08-03T13:59:09.647Z",
+  "steps": [
+    {
+      "id": "cmsdap8p20009r4fxclj97woi",
+      "taskId": "cmsdap64c0008r4fxyruff08c",
+      "stepIndex": 0,
+      "type": "done",
+      "content": {
+        "result": "Task completed: Say the word 'done'."
+      },
+      "createdAt": "2026-08-03T13:59:09.638Z"
+    }
+  ]
+}
