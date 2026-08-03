@@ -8,7 +8,7 @@
 > §1 and keep BOTH this file and `docs/MASTER_PLAN.md` up to date at every
 > milestone — same discipline the primary session follows.**
 >
-> **Last updated:** 2026-08-02 (Engine v0 follow-up round: tests + portal UI + Ollama compose + identity endpoint + kill-restart acceptance PROVEN — integration commit pending) · **Updated by:** Polaris
+> **Last updated:** 2026-08-03 (Engine v0.2 round in progress — Task 1 tool-calling end-to-end PROVEN LIVE) · **Updated by:** clau_partner
 > **Note for the agents:** the P3/P4 portal + API work IS committed — do not re-label it
 > "uncommitted." Only the orchestrator commits, and only the orchestrator edits this header.
 > **Project root:** `C:\Users\syed.mohamed\Claude\Code\constellation`
@@ -49,7 +49,9 @@ tools — Grafana/Langflow/Open WebUI/Coolify — via SSO+proxy) and an **agent 
 agentic system. SEPARATE project from **Looper** (`../loop-engineering`), which is untouched.
 Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
 
-## 3. Current status (2026-08-02)
+## 3. Current status (2026-08-03)
+- **🤖 ENGINE v0.2 — "Prove It For Real" round IN PROGRESS (clau_partner orchestrating SOLO, 2026-08-03):**
+  - **TASK 1 DONE + LIVE-PROVEN (docs commit `<SHA-T1>`):** an agent task CALLED the graphify `graph.query` tool against the LIVE brain sidecar (real graph: 1469 nodes / 2412 edges), got `tool_result` `ok:true` with real 142-node traversal data (real file:line provenance), and COMPLETED with a `done` summary grounded in that data. Step record `[0] tool_call → [1] tool_result → [2] done`, status `completed`. The headline gap is closed — full literal evidence in MASTER_PLAN §9.
 - **P0 foundation:** DONE + committed (git `0311028`).
 - **Dependency prep:** committed (git `0ada50f`).
 - **Round 1 + Round 2: DONE, integrated, verified, and COMMITTED (git `ee64bff`, local only — NOT pushed).**
@@ -274,6 +276,13 @@ cd apps/api && DATABASE_URL="postgresql://constellation:constellation@localhost:
 ```
 
 ## 8. Pending / next actions (priority order)
+1g. **🤖 ENGINE v0.2 — "Prove It For Real" round (clau_partner, orchestrating SOLO — Nova/Orion/Atlas resting).** The engine has proven machinery; this round proves the agent actually does REAL WORK with it. NO new features (scheduler is next round).
+   - [x] **Task 1 — tool-calling end-to-end PROVEN LIVE** (DONE, docs commit `<SHA-T1>`): agent task called graphify `graph.query` against the live brain sidecar → real `tool_result` (ok:true, 142 nodes, real provenance) → `done` grounded in it → `completed`. Full evidence in MASTER_PLAN §9. Closes the headline gap.
+   - [ ] **Task 2 — approval gate proven with a tool that REALLY RUNS** (approve → executes exactly once → completes; reject → failed).
+   - [ ] **Task 3 — kill-restart survival ACROSS a tool call** (no double-execute; covers 1e-ii).
+   - [ ] **Task 4 — portal `/engine` page clicked in a live browser** (covers 1b + recorded gap 1f-c).
+   - [ ] **Task 5 — `AgentWorkerService` unit test** (covers 1e-i + recorded gap 1f-b).
+   - [ ] **Task 6 — checkpoint write volume** (clean bounded fix or record + skip; recorded gap 1f-a).
 1. ~~**🤖 Engine v0 — Durable Task Runtime + Ollama model router.**~~ **DONE (git `28f1125`).**
 1a. ~~**Engine tests**~~ **DONE (Nova, 46 new tests, 187 total).**
 1b. ~~**Portal `/engine` page**~~ **DONE (Orion — submit form, task table, step drawer, cancel, health strip). Not yet clicked in a live browser.**
