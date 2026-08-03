@@ -51,7 +51,7 @@ Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
 
 ## 3. Current status (2026-08-03)
 - **🤖 ENGINE v0.2 — "Prove It For Real" round IN PROGRESS (clau_partner orchestrating SOLO, 2026-08-03):**
-  - **TASK 1 DONE + LIVE-PROVEN (docs commit `<SHA-T1>`):** an agent task CALLED the graphify `graph.query` tool against the LIVE brain sidecar (real graph: 1469 nodes / 2412 edges), got `tool_result` `ok:true` with real 142-node traversal data (real file:line provenance), and COMPLETED with a `done` summary grounded in that data. Step record `[0] tool_call → [1] tool_result → [2] done`, status `completed`. The headline gap is closed — full literal evidence in MASTER_PLAN §9.
+  - **TASK 1 DONE + LIVE-PROVEN (docs commit `d045022`):** an agent task CALLED the graphify `graph.query` tool against the LIVE brain sidecar (real graph: 1469 nodes / 2412 edges), got `tool_result` `ok:true` with real 142-node traversal data (real file:line provenance), and COMPLETED with a `done` summary grounded in that data. Step record `[0] tool_call → [1] tool_result → [2] done`, status `completed`. The headline gap is closed — full literal evidence in MASTER_PLAN §9.
 - **P0 foundation:** DONE + committed (git `0311028`).
 - **Dependency prep:** committed (git `0ada50f`).
 - **Round 1 + Round 2: DONE, integrated, verified, and COMMITTED (git `ee64bff`, local only — NOT pushed).**
@@ -277,7 +277,7 @@ cd apps/api && DATABASE_URL="postgresql://constellation:constellation@localhost:
 
 ## 8. Pending / next actions (priority order)
 1g. **🤖 ENGINE v0.2 — "Prove It For Real" round (clau_partner, orchestrating SOLO — Nova/Orion/Atlas resting).** The engine has proven machinery; this round proves the agent actually does REAL WORK with it. NO new features (scheduler is next round).
-   - [x] **Task 1 — tool-calling end-to-end PROVEN LIVE** (DONE, docs commit `<SHA-T1>`): agent task called graphify `graph.query` against the live brain sidecar → real `tool_result` (ok:true, 142 nodes, real provenance) → `done` grounded in it → `completed`. Full evidence in MASTER_PLAN §9. Closes the headline gap.
+   - [x] **Task 1 — tool-calling end-to-end PROVEN LIVE** (DONE, docs commit `d045022`): agent task called graphify `graph.query` against the live brain sidecar → real `tool_result` (ok:true, 142 nodes, real provenance) → `done` grounded in it → `completed`. Full evidence in MASTER_PLAN §9. Closes the headline gap.
    - [ ] **Task 2 — approval gate proven with a tool that REALLY RUNS** (approve → executes exactly once → completes; reject → failed).
    - [ ] **Task 3 — kill-restart survival ACROSS a tool call** (no double-execute; covers 1e-ii).
    - [ ] **Task 4 — portal `/engine` page clicked in a live browser** (covers 1b + recorded gap 1f-c).
