@@ -14,5 +14,9 @@ export DEFAULT_MODEL="${DEFAULT_MODEL:-qwen2.5-coder:7b}"
 export OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://localhost:11434}"
 export GRAPHIFY_PLUGIN_MCP_URL="${GRAPHIFY_PLUGIN_MCP_URL:-http://127.0.0.1:8791/mcp}"
 export ENGINE_MAX_STEPS="${ENGINE_MAX_STEPS:-20}"
+# 7b needs >60s when a large tool result is in context (seen live in Task 1).
+export MODEL_TIMEOUT_MS="${MODEL_TIMEOUT_MS:-180000}"
+# Supervised mode: ENGINE_REQUIRE_APPROVAL_ALL=true pauses EVERY tool call.
+export ENGINE_REQUIRE_APPROVAL_ALL="${ENGINE_REQUIRE_APPROVAL_ALL:-false}"
 cd apps/api
 exec node dist/main.js
