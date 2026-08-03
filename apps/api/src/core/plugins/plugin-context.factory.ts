@@ -28,6 +28,16 @@ import { PluginConfigFactory } from "../settings/plugin-config.factory.js";
  */
 @Injectable()
 export class PluginContextFactory {
+  /**
+   * Per-plugin schema bootstrapping is issued once per plugin id (per
+   * process) to stay idempotent without hammering the DB on every lifecycle
+   * hook (`build` is called on register/enable/disable/health). A plugin
+   * whose schema could not be bootstrapped is NOT cached, so a transient
+   * failure is retried on the next hook — same retry-friendly spirit as the
+   * plugin lifecycle service's enable() persistence.
+   */
+  private readonly bootstrappedSchemas = new Set<string>();
+
   constructor(
     private readonly loggerFactory: PluginLoggerFactory,
     private readonly configFactory: PluginConfigFactory,
@@ -44,12 +54,13 @@ export class PluginContextFactory {
 
   async build(manifest: PluginManifest): Promise<PluginContext> {
     const schema = manifest.databaseSchema ?? manifest.id;
+    const declaresDatabase = manifest.requiredServices.includes("database");
     return {
       pluginId: manifest.id,
       logger: this.loggerFactory.forPlugin(manifest.id),
       config: await this.configFactory.forPlugin(manifest),
       events: this.eventBus.forPlugin(manifest.id),
-      db: manifest.requiredServices.includes("database")
+      db: declaresDatabase
         ? {
             schema,
             query: <T = unknown>(sql: string, params?: unknown[]) =>
@@ -59,6 +70,28 @@ export class PluginContextFactory {
       memory: this.memoryFor(manifest),
       getPrincipal: () => undefined, // still a stub; RBAC principal lands in P2.
     };
+  }
+
+  /**
+   * Per-plugin schema bootstrap (Platform hardening v0.6 / C8). When a plugin
+   * declares a DB schema dependency, issue `CREATE SCHEMA IF NOT EXISTS`
+   * against the platform's OWN Postgres schema before the plugin first uses
+   * its DB — closing the documented "schema may not exist yet" leak (see
+   * `core/database/README.md`). Idempotent and never crashes the boot: no
+   * database, an already-existing schema, or any failure just logs (via
+   * `PrismaService.bootstrapSchema`) and degrades.
+   */
+  async schemaBootstrap(manifest: PluginManifest): Promise<void> {
+    if (!manifest.requiredServices.includes("database")) return;
+    const schema = manifest.databaseSchema ?? manifest.id;
+    if (this.bootstrappedSchemas.has(schema)) return;
+    try {
+      const ok = await this.prisma.bootstrapSchema(schema);
+      if (ok) this.bootstrappedSchemas.add(schema);
+    } catch {
+      // PrismaService.bootstrapSchema never throws, but guard against any
+      // surprise so schema bootstrap can never take a plugin load down with it.
+    }
   }
 
   /**

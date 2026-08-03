@@ -39,6 +39,7 @@ function useLiveList<T>(path: string, intervalMs: number): LiveState<T> {
     try {
       const res = await fetch(`${API_BASE}${path}`, {
         cache: "no-store",
+        credentials: "include",
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -94,6 +95,7 @@ export function useLivePluginDetail(
     try {
       const res = await fetch(`${API_BASE}/plugins/${encodeURIComponent(id)}`, {
         cache: "no-store",
+        credentials: "include",
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
       if (res.status === 404) {

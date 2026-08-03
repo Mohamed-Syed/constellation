@@ -23,6 +23,11 @@ export async function login(email: string, password: string): Promise<LoginOutco
   try {
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: "POST",
+      // credentials: "include" lets the httpOnly `constellation_token` cookie
+      // set by the API be stored/reused by the browser (Platform hardening
+      // v0.6). The token is ALSO in the response body, so nothing here depends
+      // on the cookie — it's additive.
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     });
@@ -61,11 +66,21 @@ export type MeOutcome =
   | { ok: true; me: AuthMe }
   | { ok: false; reason: "unauthorized" | "unreachable" | "unknown" };
 
-/** `GET /api/auth/me`. */
-export async function fetchMe(token: string): Promise<MeOutcome> {
+/**
+ * `GET /api/auth/me`.
+ *
+ * With `token` (the original path): attaches `Authorization: Bearer <token>`.
+ * Without `token` (Platform hardening v0.6 — cookie-only session restore):
+ * sends the request with `credentials: "include"` and NO Authorization header,
+ * so the globally-authenticating server reads the httpOnly `constellation_token`
+ * cookie instead. Either way the caller needs no token readable by JS — the
+ * httpOnly cookie closes the localStorage XSS-exposure for fresh sessions.
+ */
+export async function fetchMe(token?: string): Promise<MeOutcome> {
   try {
     const res = await fetch(`${API_BASE}/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      credentials: "include",
       cache: "no-store",
     });
     if (res.status === 401 || res.status === 403) {
@@ -86,12 +101,16 @@ export async function fetchMe(token: string): Promise<MeOutcome> {
  * contract (the server has nothing to revoke), so the client always
  * discards its token regardless of whether this call succeeds — callers
  * should not await this before clearing local state.
+ *
+ * The request is sent with `credentials: "include"` so a session held only
+ * in the httpOnly `constellation_token` cookie is cleared server-side too.
  */
-export async function logoutRequest(token: string): Promise<void> {
+export async function logoutRequest(token?: string): Promise<void> {
   try {
     await fetch(`${API_BASE}/auth/logout`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      credentials: "include",
     });
   } catch {
     // Ignore — logout proceeds client-side either way.

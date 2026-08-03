@@ -1,6 +1,8 @@
-import { Body, Controller, HttpCode, Post, Get } from "@nestjs/common";
+import { Body, Controller, HttpCode, Post, Req, Res, Get } from "@nestjs/common";
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from "@nestjs/swagger";
+import type { Request, Response } from "express";
 import { AuthService } from "./auth.service.js";
+import { clearAuthCookie, readAuthCookie, setAuthCookie } from "./auth-cookie.js";
 import { CurrentUser } from "./current-user.decorator.js";
 import { LoginDto } from "./dto/login.dto.js";
 import { Public } from "./public.decorator.js";
@@ -15,8 +17,16 @@ export class AuthController {
   @Post("login")
   @HttpCode(200)
   @ApiOkResponse({ description: "Bearer token + basic user identity." })
-  login(@Body() dto: LoginDto) {
-    return this.auth.login(dto.email, dto.password);
+  async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
+    const result = await this.auth.login(dto.email, dto.password);
+    // httpOnly cookie hardening (Platform hardening v0.6): ALSO set the access
+    // token as an httpOnly, SameSite=Lax cookie (`Secure` only in production)
+    // so the portal's session survives reloads without JS ever touching the
+    // token (closes the localStorage XSS caveat in the portal). Additive — the
+    // token is still returned in the body so existing bearer-token clients
+    // keep working unchanged.
+    setAuthCookie(res, result.accessToken);
+    return result;
   }
 
   @Get("me")
@@ -26,11 +36,20 @@ export class AuthController {
     return this.auth.me(user);
   }
 
+  @Public()
   @Post("logout")
   @HttpCode(200)
-  @ApiBearerAuth()
-  @ApiOkResponse({ description: "Stateless logout acknowledgement — the client discards its token." })
-  logout() {
+  @ApiOkResponse({ description: "Stateless logout acknowledgement — clears the httpOnly auth cookie." })
+  logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    // @Public() on purpose: logout must succeed even when the session token
+    // has expired or is missing (a cookie a client can't clear itself would
+    // be a footgun). It is a no-op that only clears the httpOnly cookie and
+    // acknowledges — nothing destructive, nothing an unauthenticated caller
+    // could abuse. The client should also discard any bearer token it holds.
+    // Stateless server-side: there is nothing to revoke.
+    if (readAuthCookie(req.headers.cookie) !== undefined) {
+      clearAuthCookie(res);
+    }
     return { ok: true };
   }
 }

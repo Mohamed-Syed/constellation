@@ -47,29 +47,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     let active = true;
     const stored = getStoredToken();
-    if (!stored) {
-      setStatus("unauthenticated");
-      return;
-    }
-    void fetchMe(stored).then((result) => {
+    // Platform hardening v0.6 (httpOnly cookie): when there's no
+    // JS-visible token in storage, still try to restore a session whose
+    // token lives only in the httpOnly `constellation_token` cookie — the
+    // API authenticates the /me request from the cookie (credentials:
+    // "include", no Authorization header). This is how the portal no
+    // longer depends on localStorage for fresh logins. If neither source
+    // yields a valid session, we land on "unauthenticated" exactly as
+    // before.
+    const attemptMe = stored ? fetchMe(stored) : fetchMe();
+    attemptMe.then((result) => {
       if (!active) return;
       if (result.ok) {
-        setToken(stored);
+        // `token` may be null when the session came from the httpOnly
+        // cookie — the portal's bearer-token callers degrade to a
+        // browser-cookie (credentials: "include") request in that case,
+        // and the server reads the cookie. Gated content/actions still
+        // open because the route guards are server-side.
+        setToken(stored ?? null);
         setUser({ id: result.me.id, email: result.me.email, roles: result.me.roles });
         setPermissions(result.me.permissions);
         setApiUnreachable(false);
         setStatus("authenticated");
       } else if (result.reason === "unauthorized") {
-        clearStoredToken();
+        if (stored) clearStoredToken();
         setStatus("unauthenticated");
       } else {
-        // API unreachable / unexpected error: we can't verify this token
+        // API unreachable / unexpected error: we can't verify this session
         // right now. Fail closed to "unauthenticated" (the portal sends the
         // user to /login) rather than trusting a stale, unverified session —
-        // but keep the token in storage so a retry once the API is back
-        // succeeds without re-entering credentials, and flag
-        // `apiUnreachable` so the UI can explain why instead of implying
-        // bad credentials.
+        // but keep any stored token so a retry once the API is back succeeds
+        // without re-entering credentials, and flag `apiUnreachable` so the
+        // UI can explain why instead of implying bad credentials.
         setApiUnreachable(result.reason === "unreachable");
         setStatus("unauthenticated");
       }

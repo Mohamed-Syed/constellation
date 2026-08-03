@@ -5,16 +5,21 @@
  * (fastest, no serialization), backed by a `localStorage` fallback so a page
  * reload / new tab doesn't force a fresh login.
  *
- * ⚠️ XSS CAVEAT: `localStorage` is readable by any JavaScript that runs on
- * this origin. If this app is ever compromised by a cross-site-scripting
- * bug, an attacker's script can read this key and exfiltrate the token. This
- * is a deliberate, accepted tradeoff for now (there is no backend session
- * store / cookie support yet) — it is NOT safe against XSS by design.
- * Hardening to an httpOnly, SameSite cookie (so client JS can never touch
- * the token at all) is tracked as a later item — see `docs/MASTER_PLAN.md`
- * P2/P3 and does not block this round. Until then: keep this app free of
- * `dangerouslySetInnerHTML`/unsanitized third-party scripts, and treat the
- * token as a bearer credential with the same care as a password.
+ * ⚠️ XSS CAVEAT — HARDENED (Platform hardening v0.6): `localStorage` is
+ * readable by any JavaScript that runs on this origin; a stored token there
+ * could be exfiltrated by an XSS bug. Since v0.6, the API ALSO issues the
+ * access token as an httpOnly, SameSite=Lax (`Secure` in production) cookie
+ * on login, and the portal now prefers a cookie-only session (see `fetchMe()`
+ * in `lib/auth-api.ts`): on a fresh login / reload the httpOnly cookie is the
+ * session source and NO token is put in `localStorage` at all. This file
+ * remains ONLY as a backward-compatible fast-path for sessions that still
+ * carry a JS-visible token; the cookie is the hardened path going forward and
+ * the token stored here is treated as a bearer credential either way.
+ *
+ * CSRF note: SameSite=Lax already blocks cross-site POSTs of the cookie; the
+ * read paths that consume it (the global guard, `/api/auth/me`) are CSRF-safe.
+ * A CSRF token (double-submit / nonce) is deliberately NOT added this
+ * hardening round — logged as a future item in `docs/MASTER_PLAN.md`.
  */
 
 const STORAGE_KEY = "constellation.accessToken";

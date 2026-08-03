@@ -229,6 +229,12 @@ export class PluginLoaderService implements OnModuleInit {
       this.logger.warn(`Plugin "${manifest.id}" has no built entry at ${manifest.entry} (manifest-only)`);
     }
 
+    // Bootstrap the plugin's own Postgres schema (C8) before its first DB
+    // hook, when it declares a database dependency. Idempotent + graceful:
+    // no DB or an existing schema just logs, never fails the load.
+    // Platform hardening v0.6 — see core/database/README.md.
+    await this.contextFactory?.schemaBootstrap(manifest);
+
     const loaded: LoadedPlugin = { manifest, runtime, state: "validated", dir: pluginDir };
     this.registry.register(loaded);
 

@@ -72,6 +72,10 @@ export class PluginLifecycleService {
     if (p.state === "enabled") return; // idempotent
 
     try {
+      // Bootstrap the plugin's own Postgres schema (C8) before calling its
+      // enable hook (costs nothing if the loader already bootstrapped it —
+      // idempotent per plugin per process). Platform hardening v0.6.
+      await this.contextFactory?.schemaBootstrap(p.manifest);
       await p.runtime.enable?.(await buildContextWith(this.contextFactory, p.manifest));
       this.registry.setState(id, "enabled");
       this.emit("plugin:enabled", p.manifest);

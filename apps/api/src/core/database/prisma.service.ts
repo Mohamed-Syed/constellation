@@ -118,6 +118,59 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     ]);
     return rows;
   }
+
+  /**
+   * Bootstrap a per-plugin Postgres schema (C8): issue
+   * `CREATE SCHEMA IF NOT EXISTS "<schema>"` against the platform's OWN
+   * Postgres connection. This closes the documented "before a plugin's
+   * first DB use, its schema may not exist" leak — see
+   * `core/database/README.md` → "Bootstrapping a new plugin's schema".
+   *
+   * Idempotent (IF NOT EXISTS) and gracefully-degrading: no database, an
+   * invalid schema name, or a failed statement all log a warning and return
+   * `false` — the boot/plugin-load never crashes because of a schema.
+   *
+   * `schema` is interpolated into the SQL, so it MUST already be validated
+   * as a safe identifier by the caller (the SDK's plugin-id regex
+   * `^[a-z][a-z0-9-]{1,62}$` is safe; this function does NOT re-validate
+   * it, matching `queryInSchema`).
+   *
+   * @returns true if the schema is known to exist (created now or already),
+   *   false when there's no database or the statement failed.
+   */
+  async bootstrapSchema(schema: string): Promise<boolean> {
+    if (!this.prismaClient) {
+      this.logger.warn(`Cannot bootstrap schema "${schema}": no database is available.`);
+      return false;
+    }
+    // Defensive: only bootstrap an identifier-shaped schema name. The value
+    // comes from a plugin manifest (`databaseSchema` or the plugin `id`); the
+    // plugin `id` is validator-constrained kebab-case, but `databaseSchema` is
+    // plugin-authored, so reject anything that would break out of the double
+    // quotes in the interpolated `CREATE SCHEMA` before it reaches Postgres.
+    // (Same trust boundary as the plugin itself — a plugin that can choose
+    // this string already runs in-process — but never interpolate attacker-
+    // shaped input into raw SQL.)
+    if (!/^[a-z][a-z0-9_]{0,62}$/i.test(schema)) {
+      this.logger.warn(`Refusing to bootstrap non-identifier schema "${schema}".`);
+      return false;
+    }
+    // Prisma's extended query protocol permits exactly one statement per
+    // call, and `CREATE SCHEMA IF NOT EXISTS` is a single safe statement.
+    // `$executeRawUnsafe` returns the affected row count.
+    try {
+      await this.prismaClient.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${schema}"`);
+      this.logger.log(`Ensured per-plugin schema "${schema}" exists.`);
+      return true;
+    } catch (err) {
+      // E.g. an interpolated name that isn't a valid identifier, or a
+      // transient connection error — degrade, never throw.
+      this.logger.warn(
+        `Failed to bootstrap per-plugin schema "${schema}" — continuing: ${asMessage(err)}`,
+      );
+      return false;
+    }
+  }
 }
 
 export type { Prisma };
