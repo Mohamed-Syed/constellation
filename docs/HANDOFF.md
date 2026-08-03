@@ -8,7 +8,7 @@
 > §1 and keep BOTH this file and `docs/MASTER_PLAN.md` up to date at every
 > milestone — same discipline the primary session follows.**
 >
-> **Last updated:** 2026-08-03 (Engine v0.2 round in progress — Task 1 tool-calling end-to-end PROVEN LIVE) · **Updated by:** clau_partner
+> **Last updated:** 2026-08-03 (Engine v0.2 round COMPLETE — tool-calling/approval/kill-restart/portal all PROVEN LIVE, 376 tests) · **Updated by:** clau_partner
 > **Note for the agents:** the P3/P4 portal + API work IS committed — do not re-label it
 > "uncommitted." Only the orchestrator commits, and only the orchestrator edits this header.
 > **Project root:** `C:\Users\syed.mohamed\Claude\Code\constellation`
@@ -50,7 +50,8 @@ agentic system. SEPARATE project from **Looper** (`../loop-engineering`), which 
 Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
 
 ## 3. Current status (2026-08-03)
-- **🤖 ENGINE v0.2 — "Prove It For Real" round IN PROGRESS (clau_partner orchestrating SOLO, 2026-08-03):**
+- **🤖 ENGINE v0.2 — "Prove It For Real" round ✅ COMPLETE (clau_partner orchestrating SOLO, 2026-08-03). All 5 tasks done, gate-verified, LIVE-PROVEN, committed; Task 6 recorded+skipped per the brief. Final SHA `7692a12` (round summary commit) — see MASTER_PLAN §9 + HANDOFF §11 for the full round record.**
+  - **The headline proof:** an agent task called `graphify.graph.query` against the LIVE brain sidecar and completed on real data — `tool_call → tool_result (ok:true, 142 nodes) → done → completed`. Approval gate proven with a tool that REALLY RUNS (approve → execute-once → real data → complete; reject → failed, audited). Kill-restart proven ACROSS a tool call (frozen in Postgres, resumed, no double-execute). Portal `/engine` clicked in a real browser for the first time — submit/auto-refresh/drawer/Cancel/Approve/Reject all live (2 real bugs fixed: CORS :3005 identity-banner false positive + missing approve/reject portal UI). `AgentWorkerService` now unit-tested (12 tests). **Tests: 364 → 376.**
   - **TASK 1 DONE + LIVE-PROVEN (docs commit `d045022`):** an agent task CALLED the graphify `graph.query` tool against the LIVE brain sidecar (real graph: 1469 nodes / 2412 edges), got `tool_result` `ok:true` with real 142-node traversal data (real file:line provenance), and COMPLETED with a `done` summary grounded in that data. Step record `[0] tool_call → [1] tool_result → [2] done`, status `completed`. The headline gap is closed — full literal evidence in MASTER_PLAN §9.
   - **TASK 2 DONE + LIVE-PROVEN (docs commit `edd2ab9`):** approval gate proven with a tool that REALLY RUNS. Pause (nothing ran) → `POST /approve` → tool EXECUTED EXACTLY ONCE against the live sidecar (`ok:true`, 42 real nodes) → `done` grounded in it → `completed`; honour-once held (no re-pause on approved steps). Reject variant: pause → `POST /reject` → `failed` with `Rejected by admin@constellation.local`, all audited (`engine.task.approved` ×2 + `engine.task.rejected`). Full evidence in MASTER_PLAN §9.
   - **TASK 3 DONE + LIVE-PROVEN (docs commit `5d6f078`):** kill-restart ACROSS a real tool call. Killed the api the instant `[1] tool_result` was written → frozen in Postgres while down (`running, stepCount=2`, checkpoint at step 2 with messages) → restarted → resumed from the checkpoint and COMPLETED with exactly ONE tool_call + ONE tool_result (no double-execute), `done` grounded in the tool's data. Full evidence in MASTER_PLAN §9.
@@ -187,6 +188,21 @@ Full detail + locked decisions (C1–C10) in `docs/MASTER_PLAN.md`.
   6. **In-memory Keycloak (`start-dev`) loses hand-made realms on every recreate.** Runtime-clicked SSO
      config is not a reproducible proof. The realm is now declarative in
      `infra/keycloak/realm-constellation.json` and auto-imported via `--import-realm`.
+  7. **Killing a background session does NOT kill the `exec node` child.** (Found hard 2026-08-03.) A
+     `process kill` on the session ends the bash wrapper; the `node dist/main.js` it `exec`'d keeps
+     serving and its BullMQ worker keeps picking up jobs — a stale API silently serving OLD env/code
+     (e.g. `ENGINE_REQUIRE_APPROVAL_ALL` unset) while the "new" boot crashes with `EADDRINUSE`. ALWAYS
+     kill by port owner and verify the port is free:
+     `powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 4001 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id \$_.OwningProcess -Force }"`.
+     A stale worker also steals Ollama CPU and makes model calls abort (`This operation was aborted`).
+  8. **`MODEL_TIMEOUT_MS` default 60s is too tight for qwen2.5-coder:7b on CPU when a large tool result
+     is in context** (found live 2026-08-03 — generation can exceed 180s on a ~2000-token tool result).
+     The v0.1 bounded retry absorbs it (task still completes), but for live round work boot with
+     `MODEL_TIMEOUT_MS=180000` (the v0.2 boot script `scripts/boot-api-v0.2.sh` does this by default).
+  9. **A portal dev port missing from `CORS_ORIGINS` makes the IdentityBanner fail OPEN** (found live
+     2026-08-03): the probe fetch is CORS-blocked and the banner falsely reports "Connected to the
+     wrong API" even when the API is correct. The api default + `.env.example` now include `:3005`
+     (the documented `WEB_HOST_PORT` remap); add any new dev port to both.
 
 - **🤖 ENGINE v0 DONE, typecheck + build + tests all green, COMMITTED (git `28f1125`, local only) — 2026-08-02, Polaris:**
   The agentic engine layer is now real. This was the single biggest missing piece (verified by code search: 0 LLM clients, 0 queues, 0 workflow engines in the platform before this commit).
@@ -286,7 +302,7 @@ cd apps/api && DATABASE_URL="postgresql://constellation:constellation@localhost:
    - [x] **Task 3 — kill-restart survival ACROSS a tool call** (DONE, docs commit `5d6f078`): killed right after tool_result, frozen `running/stepCount=2` in Postgres, resumed → completed with exactly one tool_call+tool_result (no double-execute). Covers 1e-ii. Full evidence in MASTER_PLAN §9. Boundary recorded: mid-invoke window is at-least-once by design (read tools harmless; approval gate guards writes).
    - [x] **Task 4 — portal `/engine` page clicked in a live browser** (DONE, docs commit `9d27834`): real Chrome via new zero-dep `scripts/cdp-browser.mjs`; submit/auto-refresh/step-drawer/Cancel/Approve/Reject all exercised live; fixed the false identity banner (CORS :3005) + added the missing approve/reject portal UI. Covers 1b + 1f-c. 15 screenshots in `artifacts/engine-portal/`.
    - [x] **Task 5 — `AgentWorkerService` unit test** (DONE, docs commit `64ab70c`): 12 tests pinning the full loop control flow (thought/tool_call/approval/approved-once/done/maxSteps/transient-retry/terminal-error). **api tests 247 → 259.** Covers 1e-i + 1f-b.
-   - [ ] **Task 6 — checkpoint write volume** (clean bounded fix or record + skip; recorded gap 1f-a).
+   - [x] **Task 6 — checkpoint write volume** (DONE as RECORD + SKIP, per the brief's "if it's not clean, leave the note and move on"): the O(n²) note stays in §8-1f-a below. Evaluation this round: Prisma Json upserts rewrite the whole column regardless of what the worker sends (a true delta needs raw-SQL `jsonb ||` append on the proven resume contract); history-capping risks dropping the system prompt/task goal on resume; `maxSteps=20` bounds real volume (no measurable latency on ~40-message checkpoints). Future fix if ever needed: raw-SQL append in `TaskService.saveCheckpoint`.
 1. ~~**🤖 Engine v0 — Durable Task Runtime + Ollama model router.**~~ **DONE (git `28f1125`).**
 1a. ~~**Engine tests**~~ **DONE (Nova, 46 new tests, 187 total).**
 1b. ~~**Portal `/engine` page**~~ **DONE (Orion — submit form, task table, step drawer, cancel, health strip). Not yet clicked in a live browser.**
@@ -299,7 +315,7 @@ cd apps/api && DATABASE_URL="postgresql://constellation:constellation@localhost:
    - [x] **Task 3 — ModelProvider interface + per-task token-budget cap seam** (DONE, git `7217568`): `ModelProvider` interface + `OllamaModelProvider` first implementation + `ModelRouterService` as selector over `ModelProvider[]` + `TokenBudget` per-task ceiling (`task.maxTokens ?? ENGINE_MAX_TOKENS_PER_TASK`, dollar-cap seam documented). 239 api tests; live 1-step hello→done through the new interface, `maxTokens` persisted. See MASTER_PLAN §9.
    - [x] **Task 4 — portal API base :4001 + startup identity banner** (DONE, git `0c41813`): shared `lib/api-base.ts` (default `http://localhost:4001/api`) + all 7 portal clients import it + `IdentityBanner` probing `/api/identity` (wrong API → clear amber banner, incl. on login). LIVE-proven in a real browser both ways (squatted :4000 → banner fires; real :4001 → clean). See MASTER_PLAN §9.
    - [x] **Task 5 — retry transient model errors + shared redis-connection util** (DONE, git `d5901ba`): `ModelCallError` transient/terminal classification (5xx/network/timeout retryable; 4xx terminal) + `retryTransient()` bounded retry (`ENGINE_MODEL_RETRIES`=3, 500ms*attempt backoff) in the worker; 5b dedup verified already done in Task 1 (both services import the shared `redis-connection.ts`). 247 api tests (+8); LIVE fake-Ollama proof: first-call 503 → task completed; unknown-model 404 → failed terminally. See MASTER_PLAN §9.
-   - **Recorded (don't fix) gaps from this round, carried in §8 so they're not lost:** (a) checkpoint rewrites the full growing `messages` array every step — O(n²) write volume, fine at 20 steps; (b) `AgentWorkerService` still has no unit test — Task 2's live pass exercises the pause/approve path but is not a unit test; (c) the portal `/engine` page has not been clicked in a live browser.
+   - **Recorded (don't fix) gaps from this round, carried in §8 so they're not lost:** (a) checkpoint rewrites the full growing `messages` array every step — O(n²) write volume, fine at 20 steps; (b) `AgentWorkerService` still has no unit test — Task 2's live pass exercises the pause/approve path but is not a unit test; (c) the portal `/engine` page has not been clicked in a live browser. — **ALL THREE RESOLVED in Engine v0.2 (2026-08-03):** (a) evaluated + deliberately skipped (see §8 Task 6); (b) 12 unit tests landed (`64ab70c`); (c) clicked live, 2 bugs fixed (`9d27834`).
 2. ~~**🧠 THE BRAIN (Memory & Knowledge Graph) — TOP PRIORITY (user, 2026-08-02).**~~
    **DONE, live-verified, COMMITTED (git `32c1ea8`)** — see §3 and MASTER_PLAN §9. Graphify adopted
    (knowledge graph over MCP, local, $0); design in `docs/BRAIN.md`. **Remaining brain follow-ups
@@ -329,19 +345,19 @@ CLI sessions that edit this shared tree. Either way: keep lanes disjoint (§6), 
 run `pnpm install` concurrently (pre-install shared deps first), and the orchestrator does all
 merges + commits + the final verify.
 
-## 11. In-flight state & deferred options (updated by clau_partner, 2026-08-02)
-**🤖 ENGINE v0.1 — HARDEN & GATE round: ✅ ALL 5 TASKS DONE, gate-verified, LIVE-PROVEN, committed.**
-clau_partner orchestrated solo (Nova/Orion/Atlas resting). Polaris's 6 review issues all fixed, in
-order, no new scope. Ten commits this round, oldest first:
-`e1fd016` Redis-degrade · `ad76301`+`92ea5b5` Task-1 SHA backfills · `3a24898` approval gate ·
-`9a79da1` Task-2 backfill · `7217568` ModelProvider+token budget · `0b77ee2` Task-3 backfill ·
-`0c41813` portal :4001+identity banner · `356fc30` Task-4 backfill · `d5901ba` transient-retry ·
-`19cda24` Task-5 backfill.
-**All four gates green (`--force --concurrency=1`): lint/build/typecheck/test 20/20 · tests 364**
-(api 247 · sdk 21 · browser-use 47 · graphify 40 · cli 9; was 327 — +37). Live-proven: approval
-gate pause→approve→exactly-once→continue / reject→failed (audited); provider-interface 1-step
-run; wrong-API banner in a real browser; transient-503 retry vs terminal-404; final e2e
-submit→approve→complete. Full detail + literal evidence in MASTER_PLAN §9.
+## 11. In-flight state & deferred options (updated by clau_partner, 2026-08-03)
+**🤖 ENGINE v0.2 — "PROVE IT FOR REAL": ✅ ALL 5 TASKS DONE, gate-verified, LIVE-PROVEN, committed; Task 6 recorded+skipped per the brief.**
+clau_partner orchestrated solo (Nova/Orion/Atlas resting). Commits, oldest first:
+`d045022` (+`de87cd0`) Task-1 tool-calling PROVEN LIVE · `edd2ab9` (+`761d295`) Task-2 approval-with-real-tool ·
+`5d6f078` (+`716bbaa`) Task-3 kill-restart across a tool call · `9d27834` (+`d54b0c0`) Task-4 portal live-browser
+(two real bugs fixed: CORS identity-banner false positive + missing approve/reject UI) · `64ab70c` (+`7692a12`)
+Task-5 AgentWorkerService unit tests · round summary at `7692a12`.
+**Gates (`--force --concurrency=1`): lint/build/typecheck/test all green · tests 376 (api 259 · sdk 21 ·
+browser-use 47 · graphify 40 · cli 9) — was 364 (+12).** Live-proven end-to-end: agent tasks completed on REAL
+tool data (graph.query/graph.related → live 1469-node brain graph), approval gate executes approved calls
+exactly once with real results, kill-restart survived a real tool call with no double-execute, and the
+portal /engine page was driven in a real Chrome (submit → auto-refresh → drawer → Cancel/Approve/Reject).
+Full literal evidence in MASTER_PLAN §9.
 **Carried forward as UNRUN / NOT DONE (recorded, not hidden):**
 1. **Orion's Brain-page fixes — diagnosed but NOT written.** He root-caused the real problems in a
    live browser against the 1241-node graph (force-layout perf at that scale, label overlap,
@@ -352,10 +368,11 @@ submit→approve→complete. Full detail + literal evidence in MASTER_PLAN §9.
    proof scope).
 4. 17 pre-existing lint warnings in `apps/web` (unused imports/vars, one stale `eslint-disable`) —
    Orion's portal lane, deliberately not a drive-by fix in an infra commit.
-5. **Engine v0.1 recorded gaps (§8):** checkpoint O(n²) message rewrites (fine at 20 steps);
-   `AgentWorkerService` has no unit test yet; portal `/engine` page not clicked in a live browser;
-   tool-calling kill-restart variant still unrun (HANDOFF §8 1e-ii). Leftover dev task rows cleared
-   by the round-end `docker compose down --volumes`.
+5. **Engine v0.2 recorded, non-blocking:** (a) checkpoint O(n²) message rewrites — evaluated and
+   deliberately SKIPPED this round (see §8 Task 6; raw-SQL `jsonb ||` append is the future fix if ever
+   needed); (b) mid-invoke crash window is at-least-once by design (read tools harmless; the approval
+   gate + `requiresApproval` guards writes — a dedicated exactly-once pass only matters once write-tool
+   idempotency does). Leftover dev task rows cleared by the round-end `docker compose down --volumes`.
 
 **Deferred option — "Vega" (QA/reviewer agent), NOT active.** A read-only 5th helper that offloads the
 integrator's verification burden: it runs the full gate + a security review on a GIVEN COMMITTED SHA,
