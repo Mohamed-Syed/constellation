@@ -33,21 +33,30 @@ export class ModelRouterService {
   constructor(@Inject(MODEL_PROVIDERS) private readonly providers: ModelProvider[]) {}
 
   /**
-   * Pick the provider for a model request.
+   * Pick the provider for a model request (Engine v0.3).
    *  - No model → providers[0] (Ollama — the $0 default).
    *  - Model → the FIRST provider that canHandleModel(model) (a missing
    *    canHandleModel = "handles everything").
-   *  - No match → providers[0] (Ollama): the task's cloud model isn't
-   *    available here, so Ollama tries it and fails terminally if it
-   *    doesn't have it — better than a phantom provider error.
+   *  - No match → FALL BACK to providers[0] (Ollama) with ITS default model:
+   *    the requested model belongs to a provider that isn't available here
+   *    (e.g. a "/" cloud id while OpenRouter is unconfigured) — handing the
+   *    raw id to Ollama would 404 terminally, so the honest fallback is
+   *    Ollama's own DEFAULT_MODEL (same rule as the chat-failure fallback).
+   * Returns the provider AND the model to pass it (prefixes already
+   * stripped, or undefined = the provider's default).
    */
-  private selectProvider(requestedModel?: string): ModelProvider {
+  private selectProvider(requestedModel?: string): { provider: ModelProvider; model: string | undefined } {
     const fallback = this.providers[0];
     if (!fallback) {
       throw new Error("Model router error: no model provider is configured");
     }
-    if (requestedModel == null) return fallback;
-    return this.providers.find((p) => p.canHandleModel?.(requestedModel) ?? true) ?? fallback;
+    if (requestedModel == null) return { provider: fallback, model: undefined };
+    const match = this.providers.find((p) => p.canHandleModel?.(requestedModel) ?? true);
+    if (match) return { provider: match, model: this.stripPrefix(requestedModel) };
+    this.logger.warn(
+      `Model router: no provider can handle "${requestedModel}" — falling back to Ollama (${fallback.name}) with its default model`,
+    );
+    return { provider: fallback, model: undefined };
   }
 
   /** Strip a provider-routing prefix ("openrouter:", "ollama:") — it is for
@@ -60,9 +69,9 @@ export class ModelRouterService {
   }
 
   async chat(messages: ChatMessage[], model?: string): Promise<ChatResponse> {
-    const provider = this.selectProvider(model);
+    const { provider, model: resolvedModel } = this.selectProvider(model);
     try {
-      return await provider.chat(messages, this.stripPrefix(model));
+      return await provider.chat(messages, resolvedModel);
     } catch (err) {
       // Engine v0.3 fallback: a NON-default provider's failure (OpenRouter
       // hiccup, bad key, quota) falls back to Ollama instead of failing the

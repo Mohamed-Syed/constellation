@@ -251,18 +251,25 @@ describe("ModelRouterService — real routing by canHandleModel (Engine v0.3)", 
     expect(openrouter.chat).not.toHaveBeenCalled();
   });
 
-  it("when NO provider matches, falls back to Ollama (providers[0])", async () => {
+  it("when NO provider matches, falls back to Ollama with ITS default model (not the raw cloud id)", async () => {
     // OpenRouter unavailable (key unset → canHandleModel false everywhere),
-    // and Ollama refuses the "/" cloud id → the router's no-match rule kicks in.
+    // and Ollama refuses the "/" cloud id → the router's no-match rule kicks
+    // in: it must NOT hand the raw id to Ollama (that would 404 terminally) —
+    // it falls back to Ollama's own DEFAULT_MODEL, exactly like the
+    // chat-failure fallback (this is what makes a "/" model task COMPLETE on
+    // Ollama when OpenRouter is unconfigured — Task 8 live proof).
+    const warnSpy = vi.spyOn(Logger.prototype, "warn");
     const ollama = makeOllamaProvider();
     const openrouter = makeOpenRouterProvider({ canHandleModel: () => false });
     const router = new ModelRouterService([ollama, openrouter]);
 
     const res = await router.chat(messages, "openai/gpt-oss-120b");
 
-    expect(ollama.chat).toHaveBeenCalledWith(messages, "openai/gpt-oss-120b");
+    expect(ollama.chat).toHaveBeenCalledWith(messages, undefined);
     expect(openrouter.chat).not.toHaveBeenCalled();
     expect(res.provider).toBe("ollama");
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("falling back to Ollama"));
+    warnSpy.mockRestore();
   });
 });
 
