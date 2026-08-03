@@ -47,6 +47,7 @@ interface Fakes {
   modelRouter: { chat: ReturnType<typeof vi.fn>; health: ReturnType<typeof vi.fn> };
   pluginTool: { invoke: ReturnType<typeof vi.fn> };
   registry: { get: ReturnType<typeof vi.fn>; all: ReturnType<typeof vi.fn> };
+  alerts: { recordTaskFailed: ReturnType<typeof vi.fn> };
 }
 
 function makeWorker(opts: {
@@ -107,6 +108,9 @@ function makeWorker(opts: {
     isEnabled: false, // ← no real Worker/Redis is ever created
     reason: "test",
   };
+  const alerts = {
+    recordTaskFailed: vi.fn().mockResolvedValue(undefined),
+  };
   const svc = new AgentWorkerService(
     taskService as unknown as TaskService,
     modelRouter as unknown as ModelRouterService,
@@ -114,8 +118,9 @@ function makeWorker(opts: {
     registry as unknown as PluginRegistryService,
     config as unknown as ConfigService,
     availability as unknown as EngineAvailabilityService,
+    alerts as never,
   );
-  return { svc, taskService, modelRouter, pluginTool, registry };
+  return { svc, taskService, modelRouter, pluginTool, registry, alerts };
 }
 
 function runJob(svc: AgentWorkerService, taskId = "task-1"): Promise<void> {
@@ -303,13 +308,13 @@ describe("AgentWorkerService", () => {
     await runJob(svc);
 
     expect(modelRouter.chat).toHaveBeenCalledTimes(2);
-    expect(taskService.markFailed).toHaveBeenCalledWith("task-1", "Reached max steps (2) without completing.");
+    expect(taskService.markFailed).toHaveBeenCalledWith("task-1", "Reached max steps (2) without completing.", "terminal");
     expect(taskService.markCompleted).not.toHaveBeenCalled();
   });
 
   it("transient model error → bounded retry then fail: retries ENGINE_MODEL_RETRIES times, then fails honestly", async () => {
     const boom = new ModelCallError("Ollama hiccup", true);
-    const { svc, taskService, modelRouter } = makeWorker({
+    const { svc, taskService, modelRouter, alerts } = makeWorker({
       modelRetries: "2", // 2 retries → 3 total attempts
       chat: () => Promise.reject(boom),
     });
@@ -321,7 +326,8 @@ describe("AgentWorkerService", () => {
       "task-1",
       expect.objectContaining({ type: "error", content: { error: "Ollama hiccup" } }),
     );
-    expect(taskService.markFailed).toHaveBeenCalledWith("task-1", "Ollama hiccup");
+    expect(taskService.markFailed).toHaveBeenCalledWith("task-1", "Ollama hiccup", "transient_exhausted");
+    expect(alerts.recordTaskFailed).toHaveBeenCalledWith("task-1", "transient_exhausted", "Ollama hiccup");
   });
 
   it("terminal model error → fail immediately: no retries for non-transient failures", async () => {
@@ -334,7 +340,7 @@ describe("AgentWorkerService", () => {
     await runJob(svc);
 
     expect(modelRouter.chat).toHaveBeenCalledTimes(1);
-    expect(taskService.markFailed).toHaveBeenCalledWith("task-1", "model does-not-exist not found");
+    expect(taskService.markFailed).toHaveBeenCalledWith("task-1", "model does-not-exist not found", "terminal");
   });
 
   it("cancelled task → job is a no-op", async () => {

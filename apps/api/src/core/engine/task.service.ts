@@ -2,6 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../database/prisma.service.js";
 import type { CreateTaskDto } from "./dto/create-task.dto.js";
+import type { FailureClassification } from "./dead-letter.js";
 
 export interface TaskStepData {
   stepIndex: number;
@@ -102,12 +103,14 @@ export class TaskService {
     });
   }
 
-  async markFailed(id: string, error: string) {
+  async markFailed(id: string, error: string, classification?: FailureClassification) {
     const db = this.prisma.db;
     if (!db) return;
     await db.agentTask.update({
       where: { id },
-      data: { status: "failed", error, completedAt: new Date() },
+      data: classification
+        ? { status: "failed", error, failureClassification: classification, completedAt: new Date() }
+        : { status: "failed", error, completedAt: new Date() },
     });
   }
 
@@ -245,5 +248,89 @@ export class TaskService {
     if (!db) return false;
     const task = await db.agentTask.findUnique({ where: { id }, select: { status: true } });
     return task?.status === "cancelled";
+  }
+
+  /**
+   * Engine v0.5 — dead-letter view. Returns FAILED tasks (the structured DLQ),
+   * newest-first, capped at `limit`. Each row carries the failure
+   * classification + final error so operators can see WHY a task died without
+   * consulting BullMQ (whose failed jobs are removed shortly after failing).
+   */
+  async findAllFailed(limit = 100) {
+    const db = this.prisma.db;
+    if (!db) return [];
+    return db.agentTask.findMany({
+      where: { status: "failed" },
+      orderBy: { updatedAt: "desc" },
+      take: limit,
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        model: true,
+        provider: true,
+        stepCount: true,
+        actorId: true,
+        createdAt: true,
+        updatedAt: true,
+        completedAt: true,
+        error: true,
+        failureClassification: true,
+      },
+    });
+  }
+
+  /** Count of FAILED task rows — the durable DLQ count, distinct from BullMQ's failed-JOB count. */
+  async getFailedCount(): Promise<number> {
+    const db = this.prisma.db;
+    if (!db) return 0;
+    return db.agentTask.count({ where: { status: "failed" } });
+  }
+
+  /**
+   * Engine v0.5 — supervisor. Find tasks stuck in `running` whose `updatedAt`
+   * is older than `staleBefore` (no step progress for too long). The supervisor
+   * then decides, per task, whether to re-enqueue or fail it as `stalled`.
+   */
+  async findStaleRunning(staleBefore: Date) {
+    const db = this.prisma.db;
+    if (!db) return [];
+    return db.agentTask.findMany({
+      where: { status: "running", updatedAt: { lt: staleBefore } },
+      orderBy: { updatedAt: "asc" },
+      select: {
+        id: true,
+        status: true,
+        updatedAt: true,
+        error: true,
+        failureClassification: true,
+        stallRetried: true,
+        stepCount: true,
+      },
+    });
+  }
+
+  /**
+   * Engine v0.5 — supervisor resume-once flag. Marks a running/queued task as
+   * "already resumed once" so a second stale occurrence is NOT re-enqueued
+   * again (nothing spins forever — it becomes a `stalled` dead letter).
+   */
+  async markStallRetried(id: string): Promise<boolean> {
+    const db = this.prisma.db;
+    if (!db) return false;
+    await db.agentTask.update({ where: { id }, data: { stallRetried: true } });
+    return true;
+  }
+
+  /**
+   * Engine v0.5 — a supervising re-enqueue makes the task runnable again and
+   * leaves the resume-once marker in place (the NEXT stale occurrence, if any,
+   * becomes `stalled`). No status gate: the worker re-reads via checkpoint.
+   */
+  async markResumed(id: string): Promise<boolean> {
+    const db = this.prisma.db;
+    if (!db) return false;
+    await db.agentTask.update({ where: { id }, data: { status: "queued" } });
+    return true;
   }
 }

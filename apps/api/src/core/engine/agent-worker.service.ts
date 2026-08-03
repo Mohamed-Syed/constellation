@@ -3,10 +3,12 @@ import { ConfigService } from "@nestjs/config";
 import { Worker, type ConnectionOptions, type Job } from "bullmq";
 import { PluginRegistryService } from "../plugins/plugin-registry.service.js";
 import { PluginToolService } from "../plugins/plugin-tool.service.js";
-import { TokenBudget, retryTransient } from "./model-provider.js";
+import { ModelCallError, TokenBudget, retryTransient } from "./model-provider.js";
 import type { ChatMessage } from "./model-router.service.js";
 import { ModelRouterService } from "./model-router.service.js";
 import { EngineAvailabilityService } from "./engine-availability.service.js";
+import { EngineAlertService } from "./engine-alerts.service.js";
+import type { FailureClassification } from "./dead-letter.js";
 import { buildRedisConnectionOptions } from "./redis-connection.js";
 import { ENGINE_QUEUE_NAME } from "./task-queue.service.js";
 import { TaskService } from "./task.service.js";
@@ -67,6 +69,7 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
     private readonly registry: PluginRegistryService,
     private readonly config: ConfigService,
     private readonly availability: EngineAvailabilityService,
+    private readonly alerts: EngineAlertService,
   ) {
     this.connection = buildRedisConnectionOptions(config.get("REDIS_URL", "redis://localhost:6379"));
     this.approveAll = config.get("ENGINE_REQUIRE_APPROVAL_ALL", "false") === "true";
@@ -96,7 +99,11 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
     this.worker.on("failed", (job, err) => {
       this.logger.error(`Job ${job?.id} (task ${job?.data?.taskId}) failed: ${err.message}`);
       if (job?.data?.taskId) {
-        void this.taskService.markFailed(job.data.taskId, err.message);
+        // A BullMQ job that failed (after exhausting its `attempts:3` retries)
+        // is a TERMINAL dead letter — it must not be re-enqueued forever. The
+        // durable task row carries the classification + accumulated error.
+        const taskId = job.data.taskId as string;
+        void this.markTaskFailed(taskId, err.message, "terminal");
       }
     });
 
@@ -225,13 +232,13 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
         if (!budget.record(response.usage)) {
           const msg = `Token budget exhausted: used ${budget.used} of ${budget.ceiling} tokens`;
           await this.taskService.addStep(taskId, { stepIndex, type: "error", content: { error: msg } });
-          await this.taskService.markFailed(taskId, msg);
+          await this.markTaskFailed(taskId, msg, "terminal");
           return;
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         await this.taskService.addStep(taskId, { stepIndex, type: "error", content: { error: msg } });
-        await this.taskService.markFailed(taskId, msg);
+        await this.markTaskFailed(taskId, msg, this.classifyModelError(err));
         return;
       }
 
@@ -294,7 +301,28 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
     }
 
     // Ran out of steps
-    await this.taskService.markFailed(taskId, `Reached max steps (${maxSteps}) without completing.`);
+    await this.markTaskFailed(taskId, `Reached max steps (${maxSteps}) without completing.`, "terminal");
+  }
+
+  /**
+   * Engine v0.5 — fail a task with an honest dead-letter classification and
+   * emit the alert. Centralizes markFailed + alert so every failure path
+   * (job-level, in-loop model error, budget, max steps) leaves the same trail.
+   */
+  private async markTaskFailed(taskId: string, error: string, classification: FailureClassification): Promise<void> {
+    await this.taskService.markFailed(taskId, error, classification);
+    this.alerts.recordTaskFailed(taskId, classification, error);
+  }
+
+  /**
+   * Classify a model-call failure (Engine v0.5 dead-letter). A non-transient
+   * ModelCallError (4xx / unknown model) and any other unknown error are
+   * TERMINAL — they fail immediately. A transient one that exhausted its
+   * bounded retries is `transient_exhausted`.
+   */
+  private classifyModelError(err: unknown): FailureClassification {
+    if (err instanceof ModelCallError && err.transient) return "transient_exhausted";
+    return "terminal";
   }
 
   /**

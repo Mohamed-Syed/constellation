@@ -84,6 +84,30 @@ export class TaskQueueService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Engine v0.5 — supervisor race guard. Returns the set of taskIds that an
+   * ACTIVE BullMQ job is currently working right now. The supervisor refuses
+   * to re-enqueue (or fail) a stale-looking `running` task whose id appears
+   * here — the worker is demonstrably alive on it, so acting would double-run
+   * a live task. Returns an empty set when unavailable.
+   */
+  async getActiveTaskIds(): Promise<Set<string>> {
+    if (!this.availability.isEnabled || !this.queue) return new Set<string>();
+    try {
+      const active = await this.queue.getActive(0, 1000);
+      const ids = new Set<string>();
+      for (const job of active) {
+        const taskId = (job?.data as { taskId?: string } | undefined)?.taskId;
+        if (taskId) ids.add(taskId);
+      }
+      return ids;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Could not read active jobs for supervision: ${msg}`);
+      return new Set<string>();
+    }
+  }
+
+  /**
    * Health of the queue producer. When the engine is disabled the shape is
    * `{ enabled:false, reason }`; when enabled it matches the v0 shape
    * (`queue` + the three BullMQ counters) so existing consumers keep working.

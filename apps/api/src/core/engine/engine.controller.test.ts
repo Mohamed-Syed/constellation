@@ -26,6 +26,8 @@ function makeTasksStub() {
       createdAt: new Date().toISOString(),
     })),
     findAll: vi.fn(async () => []),
+    findAllFailed: vi.fn(async () => []),
+    getFailedCount: vi.fn(async () => 0),
     findOne: vi.fn(async () => null),
     cancel: vi.fn(async () => true),
     markFailed: vi.fn(async () => undefined),
@@ -75,6 +77,26 @@ function makeSchedulerStub() {
   };
 }
 
+function makeSupervisorStub() {
+  return {
+    getHealth: vi.fn(async () => ({
+      enabled: true,
+      pollIntervalMs: 30000,
+      staleThresholdMs: 300000,
+      lastSweepAt: null,
+      staleFound: 0,
+      recovered: 0,
+      failedStalled: 0,
+    })),
+  };
+}
+
+function makeAlertsStub() {
+  return {
+    getAlertSummary: vi.fn(async () => []),
+  };
+}
+
 function makeController(
   availability = makeAvailability(true),
   tasks = makeTasksStub(),
@@ -82,6 +104,8 @@ function makeController(
   model = makeModelStub(),
   audit = makeAuditStub(),
   scheduler = makeSchedulerStub(),
+  supervisor = makeSupervisorStub(),
+  alerts = makeAlertsStub(),
 ) {
   const controller = new EngineController(
     tasks as never,
@@ -90,8 +114,10 @@ function makeController(
     availability as never,
     audit as never,
     scheduler as never,
+    supervisor as never,
+    alerts as never,
   );
-  return { controller, tasks, queue, model, availability, audit, scheduler };
+  return { controller, tasks, queue, model, availability, audit, scheduler, supervisor, alerts };
 }
 
 const user: AuthPrincipal = { id: "user-1", email: "a@b.c", roles: ["admin"], permissions: ["platform:admin"] };
@@ -147,8 +173,10 @@ describe("EngineController — health", () => {
 
     expect(health.engine).toBe("available");
     expect(health.reason).toBeNull();
-    expect(health.queue).toEqual({ enabled: true, queue: "engine-tasks", waiting: 1, active: 0, failed: 0 });
+    expect(health.queue).toEqual({ enabled: true, queue: "engine-tasks", waiting: 1, active: 0, failed: 0, failedTasks: 0 });
     expect(health.model.reachable).toBe(true);
+    expect(health.supervision.enabled).toBe(true);
+    expect(health.alerts).toEqual([]);
     expect(queue.getHealth).toHaveBeenCalledOnce();
     expect(model.health).toHaveBeenCalledOnce();
   });
@@ -162,7 +190,9 @@ describe("EngineController — health", () => {
 
     expect(health.engine).toBe("unavailable");
     expect(health.reason).toContain("REDIS_URL is not set");
-    expect(health.queue).toEqual({ enabled: false, reason: "REDIS_URL is not set" });
+    // Engine v0.5: health always includes the durable failed-task count even
+    // when the queue is disabled/degraded.
+    expect(health.queue).toEqual({ enabled: false, reason: "REDIS_URL is not set", failedTasks: 0 });
     expect(queue.getHealth).toHaveBeenCalledOnce();
   });
 });
@@ -233,7 +263,8 @@ describe("EngineController — reject", () => {
     const result = await controller.rejectTask("t1", user);
 
     expect(result).toEqual({ id: "t1", status: "failed", reason: "Rejected by a@b.c" });
-    expect(tasks.markFailed).toHaveBeenCalledWith("t1", "Rejected by a@b.c");
+    // Engine v0.5: reject records the "rejected" failure classification.
+    expect(tasks.markFailed).toHaveBeenCalledWith("t1", "Rejected by a@b.c", "rejected");
     expect(audit.record).toHaveBeenCalledWith("user-1", "engine.task.rejected", "t1", { actor: "a@b.c" });
   });
 
@@ -250,5 +281,26 @@ describe("EngineController — reject", () => {
   it("404s when the task does not exist", async () => {
     const { controller } = makeController();
     await expect(controller.rejectTask("nope", user)).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe("EngineController — v0.5 dead-letter + alerts endpoints", () => {
+  it("GET deadletters returns the classified failed tasks list", async () => {
+    const tasks = makeTasksStub();
+    tasks.findAllFailed.mockResolvedValueOnce([{ id: "t1", status: "failed", failureClassification: "stalled", error: "x" }]);
+    const { controller } = makeController(makeAvailability(true), tasks);
+    await expect(controller.listDeadLetters()).resolves.toEqual([
+      { id: "t1", status: "failed", failureClassification: "stalled", error: "x" },
+    ]);
+    expect(tasks.findAllFailed).toHaveBeenCalledTimes(1);
+  });
+
+  it("GET alerts returns the alert summary", async () => {
+    const alerts = makeAlertsStub();
+    alerts.getAlertSummary.mockResolvedValueOnce([{ at: "x", type: "engine.task.failed", taskId: "t1", detail: null }]);
+    const { controller } = makeController(makeAvailability(true), makeTasksStub(), makeQueueStub(), makeModelStub(), makeAuditStub(), makeSchedulerStub(), makeSupervisorStub(), alerts);
+    await expect(controller.listAlerts()).resolves.toEqual([
+      { at: "x", type: "engine.task.failed", taskId: "t1", detail: null },
+    ]);
   });
 });

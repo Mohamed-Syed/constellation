@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { PluginsModule } from "../plugins/plugins.module.js";
 import { AgentWorkerService } from "./agent-worker.service.js";
+import { EngineAlertService } from "./engine-alerts.service.js";
 import { EngineAvailabilityService } from "./engine-availability.service.js";
 import { EngineController } from "./engine.controller.js";
 import { MODEL_PROVIDERS } from "./model-provider.js";
@@ -10,6 +11,7 @@ import { OpenRouterModelProvider } from "./openrouter-model-provider.js";
 import { ScheduledTaskService } from "./scheduled-task.service.js";
 import { SchedulerController } from "./scheduler.controller.js";
 import { SchedulerEngineService } from "./scheduler-engine.service.js";
+import { SupervisorService } from "./supervisor.service.js";
 import { TaskQueueService } from "./task-queue.service.js";
 import { TaskService } from "./task.service.js";
 
@@ -37,6 +39,8 @@ import { TaskService } from "./task.service.js";
     AgentWorkerService,
     ScheduledTaskService,
     SchedulerEngineService,
+    SupervisorService,
+    EngineAlertService,
     // Model plane: OllamaModelProvider is the $0 default; OpenRouterModelProvider
     // (Engine v0.3) is the OPT-IN cloud provider — unconfigured it reports
     // honest health and the router never selects it. ModelRouterService routes
@@ -53,6 +57,6 @@ import { TaskService } from "./task.service.js";
     ModelRouterService,
     EngineAvailabilityService,
   ],
-  exports: [TaskService, TaskQueueService, ScheduledTaskService, SchedulerEngineService],
+  exports: [TaskService, TaskQueueService, ScheduledTaskService, SchedulerEngineService, SupervisorService, EngineAlertService],
 })
 export class EngineModule {}

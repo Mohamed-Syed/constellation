@@ -13,10 +13,13 @@ import { Public } from "../auth/public.decorator.js";
 import { CurrentUser } from "../auth/current-user.decorator.js";
 import type { AuthPrincipal } from "../auth/token-verifier.js";
 import { AuditService } from "../audit/audit.service.js";
+import { EngineAlertService } from "./engine-alerts.service.js";
+import { DEAD_LETTER_LIMIT } from "./dead-letter.js";
 import { CreateTaskDto } from "./dto/create-task.dto.js";
 import { EngineAvailabilityService, EngineUnavailableError } from "./engine-availability.service.js";
 import { ModelRouterService } from "./model-router.service.js";
 import { SchedulerEngineService } from "./scheduler-engine.service.js";
+import { SupervisorService } from "./supervisor.service.js";
 import { TaskQueueService } from "./task-queue.service.js";
 import { TaskService } from "./task.service.js";
 
@@ -54,6 +57,8 @@ export class EngineController {
     private readonly availability: EngineAvailabilityService,
     private readonly audit: AuditService,
     private readonly scheduler: SchedulerEngineService,
+    private readonly supervisor: SupervisorService,
+    private readonly alerts: EngineAlertService,
   ) {}
 
   @Post("tasks")
@@ -88,6 +93,22 @@ export class EngineController {
   @Get("tasks")
   async listTasks() {
     return this.tasks.findAll();
+  }
+
+  /**
+   * Engine v0.5 — structured dead-letter view. Failed tasks (newest first,
+   * capped) each carrying their failure classification + final error, so
+   * operators can see WHY a task died without consulting BullMQ.
+   */
+  @Get("deadletters")
+  async listDeadLetters() {
+    return this.tasks.findAllFailed(DEAD_LETTER_LIMIT);
+  }
+
+  /** Engine v0.5 — recent alert trail (in-memory ring buffer, newest first). */
+  @Get("alerts")
+  async listAlerts() {
+    return this.alerts.getAlertSummary();
   }
 
   @Get("tasks/:id")
@@ -159,7 +180,7 @@ export class EngineController {
     }
 
     const reason = `Rejected by ${user?.email ?? "unknown"}`;
-    await this.tasks.markFailed(id, reason);
+    await this.tasks.markFailed(id, reason, "rejected");
     await this.audit.record(user?.id ?? null, "engine.task.rejected", id, { actor: user?.email });
     this.logger.warn(`Task ${id} rejected by ${user?.email ?? "unknown"}`);
     return { id, status: "failed", reason };
@@ -171,12 +192,18 @@ export class EngineController {
     const model = await this.modelRouter.health();
     const queue = await this.queue.getHealth();
     const scheduler = await this.scheduler.getHealth();
+    const supervision = await this.supervisor.getHealth();
+    // Engine v0.5 — the DURABLE dead-letter count (failed TASK rows), distinct
+    // from BullMQ's failed-JOB count (which is what `queue.failed` reports).
+    const failedTasks = await this.tasks.getFailedCount();
     return {
       engine: this.availability.isEnabled ? "available" : "unavailable",
       reason: this.availability.reason,
-      queue,
+      queue: { ...queue, failedTasks },
       model,
       scheduler,
+      supervision,
+      alerts: await this.alerts.getAlertSummary(),
       timestamp: new Date().toISOString(),
     };
   }

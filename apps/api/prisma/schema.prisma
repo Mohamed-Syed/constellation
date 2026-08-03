@@ -180,6 +180,14 @@ model AgentTask {
   result      Json?
   /// Error message when status = "failed".
   error       String?
+  /// Engine v0.5 dead-letter classification when status = "failed":
+  /// "terminal" | "transient_exhausted" | "stalled" | "rejected".
+  /// Enables the structured dead-letter view (GET /api/engine/deadletters).
+  failureClassification String?
+  /// Engine v0.5 supervisor resume-once marker: set true when the supervisor
+  /// re-enqueues a stalled task a FIRST time; if it goes stale again it is
+  /// marked failed ("stalled") instead of being resumed forever.
+  stallRetried Boolean    @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   startedAt   DateTime?
