@@ -138,7 +138,12 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
     }
 
     // ── Mark running ───────────────────────────────────────────────────────
-    await this.taskService.markRunning(taskId, "ollama");
+    // Provider is NOT known yet — the router picks it (Ollama by default, a
+    // cloud provider when the task's model routes there, possibly after a
+    // fallback). Mark running without a provider; the REAL one is recorded
+    // after the first successful model call (Engine v0.3 — no dishonest
+    // hardcoded "ollama").
+    await this.taskService.markRunning(taskId);
 
     const maxSteps = task.maxSteps ?? 20;
     // Hard per-task token ceiling (Engine v0.1 Task 3): the "budget cap" the
@@ -147,6 +152,10 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
     // terminal error (a paid provider would enforce a dollar-cap the same
     // way, via the same tracker — see TokenBudget in model-provider.ts).
     const budget = new TokenBudget(task.maxTokens ?? this.defaultTokenBudget);
+    // Record the task-level provider once, after the first model call
+    // resolves — the router's choice (Ollama or a cloud provider) is only
+    // knowable then (Engine v0.3).
+    let providerRecorded = false;
 
     // ── Agent loop ─────────────────────────────────────────────────────────
     while (stepIndex < maxSteps) {
@@ -202,6 +211,14 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
           },
         );
         rawResponse = response.content;
+
+        // Record the ACTUAL provider on the task (once) — the router may
+        // have used a cloud provider or fallen back; the field must reflect
+        // reality, not a hardcoded default (Engine v0.3).
+        if (!providerRecorded) {
+          providerRecorded = true;
+          await this.taskService.markProvider(taskId, response.provider);
+        }
 
         // Token budget: stop the task (honest terminal failure) the moment
         // the ceiling is crossed — no unbounded spend on a runaway loop.

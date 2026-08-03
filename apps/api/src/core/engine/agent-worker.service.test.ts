@@ -72,6 +72,7 @@ function makeWorker(opts: {
     findOne: vi.fn().mockResolvedValue(task),
     loadCheckpoint: vi.fn().mockResolvedValue(opts.checkpoint ?? null),
     markRunning: vi.fn().mockResolvedValue(undefined),
+    markProvider: vi.fn().mockResolvedValue(undefined),
     markCompleted: vi.fn().mockResolvedValue(undefined),
     markFailed: vi.fn().mockResolvedValue(undefined),
     markPaused: vi.fn().mockResolvedValue(undefined),
@@ -261,6 +262,36 @@ describe("AgentWorkerService", () => {
     );
     expect(taskService.markCompleted).toHaveBeenCalledWith("task-1", { summary: "all done" });
     expect(taskService.markFailed).not.toHaveBeenCalled();
+  });
+
+  it("records the REAL provider on the task after the first model call — no hardcoded 'ollama' (v0.3)", async () => {
+    const chat = vi
+      .fn()
+      // The router's verdict on the first call: the cloud provider served it.
+      .mockResolvedValueOnce({ content: thoughtJson("thinking"), model: "openai/gpt-oss-120b", provider: "openrouter", durationMs: 1 })
+      .mockResolvedValueOnce(chatOk(doneJson("all done")));
+    const { svc, taskService } = makeWorker({ chat: chat as never });
+
+    await runJob(svc);
+
+    // markRunning carries NO provider — it is unknown until the router decides.
+    expect(taskService.markRunning).toHaveBeenCalledWith("task-1");
+    expect(taskService.markRunning).not.toHaveBeenCalledWith("task-1", "ollama");
+    // The actual provider lands once, from the first response.
+    expect(taskService.markProvider).toHaveBeenCalledTimes(1);
+    expect(taskService.markProvider).toHaveBeenCalledWith("task-1", "openrouter");
+  });
+
+  it("a fallback to Ollama is what gets recorded on the task (router honesty)", async () => {
+    const chat = vi
+      .fn()
+      .mockResolvedValueOnce({ content: thoughtJson("thinking"), model: "qwen2.5-coder:7b", provider: "ollama", durationMs: 1 })
+      .mockResolvedValueOnce(chatOk(doneJson("all done")));
+    const { svc, taskService } = makeWorker({ chat: chat as never });
+
+    await runJob(svc);
+
+    expect(taskService.markProvider).toHaveBeenCalledWith("task-1", "ollama");
   });
 
   it("maxSteps → fail: terminates honestly when the loop ceiling is hit", async () => {

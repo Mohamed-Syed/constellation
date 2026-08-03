@@ -6,6 +6,7 @@ import { EngineController } from "./engine.controller.js";
 import { MODEL_PROVIDERS } from "./model-provider.js";
 import { ModelRouterService } from "./model-router.service.js";
 import { OllamaModelProvider } from "./ollama-model-provider.js";
+import { OpenRouterModelProvider } from "./openrouter-model-provider.js";
 import { TaskQueueService } from "./task-queue.service.js";
 import { TaskService } from "./task.service.js";
 
@@ -29,15 +30,18 @@ import { TaskService } from "./task.service.js";
     TaskService,
     TaskQueueService,
     AgentWorkerService,
-    // Model plane: OllamaModelProvider is the first ModelProvider
-    // implementation; ModelRouterService selects from the MODEL_PROVIDERS
-    // list. Add a second provider by registering it here and appending it to
-    // the factory array — callers never change.
+    // Model plane: OllamaModelProvider is the $0 default; OpenRouterModelProvider
+    // (Engine v0.3) is the OPT-IN cloud provider — unconfigured it reports
+    // honest health and the router never selects it. ModelRouterService routes
+    // between them by canHandleModel with fallback to Ollama. Add another
+    // provider by registering it here and appending it to the factory array —
+    // callers never change.
     OllamaModelProvider,
+    OpenRouterModelProvider,
     {
       provide: MODEL_PROVIDERS,
-      useFactory: (ollama: OllamaModelProvider) => [ollama],
-      inject: [OllamaModelProvider],
+      useFactory: (ollama: OllamaModelProvider, openrouter: OpenRouterModelProvider) => [ollama, openrouter],
+      inject: [OllamaModelProvider, OpenRouterModelProvider],
     },
     ModelRouterService,
     EngineAvailabilityService,

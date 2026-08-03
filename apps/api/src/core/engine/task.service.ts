@@ -80,6 +80,19 @@ export class TaskService {
     });
   }
 
+  /**
+   * Record the provider that ACTUALLY served the task (Engine v0.3 — the
+   * router picks it: Ollama by default, a cloud provider when the task's
+   * model routes there, possibly after a fallback). Called after the first
+   * successful model call, so the field reflects reality instead of a
+   * hardcoded "ollama".
+   */
+  async markProvider(id: string, provider: string) {
+    const db = this.prisma.db;
+    if (!db) return;
+    await db.agentTask.update({ where: { id }, data: { provider } });
+  }
+
   async markCompleted(id: string, result: unknown) {
     const db = this.prisma.db;
     if (!db) return;
