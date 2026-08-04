@@ -115,7 +115,10 @@ export function validateWorkflowDefinition(raw: unknown): string | null {
  * using the outcomes collected so far. Unknown references are left as-is so
  * the author sees the mistake in the result rather than a silent blank.
  */
-export function renderTemplates(text: string, outcomes: Map<string, { ok: boolean; result: unknown; error?: string }>): string {
+export function renderTemplates(
+  text: string,
+  outcomes: Map<string, { ok: boolean; result?: unknown; error?: string }>,
+): string {
   return text.replace(/\{\{steps\.([A-Za-z0-9_-]+)\.(result|error)\}\}/g, (match, id: string, field: string) => {
     const outcome = outcomes.get(id);
     if (!outcome) return match;

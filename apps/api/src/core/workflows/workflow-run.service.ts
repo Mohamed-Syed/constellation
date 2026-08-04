@@ -153,26 +153,37 @@ export class WorkflowRunService {
     }
 
     // "tool" step — trusted system caller (same posture as the agent worker).
+    // NOTE (real live bug): the completed envelope's outcome is "completed"
+    // (NOT "ok"), and its ToolResult is { ok:true, data } | { ok:false, error }
+    // (the payload key is `data`, not `result`). Rejections carry
+    // reason/message with NO result key — surfaced as the step error.
     const args = renderTemplatesJson(step.args, outcomes);
     const invocation = await this.tools.invoke(step.plugin, step.tool, args, ["platform:admin"]);
-    // NOTE: the completed envelope's outcome is "completed" (NOT "ok" — that
-    // was a real live bug: every tool step was marked failed). Rejections
-    // carry reason/message and NO result key — surface them as the error.
-    const ok = invocation.outcome === "completed" && invocation.result.ok === true;
-    // ToolResult envelopes vary per plugin: some carry `result`, some `data`
-    // (graphify). Capture either so later steps can reference the payload.
-    const payload = ok ? (invocation.result.result ?? (invocation.result as { data?: unknown }).data) : undefined;
+    let payload: unknown;
+    let stepError: string | undefined;
+    let ok: boolean;
+    if (invocation.outcome === "completed") {
+      if (invocation.result.ok) {
+        ok = true;
+        payload = invocation.result.data;
+        stepError = undefined;
+      } else {
+        ok = false;
+        payload = undefined;
+        stepError = invocation.result.error;
+      }
+    } else {
+      ok = false;
+      payload = undefined;
+      stepError = `${invocation.reason}: ${invocation.message}`;
+    }
     return {
       id: step.id,
       kind: "tool",
       label,
       ok,
       result: payload,
-      error: ok
-        ? undefined
-        : invocation.outcome === "rejected"
-          ? `${invocation.reason}: ${invocation.message}`
-          : String(invocation.result.error ?? "tool call failed"),
+      error: stepError,
       durationMs: Date.now() - started,
     };
   }

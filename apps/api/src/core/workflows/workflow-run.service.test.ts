@@ -29,7 +29,7 @@ function makeService(overrides: {
   };
   const queue = overrides.queue ?? { enqueue: vi.fn().mockResolvedValue(undefined) };
   const tools = overrides.tools ?? {
-    invoke: vi.fn().mockResolvedValue({ outcome: "completed", result: { ok: true, result: { nodes: 3 } }, durationMs: 5 }),
+    invoke: vi.fn().mockResolvedValue({ outcome: "completed", result: { ok: true, data: { nodes: 3 } }, durationMs: 5 }),
   };
   const svc = new WorkflowRunService(prisma as never, workflows as never, tasks as never, queue as never, tools as never);
   if (overrides.waitForTask) svc.waitForTask = overrides.waitForTask;
