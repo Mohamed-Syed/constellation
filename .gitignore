@@ -39,3 +39,6 @@ tmp/
 
 # brain (Graphify) generated output — never commit the knowledge graph
 graphify-out/
+
+# SSO test tokens (real JWTs from local Keycloak) — never commit credentials
+artifacts/sso-test-tokens/

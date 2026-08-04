@@ -4,3 +4,4 @@
  * directly, e.g. from tests or other tooling).
  */
 export * from "./generate-plugin.js";
+export { apiJson, pick, printTable } from "./ops.js";
