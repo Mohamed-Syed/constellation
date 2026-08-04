@@ -58,9 +58,9 @@ The strategic vision + market analysis + full roadmap live in
 
 ## 3. Current state (authoritative as of the last commit) — reconcile, don't assume
 
-**HEAD:** `3b37129` — `feat(engine): Phase 2.0 2.8 — worker as a separate process (OPT-IN)`.
-Just below it: `5f268f3` (2.7 plugin sandboxing), `4d55928` (2.6 real SSO round-trip),
-`2d813de` (DeepSeek provider round), `76f1d7c` (docs backfill A+B).
+**HEAD:** `0127ce1` — `feat(obs): Phase 2.0 2.3 — pre-built Grafana dashboard + live engine-metrics wiring`.
+Just below it: `3b37129` (2.8 worker), `5f268f3` (2.7 sandboxing), `4d55928` (2.6 SSO),
+`2d813de` (DeepSeek provider). **PHASE 2.0 IS COMPLETE.**
 Tree is **clean** (only untracked `Prompt to Clau_Partner.txt`, a working artifact).
 
 **Test count (full repo):** **586** — api **462**, web (build+typecheck, no unit
@@ -86,6 +86,7 @@ Gates: `turbo run lint build typecheck test --force --concurrency=1` → **20/20
 | Real SSO round-trip | `4d55928` | Phase 2.0 2.6 — Keycloak RS256 token → api 200, verifiers coexist, tampered → 401, portal tiles + Caddy paths | ✅ four-curl set + real-browser /tools pass |
 | Plugin sandboxing | `5f268f3` | Phase 2.0 2.7 — process-mode sandbox (timeout/heap/result caps, crash containment), OPT-IN | ✅ boom/crash/hang contained, graphify ran in the child |
 | Worker separate process | `3b37129` | Phase 2.0 2.8 — ENGINE_WORKER_MODE=embedded\|separate + worker-main.js | ✅ api enqueues w/o consuming; worker completed task + fired cron |
+| Grafana dashboard | `0127ce1` | Phase 2.0 2.3 — provisioned 19-panel dashboard + engine-metrics wiring (2 live-found fixes) | ✅ real Prometheus samples + browser-rendered live data |
 
 **Live stack (local, $0):** postgres :5432, redis :6380, ollama `qwen2.5-coder:7b`,
 api :4001 (use `API_HOST_PORT`, never the squatted :4000). Prometheus/Grafana/Loki
@@ -146,13 +147,16 @@ These are NOT to be actioned without the user resuming them.
 - ~~**Worker as separate process (2.8)**~~ **DONE (`3b37129`)** — `ENGINE_WORKER_MODE=
   embedded|separate` + `dist/worker-main.js` + `boot-worker.sh`; LIVE-PROVEN (api enqueues
   without consuming; the worker completed the task + fired a cron schedule cross-process).
-- **Grafana dashboard JSON (2.3 tail)**: the /health page + /api/metrics are live; the
-  pre-built Grafana dashboard file is the last Phase 2.0 item.
+- ~~**Grafana dashboard JSON (2.3 tail)**~~ **DONE (`0127ce1`)** — provisioned "Constellation
+  Platform" dashboard (19 panels, uid constellation) over /api/metrics; datasource uids
+  pinned; prometheus host-dev scrape job; TWO live-found bugs fixed (metric unit-suffix
+  duplication + the engine counters that were declared but never fed — now wired via
+  @Optional() MetricsService into all six engine/auth hot paths). LIVE-PROVEN in a real
+  browser with live data. **PHASE 2.0 IS COMPLETE.**
 
-**Phase 3.0 — Platform as a Product (after 2.0):** full engine task UI depth,
-visual workflow builder, plugin marketplace, plugin scaffolding + hot-reload,
-notification center (task/schedule/approval events → toast/email/slack), multi-
-model compare, team spaces.
+**Phase 3.0 — Platform as a Product (NEXT):** portal full `/engine` task UI (P0 — the
+#1 UX gap), visual workflow builder, plugin marketplace, plugin scaffolding + hot-reload,
+notification center, multi-model compare, team spaces.
 
 **Phase 4.0 — Agentic OS:** multi-agent crews (delegation), persistent memory
 (RAG + Graphify), MCP server + client, agent skill marketplace, autonomous
@@ -183,9 +187,9 @@ Full feature tables with competitor benchmarks + priorities: `docs/MASTER_PLAN.m
 After reading this file, a correct resume must be able to run:
 ```bash
 cd C:/Users/syed.mohamed/Claude/Code/constellation
-git log --oneline -5        # expect 3b37129 at HEAD
+git log --oneline -5        # expect 0127ce1 at HEAD
 git status                  # expect a CLEAN tree
 ./node_modules/.bin/turbo run lint build typecheck test --force --concurrency=1
 # expect 20/20 tasks green, 586 tests (api 462, sdk 21, graphify 40, browser-use 47, cli 16)
 ```
-Then continue from §6. Reconcile if any of it differs.
+Then continue from §6 (Phase 3.0). Reconcile if any of it differs.
