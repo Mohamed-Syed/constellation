@@ -42,3 +42,7 @@ graphify-out/
 
 # SSO test tokens (real JWTs from local Keycloak) — never commit credentials
 artifacts/sso-test-tokens/
+
+# Python (live-proof driver scripts)
+__pycache__/
+*.pyc
