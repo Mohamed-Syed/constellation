@@ -350,13 +350,14 @@ next phase can be executed. None of these are auto-decided by Polaris.
 | **D2** | **GitHub push go-ahead** | The repo is publish-clean: secret/PII sweep passed (0 real keys, no employer identity), username sanitized to `<user>` placeholder, README has Author's note, 519 tests green. Target: your personal GitHub (`Mohamed-Syed`). | Unblocks: public visibility, issue tracking, CI/CD. This is a separate, explicit go-ahead — nothing will be pushed without you saying "push now" in the moment. |
 | **D3** | **Priority order for Phase 2.0 start** | Two P0 paths: (A) **Infra/devops** — Prisma migrations + OTel tracing + Prometheus metrics (unblocks deploy, makes the platform observable). (B) **UX** — Portal full `/engine` task UI (unblocks demo-ability, makes the engine visible to non-developers). | The engine works via `curl` today. A portal UI makes it a product. But migrations + tracing make it deployable. Which first? |
 
-### 7-BIS.8 — Polaris session summary (2026-08-03) — what was built, who built it, what's verified
+### 7-BIS.8 — Polaris session summary (2026-08-03; extended 2026-08-04) — what was built, who built it, what's verified
 
 This is the consolidated round-by-round record of the autonomous build session
-under Polaris, from Engine v0.3 through the strategic roadmap. Every round was
-either driven by clau_partner (solo) or dispatched via `delegate_task` (maker
-subagent builds; Polaris independently re-runs gates, writes missing tests, live-
-proves, commits, and updates docs — the checker).
+under Polaris, from Engine v0.3 through the notification center (Phase 3.0 item
+3.4). Every round was either driven by clau_partner (solo) or dispatched via
+`delegate_task` (maker subagent builds; Polaris independently re-runs gates,
+writes missing tests, live-proves, commits, and updates docs — the checker);
+the post-roadmap rounds were all Polaris solo rounds.
 
 | Round | Who built it | What shipped | SHA (code) | SHA (docs backfill) | Tests | Live-proven? |
 |-------|-------------|-------------|-----------|-------------------|-------|-------------|
@@ -366,11 +367,27 @@ proves, commits, and updates docs — the checker).
 | **Platform hardening v0.6** | Subagent (maker) + Polaris (checker: test fix, DB guard, live-proof) | Viewer user seed (RBAC 403 path), per-plugin schema bootstrap (C8, defensive check), httpOnly-cookie auth (login sets cookie, guard falls back, portal `credentials:include`) | `070fb2d` | `0705658` | 505 → **519** | ✅ Cookie-only `/me` works; viewer → audit = 403 |
 | **Publish-readiness** | Polaris (solo) | Username sanitize (`<user>` placeholder in docs/scripts), README Author's note, final secret/PII sweep (0 findings) | `d679918` | — (self-documented) | 519 (no change) | ✅ Sweep clean |
 | **Strategic roadmap** | Polaris (solo, research + writing) | MASTER_PLAN §7-BIS: vision, market analysis, Phase 2.0/3.0/4.0 (22 features), target architecture, scorecard | `a63dae9` | — (contains itself) | 519 (no change) | N/A (docs) |
+| **Portal v1.1 design-language series** | Polaris (solo, 3 skill repos distilled) | DESIGN_SKILL language: animated dashboard/tools/admin/modules/brain grids, sun/moon theme toggle, Sonner toasts, `docs/DESIGN_SKILL.md` | `cf161b4` → `635ec9d` | `c007f52` (grouped) | 519 (no delta, UI-only) | ✅ web build + typecheck 0 |
+| **Phase 2.0 infra** | Polaris (solo) | Committed `prisma/migrations` history (entrypoint auto-switches to `migrate deploy`) + Prometheus `/api/metrics` (zero-dep registry, MetricsService, interceptor, opt-out) | `ac2cf11` | `c007f52` (grouped) | 519 → **528** (+9 metrics tests) | ✅ `/api/metrics` HTTP 200 + migrate status clean |
+| **CLI ops** | Polaris (solo) | `constellation ops health|engine status|tasks|schedules|deadletters|plugins` (zero-dep, reads the live API) | `e8fe871` | `c007f52` (grouped) | 528 → **535** (+7 cli) | ✅ 16 cli tests, TSC 0 |
+| **OTel tracing** | Polaris (solo) | Additive tracer (no-op when endpoint unset) + Tempo (OTLP :4317/:4318, query :3200); http/engine/model/tool spans; hand-rolled ALS context manager | `8d29e3f` | `c007f52` | 535 → **547** (+12) | ✅ Both ways: unset → 0 traces; set → full parented tree in Tempo |
+| **Portal /health dashboard** | Polaris (solo) | `/health` route: live engine dashboard (queue, providers, scheduler, supervisor, alert trail), 5s poll, DESIGN_SKILL | `0647666` | `fbd4cf1` | 547 (no delta) | ✅ Browser: all cards live |
+| **Real SSO round-trip** | Polaris (solo) | Keycloak RS256 token → `/api/auth/me` 200, verifiers coexist, tampered → 401; portal `/tools` tiles + Caddy paths (tools-only round) | `4d55928` | `76f1d7c` (grouped) | 547 (no delta) | ✅ Four-curl set + real-browser tiles |
+| **DeepSeek provider** | Polaris (solo) | Third ModelProvider (direct DeepSeek API, `deepseek-v4-flash`, OPT-IN key, thinking toggle, derived cost) + 2 live-found bug fixes (router cloud-first, NOOP_SPAN) | `2d813de` | `76f1d7c` (grouped) | 547 → **571** (+24) | ✅ Task completed `provider:"deepseek"` ≈ $0.00001 |
+| **Plugin sandboxing (2.7)** | Polaris (solo) | Process-mode sandbox (timeout/heap/result caps, crash containment), OPT-IN `PLUGIN_SANDBOX_MODE` | `5f268f3` | `fc5b77e` (grouped) | 571 → **582** (+11) | ✅ boom/crash/hang contained; graphify ran in the child |
+| **Worker separate process (2.8)** | Polaris (solo) | `ENGINE_WORKER_MODE=embedded\|separate` + `dist/worker-main.js` + boot-worker.sh; honest `enabled:false` in api | `3b37129` | `fc5b77e` (grouped) | 582 → **586** (+4) | ✅ api defers; worker completed task + fired cron cross-process |
+| **Grafana dashboard (2.3 tail)** | Polaris (solo) | Provisioned 19-panel "Constellation Platform" dashboard + datasource uids + host-dev scrape job; 2 live-found metric bugs fixed (unit-suffix dup, never-fed counters) | `0127ce1` | `badc44a` | 586 (no delta) | ✅ Real Prometheus samples + browser-rendered live data. **PHASE 2.0 COMPLETE** |
+| **Portal /engine task UI (3.1, P0)** | Polaris (solo) | Status filter tabs with counts, 2s live step streaming + live badge, Re-run, model picker, Result+Copy | `b6e379f` | `a9a2b2f` | 586 (no delta, UI) | ✅ Browser: STEP HISTORY (3) + RESULT + Copy + tabs + Re-run |
+| **Plugin marketplace (3.2)** | Polaris (solo) | Browse/install/uninstall with HOT-RELOAD (plugins-catalog/ shelf, marker-gated uninstall), guarded routes; 1 live-found UI bug fixed | `6e596af` | `96c31c6` | 586 → **597** (+11) | ✅ Browser: Install → installed zone + toast → Uninstall → back |
+| **Visual workflow builder (3.3)** | Polaris (solo) | Workflow/WorkflowRun + migration, validator + templating, run executor (agent→queue, tool→plugin), drag-reorder builder UI; 1 live-found envelope bug fixed | `9e05c7a` (+ fixup `6d23314`) | `2c3fc3a` (+ session summary `6a01000`) | 597 → **615** (+18) | ✅ 2-step agent→tool run completed (templated args) + browser trail |
+| **Notification center (3.4)** | Polaris (solo) | Durable event feed: Notification model + migration, EventBus listener (engine.task.* + NEW scheduler.schedule.fired/error emissions), REST list/read/dismiss, portal /notifications + sidebar unread badge + admin audit-log tab; 2 live-found bugs fixed (DI `import type`, React effect deps) | `35a76fe` | `ff7f868` | 615 → **637** (+22) | ✅ 5/5 event topics end-to-end + REST round-trip + real-browser badge/mark-all/audit |
 
-**Final tree at `a63dae9`:** clean (only untracked `Prompt to Clau_Partner.txt`).
+**Final tree at `ff7f868`:** clean (only untracked `Prompt to Clau_Partner.txt`).
 **Nothing pushed. $0/month. No cloud.** The engine, scheduler, supervisor, dead-
-letter, platform hardening, and auth are all **live-proven on real local infra**
-(postgres:5432, redis:6380, ollama qwen2.5-coder:7b, api:4001). The decisions in
+letter, platform hardening, auth, observability (metrics + tracing), and the
+whole Phase 3.0 product surface (engine UI, marketplace, workflows, notification
+center) are all **live-proven on real local infra** (postgres:5432, redis:6380,
+ollama qwen2.5-coder:7b, api:4001). The decisions in
 §7-BIS.7 are the only blockers to the next phase.
 
 ## 8. TASK SPLIT — the three friends (each appends results here; orchestrator verifies)
