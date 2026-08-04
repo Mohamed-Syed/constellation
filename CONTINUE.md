@@ -58,7 +58,7 @@ The strategic vision + market analysis + full roadmap live in
 
 ## 3. Current state (authoritative as of the last commit) — reconcile, don't assume
 
-**HEAD:** `8d29e3f` — `feat(api): Phase 2.0 — OpenTelemetry tracing (additive) + Tempo` (just committed).
+**HEAD:** `0647666` — `feat(web): Phase 2.0 — portal /health engine dashboard (2.4)` (just committed).
 Tree is **clean** (only untracked `Prompt to Clau_Partner.txt`, a working artifact).
 
 **Test count (full repo):** **547** — api **423**, web (build+typecheck, no unit
@@ -79,6 +79,7 @@ Gates: `turbo run lint build typecheck test --force --concurrency=1` → **20/20
 | Phase 2.0 infra | `ac2cf11` | Prisma migrations history + Prometheus `/api/metrics` | ✅ live: /metrics HTTP 200, migrate status clean |
 | CLI ops | `e8fe871` | `constellation ops health|engine status|tasks|schedules|deadletters|plugins` | ✅ 16 cli tests, TSC=0 |
 | OTel tracing | `8d29e3f` | Additive OTel tracer (HTTP/engine-step/model/tool spans) + Tempo in the federation overlay | ✅ LIVE both ways: unset→0 traces, set→full parented tree in Tempo |
+| Health dashboard | `0647666` | Portal `/health` — live engine dashboard (queue, model providers, scheduler, supervisor, alerts) | ✅ browser-proven: all cards live, 5s poll |
 
 **Live stack (local, $0):** postgres :5432, redis :6380, ollama `qwen2.5-coder:7b`,
 api :4001 (use `API_HOST_PORT`, never the squatted :4000). Prometheus/Grafana/Loki
@@ -93,7 +94,8 @@ docker-compose.federation.yml --profile federation up -d tempo`, then set
 
 **Done:** Engine v0→v0.5 · Platform hardening v0.6 · Publish-readiness prep ·
 Portal design-language rebuild (both themes) · Prisma migrations history ·
-Prometheus `/api/metrics` · CLI ops subcommands · **OTel tracing + Tempo**.
+Prometheus `/api/metrics` · CLI ops subcommands · **OTel tracing + Tempo** ·
+**Portal `/health` engine dashboard**.
 
 **The design-language source** (three repos, guidance captured in `docs/DESIGN_SKILL.md`):
 `emilkowalski/skills`, `pbakaus/impeccable`, `leonxlnx/taste-skill`. Any portal
@@ -118,9 +120,10 @@ These are NOT to be actioned without the user resuming them.
   engine task runs/steps, model calls, tool calls) that **no-ops when
   `OTEL_EXPORTER_OTLP_ENDPOINT` is unset**, plus Tempo in the federation overlay.
   LIVE-PROVEN both ways (evidence in `artifacts/phase2-otel-tracing/`).
-- **Health dashboard (2.4):** portal `/health` route rendering the engine health
-  endpoint as a live dashboard (engine status, queue depth, failed tasks,
-  supervisor sweeps, alert trail, model availability).
+- ~~**Health dashboard (2.4)**~~ **DONE (`0647666`)** — portal `/health` route
+  rendering the engine health endpoint as a live dashboard (engine status, queue
+  depth incl. failedTasks, model providers, scheduler, supervisor, alert trail);
+  browser-proven (evidence in `artifacts/health-dashboard/`).
 - **Real SSO round-trip (2.6):** Keycloak + Caddy are IN compose and running;
   prove login → token → portal tile end-to-end (the OIDC seam exists).
 - **Plugin sandboxing** (2.7): plugins run in-process today (documented). Optional
@@ -162,7 +165,7 @@ Full feature tables with competitor benchmarks + priorities: `docs/MASTER_PLAN.m
 After reading this file, a correct resume must be able to run:
 ```bash
 cd C:/Users/syed.mohamed/Claude/Code/constellation
-git log --oneline -5        # expect 8d29e3f at HEAD
+git log --oneline -5        # expect 0647666 at HEAD
 git status                  # expect a CLEAN tree
 ./node_modules/.bin/turbo run lint build typecheck test --force --concurrency=1
 # expect 20/20 tasks green, 547 tests (api 423, sdk 21, graphify 40, browser-use 47, cli 16)
