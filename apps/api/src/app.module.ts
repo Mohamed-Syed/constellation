@@ -11,6 +11,7 @@ import { LoggingModule } from "./core/logging/logging.module.js";
 import { MemoryModule } from "./core/memory/memory.module.js";
 import { ObservabilityModule } from "./core/observability/observability.module.js";
 import { PluginsModule } from "./core/plugins/plugins.module.js";
+import { WorkflowsModule } from "./core/workflows/workflows.module.js";
 import { RbacModule } from "./core/rbac/rbac.module.js";
 import { SettingsModule } from "./core/settings/settings.module.js";
 
@@ -48,6 +49,7 @@ import { SettingsModule } from "./core/settings/settings.module.js";
     MemoryModule,
     HealthModule,
     PluginsModule,
+    WorkflowsModule,
     EngineModule,
     ObservabilityModule,
   ],

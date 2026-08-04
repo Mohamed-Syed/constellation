@@ -33,6 +33,7 @@ export interface NavGroups {
 const CORE_PLATFORM: FlatNavItem[] = [
   { id: "core-dashboard", label: "Dashboard", href: "/", icon: "LayoutDashboard", order: 0 },
   { id: "core-modules", label: "Modules", href: "/modules", icon: "Blocks", order: 10 },
+  { id: "core-workflows", label: "Workflows", href: "/workflows", icon: "Workflow", order: 15 },
   { id: "core-tools", label: "Tools", href: "/tools", icon: "Boxes", order: 20 },
   {
     // The platform's memory / knowledge graph (docs/BRAIN.md). Role-aware like

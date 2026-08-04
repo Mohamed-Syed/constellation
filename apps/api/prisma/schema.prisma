@@ -290,3 +290,40 @@ model TaskCheckpoint {
   @@map("task_checkpoints")
   @@schema("core")
 }
+
+// ── Phase 3.0 — visual workflow builder ─────────────────────────────────────
+// A workflow is a stored, versioned definition (trigger + ordered steps) that
+// the WorkflowRunService executes: "agent" steps enqueue an engine task and
+// wait for it, "tool" steps invoke a plugin tool directly. Steps can reference
+// prior steps' results via {{steps.<id>.result}} / {{steps.<id>.error}}.
+model Workflow {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  /// WorkflowDefinition JSON: { trigger: {type, cron?, event?}, steps: [...] }
+  definition  Json
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  runs        WorkflowRun[]
+
+  @@map("workflows")
+  @@schema("core")
+}
+
+model WorkflowRun {
+  id          String    @id @default(cuid())
+  workflowId  String
+  workflow    Workflow  @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  /// queued | running | completed | failed
+  status      String    @default("running")
+  /// Per-step outcomes [{id, kind, label, ok, result?, error?}] appended as
+  /// each step finishes, so a failed run shows exactly where it stopped.
+  stepsResult Json?
+  error       String?
+  createdAt   DateTime  @default(now())
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@map("workflow_runs")
+  @@schema("core")
+}

@@ -21,6 +21,8 @@ export const CorePermissions = {
   // Added additively in SDK 0.2.0; no existing permission changed.
   BRAIN_READ: "core:brain:read",
   BRAIN_WRITE: "core:brain:write",
+  // Phase 3.0 — visual workflow builder (CRUD + runs). `platform:admin` implies it.
+  WORKFLOW_MANAGE: "core:workflow:manage",
   // Baseline
   AUTHENTICATED: "core:authenticated",
 } as const;
