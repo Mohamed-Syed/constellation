@@ -58,9 +58,9 @@ The strategic vision + market analysis + full roadmap live in
 
 ## 3. Current state (authoritative as of the last commit) — reconcile, don't assume
 
-**HEAD:** `0127ce1` — `feat(obs): Phase 2.0 2.3 — pre-built Grafana dashboard + live engine-metrics wiring`.
-Just below it: `3b37129` (2.8 worker), `5f268f3` (2.7 sandboxing), `4d55928` (2.6 SSO),
-`2d813de` (DeepSeek provider). **PHASE 2.0 IS COMPLETE.**
+**HEAD:** `b6e379f` — `feat(web): Phase 3.0 3.1 — portal full /engine task UI (P0, the #1 UX gap)`.
+Just below it: `0127ce1` (2.3 Grafana dashboard), `3b37129` (2.8 worker), `5f268f3` (2.7
+sandboxing), `4d55928` (2.6 SSO). **PHASE 2.0 COMPLETE; PHASE 3.0 STARTED (3.1 DONE).**
 Tree is **clean** (only untracked `Prompt to Clau_Partner.txt`, a working artifact).
 
 **Test count (full repo):** **586** — api **462**, web (build+typecheck, no unit
@@ -87,6 +87,7 @@ Gates: `turbo run lint build typecheck test --force --concurrency=1` → **20/20
 | Plugin sandboxing | `5f268f3` | Phase 2.0 2.7 — process-mode sandbox (timeout/heap/result caps, crash containment), OPT-IN | ✅ boom/crash/hang contained, graphify ran in the child |
 | Worker separate process | `3b37129` | Phase 2.0 2.8 — ENGINE_WORKER_MODE=embedded\|separate + worker-main.js | ✅ api enqueues w/o consuming; worker completed task + fired cron |
 | Grafana dashboard | `0127ce1` | Phase 2.0 2.3 — provisioned 19-panel dashboard + engine-metrics wiring (2 live-found fixes) | ✅ real Prometheus samples + browser-rendered live data |
+| Portal /engine task UI | `b6e379f` | Phase 3.0 3.1 (P0) — filter tabs, 2s live step streaming + live badge, Re-run, model picker, Result+Copy | ✅ browser: STEP HISTORY (3) + RESULT JSON + Copy + tabs + Re-run |
 
 **Live stack (local, $0):** postgres :5432, redis :6380, ollama `qwen2.5-coder:7b`,
 api :4001 (use `API_HOST_PORT`, never the squatted :4000). Prometheus/Grafana/Loki
@@ -154,8 +155,11 @@ These are NOT to be actioned without the user resuming them.
   @Optional() MetricsService into all six engine/auth hot paths). LIVE-PROVEN in a real
   browser with live data. **PHASE 2.0 IS COMPLETE.**
 
-**Phase 3.0 — Platform as a Product (NEXT):** portal full `/engine` task UI (P0 — the
-#1 UX gap), visual workflow builder, plugin marketplace, plugin scaffolding + hot-reload,
+**Phase 3.0 — Platform as a Product (IN PROGRESS — 3.1 DONE `b6e379f`):** ~~portal full
+`/engine` task UI (P0 — the #1 UX gap)~~ **DONE (`b6e379f` — status filter tabs with counts,
+2s live step streaming + pulsing 'live' badge, Re-run for finished tasks, model picker
+datalist from the health providers, Result panel with Copy; LIVE-PROVEN in a real browser)**;
+then visual workflow builder, plugin marketplace, plugin scaffolding + hot-reload,
 notification center, multi-model compare, team spaces.
 
 **Phase 4.0 — Agentic OS:** multi-agent crews (delegation), persistent memory
@@ -187,9 +191,10 @@ Full feature tables with competitor benchmarks + priorities: `docs/MASTER_PLAN.m
 After reading this file, a correct resume must be able to run:
 ```bash
 cd C:/Users/syed.mohamed/Claude/Code/constellation
-git log --oneline -5        # expect 0127ce1 at HEAD
+git log --oneline -5        # expect b6e379f at HEAD
 git status                  # expect a CLEAN tree
 ./node_modules/.bin/turbo run lint build typecheck test --force --concurrency=1
 # expect 20/20 tasks green, 586 tests (api 462, sdk 21, graphify 40, browser-use 47, cli 16)
 ```
-Then continue from §6 (Phase 3.0). Reconcile if any of it differs.
+Then continue from §6 (Phase 3.0 — next: visual workflow builder / plugin marketplace /
+notification center). Reconcile if any of it differs.
