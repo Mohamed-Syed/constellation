@@ -8,6 +8,7 @@ import {
 import { EventBusService } from "../events/event-bus.service.js";
 import { buildContextWith, PluginContextFactory } from "./plugin-context.factory.js";
 import { PluginRegistryService } from "./plugin-registry.service.js";
+import { PluginSandboxService } from "./plugin-sandbox.service.js";
 // VALUE import (not `import type`): TracingService is a DI token below; a
 // type-only import is erased and @Optional() then injects undefined.
 import { TracingService } from "../observability/tracing/tracing.service.js";
@@ -85,6 +86,10 @@ export class PluginToolService {
     @Optional() private readonly contextFactory?: PluginContextFactory,
     @Optional() private readonly events?: EventBusService,
     @Optional() @Inject(TracingService) private readonly tracing?: TracingService,
+    // Phase 2.0 2.7 — process-mode sandbox. `@Optional()` + trailing position
+    // keeps the hand-wired offline tests (which construct positionally)
+    // green: absent → in-process dispatch, exactly as before.
+    @Optional() private readonly sandbox?: PluginSandboxService,
   ) {}
 
   /** Declared tools for a plugin, or `[]` when unknown. Read-only view. */
@@ -171,7 +176,14 @@ export class PluginToolService {
     );
   }
 
-  /** Runs the plugin's `invokeTool` under a timeout, converting any throw into `ok:false`. */
+  /**
+   * Runs the plugin's `invokeTool` — IN-PROCESS (the default) or in the
+   * process-mode SANDBOX (Phase 2.0 2.7) when the operator opted the plugin
+   * in (PLUGIN_SANDBOX_MODE=process + PLUGIN_SANDBOX_PLUGINS). Both paths
+   * convert any throw/hang/crash into `ok:false`; the sandbox path adds
+   * OS-level isolation (timeout kill, heap cap, result cap, crash
+   * containment) so a bad plugin can never take down the api.
+   */
   private async dispatch(
     plugin: LoadedPlugin,
     tool: DeclaredTool,
@@ -182,12 +194,16 @@ export class PluginToolService {
     let result: ToolResult;
 
     try {
-      const ctx = await buildContextWith(this.contextFactory, plugin.manifest);
-      result = await withTimeout(
-        Promise.resolve(plugin.runtime.invokeTool!(tool.name, args, ctx)),
-        DEFAULT_INVOCATION_TIMEOUT_MS,
-        `tool "${tool.name}" exceeded ${DEFAULT_INVOCATION_TIMEOUT_MS}ms`,
-      );
+      if (this.sandbox?.shouldSandbox(pluginId)) {
+        result = await this.sandbox.dispatch(plugin, tool.name, args);
+      } else {
+        const ctx = await buildContextWith(this.contextFactory, plugin.manifest);
+        result = await withTimeout(
+          Promise.resolve(plugin.runtime.invokeTool!(tool.name, args, ctx)),
+          DEFAULT_INVOCATION_TIMEOUT_MS,
+          `tool "${tool.name}" exceeded ${DEFAULT_INVOCATION_TIMEOUT_MS}ms`,
+        );
+      }
 
       // A runtime returning junk shouldn't corrupt the envelope contract.
       if (!result || typeof result !== "object" || typeof (result as ToolResult).ok !== "boolean") {

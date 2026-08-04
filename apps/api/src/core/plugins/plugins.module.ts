@@ -4,6 +4,7 @@ import { PluginHealthService } from "./plugin-health.service.js";
 import { PluginLifecycleService } from "./plugin-lifecycle.service.js";
 import { PluginLoaderService } from "./plugin-loader.service.js";
 import { PluginRegistryService } from "./plugin-registry.service.js";
+import { PluginSandboxService } from "./plugin-sandbox.service.js";
 import { PluginToolService } from "./plugin-tool.service.js";
 import { PluginsController } from "./plugins.controller.js";
 
@@ -24,6 +25,7 @@ import { PluginsController } from "./plugins.controller.js";
     PluginLifecycleService,
     PluginLoaderService,
     PluginHealthService,
+    PluginSandboxService,
     PluginToolService,
   ],
   exports: [PluginRegistryService, PluginLifecycleService, PluginToolService],

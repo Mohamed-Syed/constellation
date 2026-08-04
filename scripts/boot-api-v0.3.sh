@@ -51,5 +51,12 @@ fi
 if grep -q '^OTEL_SERVICE_NAME=.' .env; then
   export OTEL_SERVICE_NAME="$(grep '^OTEL_SERVICE_NAME=' .env | cut -d= -f2-)"
 fi
+# Phase 2.0 2.7 — plugin sandboxing (OPT-IN, default off): export from .env
+# when set. Only non-empty values (the empty-string override trap).
+for VAR in PLUGIN_SANDBOX_MODE PLUGIN_SANDBOX_PLUGINS PLUGIN_SANDBOX_TIMEOUT_MS PLUGIN_SANDBOX_MEMORY_MB PLUGIN_SANDBOX_MAX_RESULT_BYTES; do
+  if grep -q "^$VAR=." .env; then
+    export "$VAR"="$(grep "^$VAR=" .env | cut -d= -f2-)"
+  fi
+done
 cd apps/api
 exec node dist/main.js

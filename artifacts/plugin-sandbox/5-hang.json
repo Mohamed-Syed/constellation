@@ -1,0 +1,1 @@
+{"pluginId":"sandbox-test","tool":"sandbox.hang","durationMs":8014,"ok":false,"error":"Sandboxed plugin \"sandbox-test\" tool \"sandbox.hang\" failed (exit killed): [sandbox] killed by timeout after 8000ms"}

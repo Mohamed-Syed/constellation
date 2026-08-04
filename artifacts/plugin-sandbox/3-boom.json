@@ -1,0 +1,1 @@
+{"pluginId":"sandbox-test","tool":"sandbox.boom","durationMs":160,"ok":false,"error":"sandbox: plugin \"sandbox-test\" threw: boom from the sandbox"}
