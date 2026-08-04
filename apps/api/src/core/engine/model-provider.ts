@@ -148,6 +148,9 @@ export const MODEL_PROVIDERS = Symbol("MODEL_PROVIDERS");
  */
 export class TokenBudget {
   private _used = 0;
+  private _input = 0;
+  private _output = 0;
+  private _cost = 0;
 
   constructor(public readonly ceiling: number) {}
 
@@ -159,11 +162,34 @@ export class TokenBudget {
     return Math.max(0, this.ceiling - this._used);
   }
 
+  /** Cumulative input tokens across all recorded calls (multi-model compare round). */
+  get inputTokens(): number {
+    return this._input;
+  }
+
+  /** Cumulative output tokens across all recorded calls. */
+  get outputTokens(): number {
+    return this._output;
+  }
+
+  /** Cumulative total tokens (alias of `used` — multi-model compare round). */
+  get totalTokens(): number {
+    return this._used;
+  }
+
+  /** Cumulative dollar cost across all recorded calls (0 for local providers). */
+  get costUSD(): number {
+    return this._cost;
+  }
+
   /** Record one call's usage; returns true while still within the ceiling. */
   record(usage?: ModelUsage): boolean {
     // Prefer the provider's total; fall back to summing the parts.
     const total = usage?.totalTokens ?? (usage?.inputTokens ?? 0) + (usage?.outputTokens ?? 0);
     this._used += total;
+    this._input += usage?.inputTokens ?? 0;
+    this._output += usage?.outputTokens ?? 0;
+    this._cost += usage?.costUSD ?? 0;
     return this._used <= this.ceiling;
   }
 }

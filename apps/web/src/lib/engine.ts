@@ -50,6 +50,11 @@ export interface EngineTaskSummary {
   startedAt: string | null;
   completedAt: string | null;
   error: string | null;
+  /** Multi-model compare round — cumulative usage persisted at the end of the run. */
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+  costUSD: number | null;
 }
 
 /** Step types the ReAct loop writes (`agent-worker.service.ts`). */
@@ -138,6 +143,8 @@ export interface CreateTaskInput {
   title: string;
   prompt: string;
   model?: string;
+  /** Engine v0.1 — per-task step ceiling (defaults to 20 server-side). */
+  maxSteps?: number;
 }
 
 /** Discriminated result shared by the read calls — never throws. */

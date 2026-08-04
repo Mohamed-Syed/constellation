@@ -103,6 +103,28 @@ export class TaskService {
     await db.agentTask.update({ where: { id }, data: { provider } });
   }
 
+  /**
+   * Multi-model compare round: persist the task's CUMULATIVE model usage
+   * (tokens + dollar cost) at the end of the run (or on failure) so the
+   * portal can compare latency/tokens/cost per model. Never throws.
+   */
+  async markUsage(
+    id: string,
+    usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number; costUSD?: number },
+  ) {
+    const db = this.prisma.db;
+    if (!db) return;
+    await db.agentTask.update({
+      where: { id },
+      data: {
+        inputTokens: usage.inputTokens ?? null,
+        outputTokens: usage.outputTokens ?? null,
+        totalTokens: usage.totalTokens ?? null,
+        costUSD: usage.costUSD ?? null,
+      },
+    });
+  }
+
   async markCompleted(id: string, result: unknown) {
     const db = this.prisma.db;
     if (!db) return;

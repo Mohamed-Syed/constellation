@@ -169,4 +169,19 @@ describe("TaskService (v0.5) — supervisor queries", () => {
     const { svc: noDb } = serviceWith(undefined);
     await expect(noDb.markStallRetried("t1")).resolves.toBe(false);
   });
+
+  it("markUsage persists cumulative usage; no-op without a db", async () => {
+    const { svc, db } = serviceWith(makeDb());
+    db.agentTask.update.mockResolvedValue({});
+    await expect(
+      svc.markUsage("t1", { inputTokens: 10, outputTokens: 5, totalTokens: 15, costUSD: 0.001 }),
+    ).resolves.toBeUndefined();
+    expect(db.agentTask.update).toHaveBeenCalledWith({
+      where: { id: "t1" },
+      data: { inputTokens: 10, outputTokens: 5, totalTokens: 15, costUSD: 0.001 },
+    });
+
+    const { svc: noDb } = serviceWith(undefined);
+    await expect(noDb.markUsage("t1", { totalTokens: 1 })).resolves.toBeUndefined();
+  });
 });

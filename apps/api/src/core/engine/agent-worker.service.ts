@@ -274,12 +274,14 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
         if (!budget.record(response.usage)) {
           const msg = `Token budget exhausted: used ${budget.used} of ${budget.ceiling} tokens`;
           await this.taskService.addStep(taskId, { stepIndex, type: "error", content: { error: msg } });
+          await this.persistUsage(taskId, budget);
           await this.markTaskFailed(taskId, msg, "terminal");
           return;
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         await this.taskService.addStep(taskId, { stepIndex, type: "error", content: { error: msg } });
+        await this.persistUsage(taskId, budget);
         await this.markTaskFailed(taskId, msg, this.classifyModelError(err));
         return;
       }
@@ -325,6 +327,7 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
           type: "done",
           content: { result: action.result ?? rawResponse },
         });
+        await this.persistUsage(taskId, budget);
         await this.taskService.markCompleted(taskId, { summary: action.result ?? rawResponse });
         return;
 
@@ -343,7 +346,22 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
     }
 
     // Ran out of steps
+    await this.persistUsage(taskId, budget);
     await this.markTaskFailed(taskId, `Reached max steps (${maxSteps}) without completing.`, "terminal");
+  }
+
+  /**
+   * Multi-model compare round: persist the task's cumulative model usage
+   * (tokens + dollar cost) so the portal can compare models by cost/latency.
+   * Never throws (degraded no-DB write is a warn-once no-op upstream).
+   */
+  private async persistUsage(taskId: string, budget: TokenBudget): Promise<void> {
+    await this.taskService.markUsage(taskId, {
+      inputTokens: budget.inputTokens,
+      outputTokens: budget.outputTokens,
+      totalTokens: budget.totalTokens,
+      costUSD: budget.costUSD,
+    });
   }
 
   /**

@@ -1,0 +1,78 @@
+[
+ {
+  "act": "goto",
+  "url": "http://localhost:3005/login"
+ },
+ {
+  "act": "wait",
+  "expr": "document.querySelector('input[type=email]') !== null",
+  "wait": 60000
+ },
+ {
+  "act": "type",
+  "selector": "input[type=email]",
+  "t": "admin@constellation.local"
+ },
+ {
+  "act": "type",
+  "selector": "input[type=password]",
+  "t": "changeme"
+ },
+ {
+  "act": "sleep",
+  "ms": 1000
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => /sign in|log in|submit/i.test(x.textContent || '')); if (b) { b.click(); return 'clicked login'; } return 'no login button'; })()"
+ },
+ {
+  "act": "sleep",
+  "ms": 8000
+ },
+ {
+  "act": "goto",
+  "url": "http://localhost:3005/compare"
+ },
+ {
+  "act": "wait",
+  "expr": "(document.body && document.body.innerText).includes('qwen2.5-coder:7b')",
+  "wait": 30000
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const btns = Array.from(document.querySelectorAll('button')); const q = btns.find(b => (b.textContent||'').includes('qwen2.5-coder:7b')); const d = btns.find(b => (b.textContent||'').includes('deepseek-v4-flash')); if (q) q.click(); if (d) d.click(); return 'selected=' + ((q?'ollama,':'') + (d?'deepseek':'')).replace(/,$/,''); })()"
+ },
+ {
+  "act": "sleep",
+  "ms": 500
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const pressed = Array.from(document.querySelectorAll('[aria-pressed=true]')).length; const runBtn = Array.from(document.querySelectorAll('button')).find(b => (b.textContent||'').includes('Run comparison')); return 'chipsSelected=' + pressed + ';runDisabled=' + (runBtn ? runBtn.disabled : 'n/a'); })()"
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => (x.textContent || '').includes('Run comparison')); if (!b) return 'no run button'; b.click(); return 'clicked Run comparison'; })()"
+ },
+ {
+  "act": "wait",
+  "expr": "(() => { const t = document.body && document.body.innerText; return t && (t.match(/completed/g) || []).length >= 2; })()",
+  "wait": 240000
+ },
+ {
+  "act": "sleep",
+  "ms": 3000
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const rows = Array.from(document.querySelectorAll('tbody tr')).map(r => (r.innerText||'').replace(/\\n/g,' | ')); return 'ROWS(' + rows.length + '): ' + rows.join(' ;; '); })()"
+ },
+ {
+  "act": "shot",
+  "shot": "compare-results"
+ },
+ {
+  "act": "text"
+ }
+]

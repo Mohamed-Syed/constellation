@@ -128,6 +128,16 @@ describe("TokenBudget — the per-task token ceiling (the promised 'budget cap')
     expect(budget.record({})).toBe(true);
     expect(budget.used).toBe(0);
   });
+
+  it("accumulates input/output tokens and cost across calls (multi-model compare round)", () => {
+    const budget = new TokenBudget(1000);
+    budget.record({ inputTokens: 100, outputTokens: 50, totalTokens: 150, costUSD: 0.001 });
+    budget.record({ inputTokens: 200, outputTokens: 100, totalTokens: 300, costUSD: 0.002 });
+    expect(budget.inputTokens).toBe(300);
+    expect(budget.outputTokens).toBe(150);
+    expect(budget.totalTokens).toBe(450);
+    expect(budget.costUSD).toBeCloseTo(0.003);
+  });
 });
 
 describe("retryTransient — bounded retry of TRANSIENT model failures (Task 5)", () => {

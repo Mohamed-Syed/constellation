@@ -46,6 +46,15 @@ const CORE_PLATFORM: FlatNavItem[] = [
     requiresAnyPermission: [BRAIN_READ_PERMISSION],
   },
   {
+    // Phase 3.0 item 3.6 — multi-model compare: run the same prompt against
+    // 2+ models side-by-side (latency, tokens, cost, output).
+    id: "core-compare",
+    label: "Compare",
+    href: "/compare",
+    icon: "BarChart3",
+    order: 35,
+  },
+  {
     // The agentic task runtime (apps/api/src/core/engine). Visible to every
     // authenticated user — the engine's routes are JWT-guarded with no
     // granular permission enforced yet.

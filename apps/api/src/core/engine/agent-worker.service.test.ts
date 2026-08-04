@@ -74,6 +74,7 @@ function makeWorker(opts: {
     loadCheckpoint: vi.fn().mockResolvedValue(opts.checkpoint ?? null),
     markRunning: vi.fn().mockResolvedValue(undefined),
     markProvider: vi.fn().mockResolvedValue(undefined),
+    markUsage: vi.fn().mockResolvedValue(undefined),
     markCompleted: vi.fn().mockResolvedValue(undefined),
     markFailed: vi.fn().mockResolvedValue(undefined),
     markPaused: vi.fn().mockResolvedValue(undefined),
@@ -149,6 +150,23 @@ describe("AgentWorkerService", () => {
     expect(steps[1]).toMatchObject({ type: "done", content: { result: "finished" } });
     expect(taskService.markCompleted).toHaveBeenCalledWith("task-1", { summary: "finished" });
     expect(taskService.saveCheckpoint).toHaveBeenCalled();
+  });
+
+  it("persists cumulative usage on completion (multi-model compare round)", async () => {
+    const chat = vi.fn().mockResolvedValueOnce({
+      content: doneJson("usage done"),
+      provider: "ollama",
+      usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15, costUSD: 0 },
+    });
+    const { svc, taskService } = makeWorker({ chat: chat as never });
+    await runJob(svc);
+    expect(taskService.markUsage).toHaveBeenCalledWith("task-1", {
+      inputTokens: 10,
+      outputTokens: 5,
+      totalTokens: 15,
+      costUSD: 0,
+    });
+    expect(taskService.markCompleted).toHaveBeenCalledWith("task-1", { summary: "usage done" });
   });
 
   it("tool_call → dispatch + checkpoint: invokes the plugin tool with agent permissions and records tool_call + tool_result", async () => {
