@@ -6,9 +6,9 @@
 >
 > **Codename:** `constellation` (placeholder — user may rename).
 > **Driver / lead orchestrator:** **Polaris.** New driver taking over → read `docs/ORCHESTRATOR.md` first (Polaris's full operating manual + onboarding).
-> **Status:** Platform layer strong + **the agentic engine is real, live-proven, self-recovering, and the platform is hardware/secrecy-hardened** through **v0.6** (git `070fb2d`, local only — never pushed). Durable BullMQ task runtime, ReAct loop with checkpoint/resume (kill-restart proven live), **human-in-the-loop approval gate**, per-task token budget cap, `/engine` portal, real model providers (OpenRouter + routing/fallback + cost-aware budget), a **scheduler** (cron + event auto-enqueue), **Engine v0.5 24/7 reliability** (dead-letter trail + stuck-task supervisor + event alerting), and **Platform hardening v0.6** (a `viewer` non-admin user seed so the RBAC 403 path is live-testable; per-plugin Postgres schema bootstrap for C8; **httpOnly-cookie token auth** closing the localStorage XSS caveat). **519 tests green** (api 402, browser-use 47, graphify 40, sdk 21, cli 9). See §9. **Remaining (before publish):** committed `prisma/migrations` history, plugin sandboxing (real enforcement), more capability plugins. The real Windows username has been sanitized from tracked docs/scripts to a `<user>` placeholder (publish-readiness ✓). VPS deploy deferred (provider + budget = user decision).
+> **Status:** Platform layer strong + **the agentic engine is real, live-proven, self-recovering, and the platform is hardware/secrecy-hardened** through **v0.6** (git `070fb2d`), plus **Phase 2.0 production foundation**: committed Prisma migrations + Prometheus `/api/metrics` (`ac2cf11`), `constellation` ops CLI (`e8fe871`), the portal design-language rebuild (`b2d296b`→`635ec9d`), and **OpenTelemetry tracing** (`8d29e3f`... see §9) — all local only, never pushed. Durable BullMQ task runtime, ReAct loop with checkpoint/resume (kill-restart proven live), **human-in-the-loop approval gate**, per-task token budget cap, `/engine` portal, real model providers (OpenRouter + routing/fallback + cost-aware budget), a **scheduler** (cron + event auto-enqueue), **Engine v0.5 24/7 reliability** (dead-letter trail + stuck-task supervisor + event alerting), and **Platform hardening v0.6** (a `viewer` non-admin user seed so the RBAC 403 path is live-testable; per-plugin Postgres schema bootstrap for C8; **httpOnly-cookie token auth** closing the localStorage XSS caveat). **547 tests green** (api 423, browser-use 47, graphify 40, sdk 21, cli 16). See §9. **Remaining (before publish):** plugin sandboxing (real enforcement), more capability plugins, OTel spans are live-proven but no pre-built Grafana dashboard JSON yet. The real Windows username has been sanitized from tracked docs/scripts to a `<user>` placeholder (publish-readiness ✓). VPS deploy deferred (provider + budget = user decision).
 > **Relationship to Looper:** SEPARATE project. Looper (`../loop-engineering`) is untouched.
-> **Last updated:** 2026-08-03 (Polaris — comprehensive strategic roadmap added: §§7-BIS.1–7-BIS.6 covering vision, market analysis, Constellation 2.0/3.0/4.0 phases, architecture, and competitive scorecard)
+> **Last updated:** 2026-08-04 (Polaris — Phase 2.0 OTel tracing round LIVE-PROVEN + the three post-v0.6 rounds backfilled into §9)
 
 ---
 
@@ -304,7 +304,7 @@ Every platform that wins has these attributes. This is our scorecard:
 | **Self-hosted, $0/month** | ✅ Ollama default; OpenRouter is opt-in; no SaaS dependency | ✅ Same — this is our core differentiator vs Port/Roadie/Datadog |
 | **Plugin ecosystem** | ⚠️ SDK built, 2 in-repo plugins, no marketplace | 🎯 Marketplace with browse/install, community plugins, hot-reload |
 | **Developer experience** | ⚠️ CLI partial, docs good, API-first | 🎯 `npx constellation` full CLI, scaffold in 1 min, typed SDK |
-| **Observability** | ⚠️ Infra has Prometheus/Grafana; no app-level tracing or metrics | 🎯 OTel-native, pre-built dashboards, health UI |
+| **Observability** | ⚠️ Prometheus `/api/metrics` live; OTel tracing live-proven (Tempo); no Grafana dashboard JSON yet | 🎯 OTel-native, pre-built dashboards, health UI |
 | **Security hardening** | ✅ httpOnly-cookie, RBAC, audit, defensive SQL guard, PII sanitized | 🎯 Plugin sandbox, SSO/OIDC, rate limiting, compliance reports |
 | **AI agent capability** | ✅ ReAct loop, tool calling, scheduler, supervisor, dead-letter, multi-model | 🎯 Multi-agent crews, persistent memory, agent skill marketplace, MCP server |
 | **Enterprise readiness** | ⚠️ Needs migrations, SSO, sandboxing, worker separation | 🎯 SOC2-ready audit, team spaces, federated mesh, incident response |
@@ -322,9 +322,9 @@ on top of a working foundation. Most competitors start from the opposite directi
 
 Per the ORCHESTRATOR §3 priority order, the next concrete items to build:
 
-1. **Prisma migrations history** (P0 — unblocks deploy, removes `db push`)
-2. **OpenTelemetry tracing** (P0 — observability foundation, pre-built for Grafana)
-3. **Prometheus metrics + health dashboard** (P0 — visual health)
+1. ~~**Prisma migrations history**~~ **DONE (`ac2cf11` — committed `prisma/migrations`, entrypoint auto-switches to `migrate deploy`).**
+2. ~~**OpenTelemetry tracing**~~ **DONE (`8d29e3f` — additive tracer, Tempo in the federation overlay, spans for HTTP/engine steps/model calls/tool invokes, LIVE-PROVEN both ways).**
+3. **Prometheus metrics + health dashboard** (P0 — visual health) — `/api/metrics` DONE (`ac2cf11`); remaining: pre-built Grafana dashboard JSON + portal `/health` page.
 4. **Portal full `/engine` task UI** (P0 — the #1 UX gap)
 5. **Plugin sandboxing** (P1 — security, enterprise requirement)
 6. **Worker as separate process** (P2 — production HA)
@@ -714,6 +714,29 @@ One assertion was corrected during the pass (default Redis connection includes
 engine files · 1b portal `/engine` page (Orion's lane) · Ollama integration test.
 
 ## 9. Verification log
+
+- **2026-08-04 — 🌡️ PHASE 2.0 item 2.2 — OPENTELEMETRY TRACING: DONE, gate-verified, LIVE-PROVEN BOTH WAYS (git `8d29e3f` — code; docs backfill follows). Polaris (solo round).** The platform had Prometheus metrics but NO tracing — "why is this task slow / which plugin failed" was unanswerable. This round adds a FULLY ADDITIVE OTel tracer: **when `OTEL_EXPORTER_OTLP_ENDPOINT` is unset (the default) it is a NO-OP** — never constructs the SDK, never opens a socket, zero overhead; when set, it exports spans to the new Tempo backend. This is the last P0 of §7-BIS.6.
+  - **What shipped (code `8d29e3f`):**
+    - **Tempo** in the federation overlay (`docker-compose.federation.yml`): OTLP gRPC :4317 + HTTP :4318 + query :3200, local storage, healthcheck; Grafana Tempo datasource auto-provisioned (`infra/grafana/provisioning/datasources/datasources.yml`); `infra/tempo/tempo.yaml`.
+    - **`TracingService`** (`apps/api/src/core/observability/tracing/`): constructs the SDK ONLY when the endpoint is set (try/catch degrade — a bad endpoint logs and continues WITHOUT tracing); `withSpan()` (activates the span in the OTel context so children parent correctly) + `startSpan()` handle for the HTTP interceptor; BatchSpanProcessor (5s) + OTLPTraceExporter; `@Optional() @Inject(TRACING_OPTIONS)` seam so tests construct with `new` + an `InMemorySpanExporter` and NEVER start the SDK or touch the network (**12 new unit tests** — noop path, span lifecycle, ERROR status + exception events, context propagation/parenting, service-name resource, construction-failure degrade).
+    - **`AlsContextManager`** — hand-rolled ~20-line `AsyncLocalStorage` ContextManager (OTel JS 2.x ships one only in the heavy `@opentelemetry/sdk-node`); registered only when tracing is enabled; makes parent-child spans work across awaits.
+    - **`HttpTracingInterceptor`** — one `http.request` span per request (method, route, status, duration), pure passthrough when disabled.
+    - **Engine spans** (all `@Optional() @Inject(TracingService)`): `model.call` in `ModelRouterService.chat()` (gen_ai provider/model + usage/cost attributes), `plugin.tool.invoke` in `PluginToolService.invoke()` (plugin.id/tool.name/tool.outcome — args NEVER attributed), `engine.task.run` (the whole `processJob` loop, extracted into `runTask`) + `engine.task.step` (per model-call iteration) in `AgentWorkerService`.
+    - Env: `.env.example` OTEL block, compose api passthrough, `scripts/boot-api-v0.3.sh` export.
+    - **Deps:** `@opentelemetry/api`, `sdk-trace-base`, `exporter-trace-otlp-http`, `resources`, `semantic-conventions` (api workspace only).
+  - **Tests:** api **411 → 423** (repo **535 → 547**) — tracing.service.test.ts (12). Full four-gate: **20/20 tasks green, 0 cached**; typecheck clean.
+  - **LIVE PROOF (both halves, literal evidence in `artifacts/phase2-otel-tracing/`):**
+    - **No-op (endpoint unset):** boot log `OpenTelemetry tracing disabled (OTEL_EXPORTER_OTLP_ENDPOINT unset) — spans are no-ops`; engine task completed on Ollama (`provider=ollama`); Tempo search for `service.name=constellation-api`: **0 traces before AND after** — nothing exported, zero behavior change.
+    - **Enabled (endpoint set):** boot log `OpenTelemetry tracing enabled — exporting spans to http://localhost:4318`; a REAL tool-calling task (`graphify.graph.query` → live brain sidecar, `[(0, tool_call), (1, tool_result), (2, done)]`, completed) produced a trace in Tempo with **all five required span kinds and correct parenting on the wire** (`parentSpanId` links):
+      `engine.task.run → engine.task.step → model.call` (+ `plugin.tool.invoke` under the run), with `task.id`/`task.title`, gen_ai usage (428/58/486 and 4078/38/4116 tokens, cost 0), and `tool.outcome=ok` attributes. `python scripts/verify-otel-evidence.py` → **`missing: NONE — ACCEPTANCE PASSED`**.
+  - **🐛 REAL BUG found by this live pass (offline gates could NOT catch it):** the three engine services imported `TracingService` as **`import type`** → tsc erased the import → `design:paramtypes` became `Function` → Nest's `@Optional()` injected **undefined** → the engine spans silently never existed while every gate stayed green (HTTP spans worked — the interceptor uses a value import). Same bug class as the v0 `import type` DTO bug (HANDOFF §5-adjacent; third occurrence in this codebase). Fix: value import + explicit `@Optional() @Inject(TracingService)` (verified in compiled dist: `design:paramtypes = [Array, TracingService]`). **Worth a repo-wide sweep for other `import type` DI tokens.**
+  - **Gates (`--force --concurrency=1`):** lint/build/typecheck/test **20/20** · tests **547** (api **423** · sdk 21 · graphify 40 · browser-use 47 · cli 16). Tree clean after docs. Nothing pushed. $0/local unbroken.
+
+- **2026-08-04 — 📋 ROUNDS BACKFILLED (shipped 2026-08-03 after v0.6, previously unlogged in §9):**
+  - **Portal v1.1 design-language series (`b2d296b`→`635ec9d`):** animated dashboard/tools grid, admin console, modules grid (staggered Reveal + surface-hover), brain stats, sun/moon theme-toggle cross-fade; `docs/DESIGN_SKILL.md` record. Web build + typecheck 0. (UI-only — no test delta.)
+  - **Phase 2.0 infra (`ac2cf11`):** committed `prisma/migrations` history (replaces `db push` — the Docker entrypoint auto-switches to `migrate deploy`) + **Prometheus `/api/metrics`** (`core/observability/metrics/*`: registry, MetricsService with HTTP/task/schedule/supervisor/alert/model/tool/auth metrics, HttpMetricsInterceptor, MetricsEngineBridge, MetricsController; `METRICS_ENABLED=false` opt-out). **9 metrics tests; live-proven: `/api/metrics` HTTP 200 Prometheus exposition + migrate status clean.** Evidence: `artifacts/phase2-production-foundation/`.
+  - **CLI ops (`e8fe871`):** `constellation ops health | engine status | tasks | schedules | deadletters | plugins` (zero-dep, fetch-based, reads the live API). **16 cli tests** (ops.test.ts), TSC 0.
+  - Gates at those points: 20/20 · tests 535 (api 411 · sdk 21 · graphify 40 · browser-use 47 · cli 16). Tree clean. Nothing pushed.
 
 - **2026-08-03 — 🛡️ PLATFORM HARDENING (v0.6): DONE, gate-verified, LIVE-PROVEN, COMMITTED (git `070fb2d`, local only) — Polaris orchestrating via delegate_task.** Three non-engine platform items:
   - **Viewer user seed** — `AdminSeedService` now also seeds `viewer@constellation.local` (dev default, `VIEWER_EMAIL`/`VIEWER_PASSWORD` overrides) bound to the `viewer` role (only `core:authenticated`), idempotent + no-DB degrade. Makes the RBAC 403 path live-testable.

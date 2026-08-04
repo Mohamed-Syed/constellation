@@ -58,10 +58,10 @@ The strategic vision + market analysis + full roadmap live in
 
 ## 3. Current state (authoritative as of the last commit) — reconcile, don't assume
 
-**HEAD:** `e8fe871` — `feat(cli): operational subcommands` (just committed).
+**HEAD:** `8d29e3f` — `feat(api): Phase 2.0 — OpenTelemetry tracing (additive) + Tempo` (just committed).
 Tree is **clean** (only untracked `Prompt to Clau_Partner.txt`, a working artifact).
 
-**Test count (full repo):** **535** — api **411**, web (build+typecheck, no unit
+**Test count (full repo):** **547** — api **423**, web (build+typecheck, no unit
 suite) , plugin-sdk **21**, plugin-graphify **40**, plugin-browser-use **47**, cli **16**.
 Gates: `turbo run lint build typecheck test --force --concurrency=1` → **20/20 tasks green**.
 
@@ -78,10 +78,14 @@ Gates: `turbo run lint build typecheck test --force --concurrency=1` → **20/20
 | Portal v1.1 series | `cf161b4`→`635ec9d` | Design-language UI overhaul (3 skill repos), dark+light, motion, toasts | ✅ web builds, typecheck 0 |
 | Phase 2.0 infra | `ac2cf11` | Prisma migrations history + Prometheus `/api/metrics` | ✅ live: /metrics HTTP 200, migrate status clean |
 | CLI ops | `e8fe871` | `constellation ops health|engine status|tasks|schedules|deadletters|plugins` | ✅ 16 cli tests, TSC=0 |
+| OTel tracing | `8d29e3f` | Additive OTel tracer (HTTP/engine-step/model/tool spans) + Tempo in the federation overlay | ✅ LIVE both ways: unset→0 traces, set→full parented tree in Tempo |
 
 **Live stack (local, $0):** postgres :5432, redis :6380, ollama `qwen2.5-coder:7b`,
 api :4001 (use `API_HOST_PORT`, never the squatted :4000). Prometheus/Grafana/Loki
-scrape `/api/metrics`. **No Tempo/OTLP yet** (that's why OTel is blocked — see §6).
+scrape `/api/metrics`. **Tempo now in the federation overlay** (OTLP :4317/:4318,
+query :3200) — boot with `docker compose -f docker-compose.yml -f
+docker-compose.federation.yml --profile federation up -d tempo`, then set
+`OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318` to enable tracing.
 
 ---
 
@@ -89,7 +93,7 @@ scrape `/api/metrics`. **No Tempo/OTLP yet** (that's why OTel is blocked — see
 
 **Done:** Engine v0→v0.5 · Platform hardening v0.6 · Publish-readiness prep ·
 Portal design-language rebuild (both themes) · Prisma migrations history ·
-Prometheus `/api/metrics` · CLI ops subcommands.
+Prometheus `/api/metrics` · CLI ops subcommands · **OTel tracing + Tempo**.
 
 **The design-language source** (three repos, guidance captured in `docs/DESIGN_SKILL.md`):
 `emilkowalski/skills`, `pbakaus/impeccable`, `leonxlnx/taste-skill`. Any portal
@@ -110,17 +114,19 @@ These are NOT to be actioned without the user resuming them.
 ## 6. Roadmap next — the concrete remaining work
 
 **Phase 2.0 — Production Foundation (in progress):**
-- **OTel tracing (Blocked pending Tempo):** the compose stack has no Tempo/OTLP
-  service. Add `tempo` (+ OTLP endpoint `:4317/:4318`) to `docker-compose.yml`,
-  then build the additive tracer (spans for HTTP, engine task steps, model calls,
-  tool calls) that **no-ops when `OTEL_EXPORTER_OTLP_ENDPOINT` is unset**. Keep it
-  additive — tests construct services with `new` and never start the SDK.
+- ~~**OTel tracing**~~ **DONE (`8d29e3f`)** — additive tracer (spans for HTTP,
+  engine task runs/steps, model calls, tool calls) that **no-ops when
+  `OTEL_EXPORTER_OTLP_ENDPOINT` is unset**, plus Tempo in the federation overlay.
+  LIVE-PROVEN both ways (evidence in `artifacts/phase2-otel-tracing/`).
+- **Health dashboard (2.4):** portal `/health` route rendering the engine health
+  endpoint as a live dashboard (engine status, queue depth, failed tasks,
+  supervisor sweeps, alert trail, model availability).
+- **Real SSO round-trip (2.6):** Keycloak + Caddy are IN compose and running;
+  prove login → token → portal tile end-to-end (the OIDC seam exists).
 - **Plugin sandboxing** (2.7): plugins run in-process today (documented). Optional
   `vm2`/sidecar isolation with resource limits. Enterprise security requirement.
 - **Worker as separate process** (2.8): BullMQ worker currently in-process with
   the API. Extract for HA + horizontal scale.
-- **Real SSO round-trip** (2.6): Keycloak + Caddy are in compose; prove login →
-  token → portal tile end-to-end (the OIDC seam exists).
 
 **Phase 3.0 — Platform as a Product (after 2.0):** full engine task UI depth,
 visual workflow builder, plugin marketplace, plugin scaffolding + hot-reload,
@@ -156,9 +162,9 @@ Full feature tables with competitor benchmarks + priorities: `docs/MASTER_PLAN.m
 After reading this file, a correct resume must be able to run:
 ```bash
 cd C:/Users/syed.mohamed/Claude/Code/constellation
-git log --oneline -5        # expect e8fe871 at HEAD
+git log --oneline -5        # expect 8d29e3f at HEAD
 git status                  # expect a CLEAN tree
 ./node_modules/.bin/turbo run lint build typecheck test --force --concurrency=1
-# expect 20/20 tasks green, 535 tests (api 411, sdk 21, graphify 40, browser-use 47, cli 16)
+# expect 20/20 tasks green, 547 tests (api 423, sdk 21, graphify 40, browser-use 47, cli 16)
 ```
 Then continue from §6. Reconcile if any of it differs.

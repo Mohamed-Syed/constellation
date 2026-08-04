@@ -5,7 +5,7 @@
 > over the driver's seat, this file plus `MASTER_PLAN.md` and `HANDOFF.md` are everything
 > you need. Nothing here is secret; everything is grounded in what actually shipped.
 >
-> **Author:** Polaris (lead orchestrator). **Last updated:** 2026-08-03, at commit `d679918` — comprehensive strategic roadmap published (MASTER_PLAN §§7-BIS.1–7-BIS.6).
+> **Author:** Polaris (lead orchestrator). **Last updated:** 2026-08-04, at commit `8d29e3f` — Phase 2.0 OTel tracing round (additive tracer + Tempo, live-proven both ways) + the three post-v0.6 rounds backfilled into MASTER_PLAN §9.
 
 ---
 
@@ -59,7 +59,7 @@ Do not import Looper code or reference it in this repo; it is a different codeba
 
 ---
 
-## 2. Where the project is right now (2026-08-03, commit `070fb2d`)
+## 2. Where the project is right now (2026-08-04, commit `8d29e3f`)
 
 The **platform layer is strong and the agentic engine is real and proven.** Condensed; full
 per-round evidence with SHAs lives in `MASTER_PLAN.md §9`.
@@ -108,8 +108,11 @@ per-round evidence with SHAs lives in `MASTER_PLAN.md §9`.
   bearer flow untouched); **proven LIVE** — cookie-only `/api/auth/me` works, viewer gets 403 on
   admin-only routes.
 
-**Gates at `070fb2d`:** lint/build/typecheck all green; **519 tests** (api 402, browser-use 47,
-graphify 40, sdk 21, cli 9). Tree clean. **Nothing has ever been pushed. No cloud. $0 spent.**
+**Gates at `8d29e3f`:** lint/build/typecheck all green; **547 tests** (api 423, browser-use 47,
+graphify 40, sdk 21, cli 16). Tree clean. **Nothing has ever been pushed. No cloud. $0 spent.**
+Phase 2.0 progress: migrations history + Prometheus `/api/metrics` (`ac2cf11`), `constellation`
+ops CLI (`e8fe871`), OTel tracing + Tempo (`8d29e3f`) — all live-proven. Remaining Phase 2.0:
+portal `/health` dashboard, SSO round-trip, plugin sandboxing, worker as separate process.
 
 **Maturity, honestly:** platform ≈ 3.6/5, agentic engine now ≈ 2.8/5 (was 0.7 before these
 rounds). See `SUPER_SESSION_SUMMARY.md` for the full independent review that kicked off the
@@ -136,9 +139,7 @@ In priority order. A new driver should generally continue from here unless the u
 3. ~~**Engine v0.5 — Deeper 24/7 reliability.**~~ **DONE (git `ec88534`, 2026-08-03).** Dead-letter
    handling, supervisor for stuck tasks, event-based alerting. Proven LIVE (stale task recovered;
    re-stale task became a `stalled` dead letter). 505 tests.
-4. **Platform breadth (partly DONE — v0.6 landed viewer seed, per-plugin schema bootstrap, httpOnly-cookie auth; git `070fb2d`).** **Remaining:** committed `prisma/migrations` history (replace `db push`), plugin sandboxing (plugins run in-process with full Node privileges today — contractual isolation, not enforced), more capability plugins (OpenHands, review/CodeRabbit). Publish-readiness sanitize DONE (real Windows username replaced with `<user>` placeholder in docs/scripts). These are P4/deferred platform items + the engine follow-ups.
-5. **Deployment** — VPS via Coolify. **BLOCKED on the user**: provider + monthly budget. Prove
-   everything locally first; no cloud without explicit approval + confirmed cost.
+4. **Phase 2.0 — Production Foundation (IN PROGRESS):** migrations ✅ (`ac2cf11`), OTel tracing ✅ (`8d29e3f`), Prometheus `/api/metrics` ✅ (`ac2cf11`), CLI ops ✅ (`e8fe871`). **Remaining:** portal `/health` dashboard (2.4), real SSO round-trip (2.6 — Keycloak+Caddy booted, seam unproven end-to-end), plugin sandboxing (2.7 — plugins run in-process with full Node privileges today; contractual isolation, not enforced), worker as separate process (2.8). **Deployment** — VPS via Coolify. **BLOCKED on the user**: provider + monthly budget (D1). Prove everything locally first; no cloud without explicit approval + confirmed cost.
 
 Known non-blocker gaps carried in `HANDOFF.md §8/§11`: checkpoint O(n²) write volume (raw-SQL fix
 noted); Orion's Brain-page fixes diagnosed-but-unwritten; docs-mode brain indexing unrun;
