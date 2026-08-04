@@ -58,12 +58,12 @@ The strategic vision + market analysis + full roadmap live in
 
 ## 3. Current state (authoritative as of the last commit) — reconcile, don't assume
 
-**HEAD:** `6e596af` — `feat(plugins): Phase 3.0 — plugin marketplace (browse + install + uninstall, hot-reload)`.
-Just below it: `b6e379f` (3.1 /engine task UI), `0127ce1` (2.3 Grafana dashboard),
-`3b37129` (2.8 worker). **PHASE 2.0 COMPLETE; PHASE 3.0 IN PROGRESS (3.1 + 3.2 DONE).**
+**HEAD:** `9e05c7a` — `feat(workflows): Phase 3.0 — visual workflow builder (compose + run multi-step agent/tool pipelines)`.
+Just below it: `6e596af` (3.2 plugin marketplace), `b6e379f` (3.1 /engine task UI),
+`0127ce1` (2.3 Grafana dashboard). **PHASE 2.0 COMPLETE; PHASE 3.0 IN PROGRESS (3.1–3.3 DONE).**
 Tree is **clean** (only untracked `Prompt to Clau_Partner.txt`, a working artifact).
 
-**Test count (full repo):** **597** — api **473**, web (build+typecheck, no unit
+**Test count (full repo):** **615** — api **491**, web (build+typecheck, no unit
 suite) , plugin-sdk **21**, plugin-graphify **40**, plugin-browser-use **47**, cli **16**.
 Gates: `turbo run lint build typecheck test --force --concurrency=1` → **20/20 tasks green**.
 
@@ -89,6 +89,7 @@ Gates: `turbo run lint build typecheck test --force --concurrency=1` → **20/20
 | Grafana dashboard | `0127ce1` | Phase 2.0 2.3 — provisioned 19-panel dashboard + engine-metrics wiring (2 live-found fixes) | ✅ real Prometheus samples + browser-rendered live data |
 | Portal /engine task UI | `b6e379f` | Phase 3.0 3.1 (P0) — filter tabs, 2s live step streaming + live badge, Re-run, model picker, Result+Copy | ✅ browser: STEP HISTORY (3) + RESULT JSON + Copy + tabs + Re-run |
 | Plugin marketplace | `6e596af` | Phase 3.0 3.2 — browse/install/uninstall with hot-reload (plugins-catalog/ shelf, marker-gated uninstall) | ✅ browser: Install → installed zone + toast → Uninstall → back to available |
+| Visual workflow builder | `9e05c7a` | Phase 3.0 3.3 — Workflow/WorkflowRun + migration, validator + templating, run executor, drag-reorder builder UI | ✅ 2-step agent→tool run completed (templated args) + browser trail rendered |
 
 **Live stack (local, $0):** postgres :5432, redis :6380, ollama `qwen2.5-coder:7b`,
 api :4001 (use `API_HOST_PORT`, never the squatted :4000). Prometheus/Grafana/Loki
@@ -164,8 +165,13 @@ datalist from the health providers, Result panel with Copy; LIVE-PROVEN in a rea
 restart): plugins-catalog/ shelf, PluginCatalogService (marker-gated uninstall), loader
 reload(), GET /plugins/catalog + guarded routes; LIVE-PROVEN: install → enabled + folder
 present → uninstall → back to available, in a real browser with toasts)**;
-then visual workflow builder, plugin scaffolding + hot-reload, notification center,
-multi-model compare, team spaces.
+~~visual workflow builder~~ **DONE (`9e05c7a` — Workflow/WorkflowRun models + migration,
+definition validator + {{steps.<id>.result|error}} templating, run executor (agent steps via
+the engine queue, tool steps via plugin invoke, per-step crash-safe trail), CRUD + run +
+history routes guarded by core:workflow:manage, zero-dep drag-reorder builder UI on
+/workflows with a live run trail; LIVE-PROVEN: 2-step agent→tool run completed with
+templated args + browser-created workflow ran to completion with the trail rendered)**;
+then plugin scaffolding + hot-reload, notification center, multi-model compare, team spaces.
 
 **Phase 4.0 — Agentic OS:** multi-agent crews (delegation), persistent memory
 (RAG + Graphify), MCP server + client, agent skill marketplace, autonomous
@@ -196,10 +202,10 @@ Full feature tables with competitor benchmarks + priorities: `docs/MASTER_PLAN.m
 After reading this file, a correct resume must be able to run:
 ```bash
 cd C:/Users/syed.mohamed/Claude/Code/constellation
-git log --oneline -5        # expect 6e596af at HEAD
+git log --oneline -5        # expect 9e05c7a at HEAD
 git status                  # expect a CLEAN tree
 ./node_modules/.bin/turbo run lint build typecheck test --force --concurrency=1
-# expect 20/20 tasks green, 597 tests (api 473, sdk 21, graphify 40, browser-use 47, cli 16)
+# expect 20/20 tasks green, 615 tests (api 491, sdk 21, graphify 40, browser-use 47, cli 16)
 ```
-Then continue from §6 (Phase 3.0 — next: visual workflow builder / notification center).
+Then continue from §6 (Phase 3.0 — next: notification center / multi-model compare).
 Reconcile if any of it differs.
