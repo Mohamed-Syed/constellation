@@ -58,12 +58,12 @@ The strategic vision + market analysis + full roadmap live in
 
 ## 3. Current state (authoritative as of the last commit) — reconcile, don't assume
 
-**HEAD:** `4d55928` — `feat(ops): Phase 2.0 2.6 — real SSO round-trip LIVE-PROVEN`. Just below it:
-`2d813de` (DeepSeek model provider round), `df0397c` (CONTINUE.md HEAD → dd0ff53), `dd0ff53`
-(chore: ignore Python bytecode caches), `fbd4cf1` (docs backfill for the /health round).
+**HEAD:** `3b37129` — `feat(engine): Phase 2.0 2.8 — worker as a separate process (OPT-IN)`.
+Just below it: `5f268f3` (2.7 plugin sandboxing), `4d55928` (2.6 real SSO round-trip),
+`2d813de` (DeepSeek provider round), `76f1d7c` (docs backfill A+B).
 Tree is **clean** (only untracked `Prompt to Clau_Partner.txt`, a working artifact).
 
-**Test count (full repo):** **571** — api **447**, web (build+typecheck, no unit
+**Test count (full repo):** **586** — api **462**, web (build+typecheck, no unit
 suite) , plugin-sdk **21**, plugin-graphify **40**, plugin-browser-use **47**, cli **16**.
 Gates: `turbo run lint build typecheck test --force --concurrency=1` → **20/20 tasks green**.
 
@@ -84,6 +84,8 @@ Gates: `turbo run lint build typecheck test --force --concurrency=1` → **20/20
 | Health dashboard | `0647666` | Portal `/health` — live engine dashboard (queue, model providers, scheduler, supervisor, alerts) | ✅ browser-proven: all cards live, 5s poll |
 | DeepSeek provider | `2d813de` | Third ModelProvider (direct DeepSeek API, `deepseek-v4-flash`, derived cost) + 2 live-found bug fixes (router cloud-first scan, NOOP_SPAN) | ✅ task completed `provider:"deepseek"` (≈$0.00001) |
 | Real SSO round-trip | `4d55928` | Phase 2.0 2.6 — Keycloak RS256 token → api 200, verifiers coexist, tampered → 401, portal tiles + Caddy paths | ✅ four-curl set + real-browser /tools pass |
+| Plugin sandboxing | `5f268f3` | Phase 2.0 2.7 — process-mode sandbox (timeout/heap/result caps, crash containment), OPT-IN | ✅ boom/crash/hang contained, graphify ran in the child |
+| Worker separate process | `3b37129` | Phase 2.0 2.8 — ENGINE_WORKER_MODE=embedded\|separate + worker-main.js | ✅ api enqueues w/o consuming; worker completed task + fired cron |
 
 **Live stack (local, $0):** postgres :5432, redis :6380, ollama `qwen2.5-coder:7b`,
 api :4001 (use `API_HOST_PORT`, never the squatted :4000). Prometheus/Grafana/Loki
@@ -137,10 +139,15 @@ These are NOT to be actioned without the user resuming them.
   DeepSeek API like OpenRouter): `deepseek-v4-flash`, OPT-IN key, thinking-mode toggle,
   derived cost; LIVE-PROVEN (task completed `provider:"deepseek"`, ≈$0.00001 spend).
   Key lives in git-ignored `.env` only.
-- **Plugin sandboxing** (2.7): plugins run in-process today (documented). Optional
-  process-isolation with resource limits. Enterprise security requirement.
-- **Worker as separate process** (2.8): BullMQ worker currently in-process with the
-  API. Extract for HA + horizontal scale.
+- ~~**Plugin sandboxing (2.7)**~~ **DONE (`5f268f3`)** — process-mode sandbox (zero-dep
+  child node): `PLUGIN_SANDBOX_MODE=off|process` + `PLUGIN_SANDBOX_PLUGINS` (default off),
+  timeout/heap/result caps + crash containment; LIVE-PROVEN (boom/crash/hang contained,
+  graphify ran in the child). Network isolation NOT enforced on Windows (documented).
+- ~~**Worker as separate process (2.8)**~~ **DONE (`3b37129`)** — `ENGINE_WORKER_MODE=
+  embedded|separate` + `dist/worker-main.js` + `boot-worker.sh`; LIVE-PROVEN (api enqueues
+  without consuming; the worker completed the task + fired a cron schedule cross-process).
+- **Grafana dashboard JSON (2.3 tail)**: the /health page + /api/metrics are live; the
+  pre-built Grafana dashboard file is the last Phase 2.0 item.
 
 **Phase 3.0 — Platform as a Product (after 2.0):** full engine task UI depth,
 visual workflow builder, plugin marketplace, plugin scaffolding + hot-reload,
@@ -176,9 +183,9 @@ Full feature tables with competitor benchmarks + priorities: `docs/MASTER_PLAN.m
 After reading this file, a correct resume must be able to run:
 ```bash
 cd C:/Users/syed.mohamed/Claude/Code/constellation
-git log --oneline -5        # expect 4d55928 at HEAD
+git log --oneline -5        # expect 3b37129 at HEAD
 git status                  # expect a CLEAN tree
 ./node_modules/.bin/turbo run lint build typecheck test --force --concurrency=1
-# expect 20/20 tasks green, 571 tests (api 447, sdk 21, graphify 40, browser-use 47, cli 16)
+# expect 20/20 tasks green, 586 tests (api 462, sdk 21, graphify 40, browser-use 47, cli 16)
 ```
 Then continue from §6. Reconcile if any of it differs.

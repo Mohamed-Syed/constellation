@@ -5,7 +5,7 @@
 > over the driver's seat, this file plus `MASTER_PLAN.md` and `HANDOFF.md` are everything
 > you need. Nothing here is secret; everything is grounded in what actually shipped.
 >
-> **Author:** Polaris (lead orchestrator). **Last updated:** 2026-08-04, at commit `4d55928` — Phase 2.0 2.6 real SSO round-trip (LIVE-PROVEN: Keycloak RS256 token → api, portal tiles in a real browser) + the DeepSeek provider round (`2d813de`); 571 tests.
+> **Author:** Polaris (lead orchestrator). **Last updated:** 2026-08-04, at commit `3b37129` — Phase 2.0 COMPLETE through 2.8: DeepSeek provider (`2d813de`), real SSO round-trip (`4d55928`), plugin sandboxing (`5f268f3`), worker as separate process (`3b37129`); 586 tests.
 
 ---
 
@@ -59,7 +59,7 @@ Do not import Looper code or reference it in this repo; it is a different codeba
 
 ---
 
-## 2. Where the project is right now (2026-08-04, commit `4d55928`)
+## 2. Where the project is right now (2026-08-04, commit `3b37129`)
 
 The **platform layer is strong and the agentic engine is real and proven.** Condensed; full
 per-round evidence with SHAs lives in `MASTER_PLAN.md §9`.
@@ -108,13 +108,13 @@ per-round evidence with SHAs lives in `MASTER_PLAN.md §9`.
   bearer flow untouched); **proven LIVE** — cookie-only `/api/auth/me` works, viewer gets 403 on
   admin-only routes.
 
-**Gates at `4d55928`:** lint/build/typecheck all green; **571 tests** (api 447, browser-use 47,
+**Gates at `3b37129`:** lint/build/typecheck all green; **586 tests** (api 462, browser-use 47,
 graphify 40, sdk 21, cli 16). Tree clean. **Nothing has ever been pushed. No cloud. ≈$0.00001
-spent** (the DeepSeek live proof). Phase 2.0 progress: migrations history + Prometheus `/api/metrics` (`ac2cf11`), `constellation`
-ops CLI (`e8fe871`), OTel tracing + Tempo (`8d29e3f`), portal `/health` engine dashboard
-(`0647666`) + **real SSO round-trip (`4d55928`)** — all live-proven. **DeepSeek is now a third
-ModelProvider** (`2d813de`, live-proven). Remaining Phase 2.0: plugin sandboxing, worker
-as separate process.
+spent** (the DeepSeek live proof). **PHASE 2.0 IS COMPLETE** (migrations + metrics `ac2cf11`,
+CLI `e8fe871`, OTel/Tempo `8d29e3f`, /health dashboard `0647666`, SSO round-trip `4d55928`,
+**DeepSeek provider `2d813de`**, **plugin sandboxing `5f268f3`**, **worker as separate process
+`3b37129`** — all live-proven). Remaining Phase 2.0 tail: Grafana dashboard JSON (2.3); then
+Phase 3.0 (portal /engine depth, marketplace, visual workflow builder, notifications).
 
 **Maturity, honestly:** platform ≈ 3.6/5, agentic engine now ≈ 2.8/5 (was 0.7 before these
 rounds). See `SUPER_SESSION_SUMMARY.md` for the full independent review that kicked off the
@@ -141,7 +141,7 @@ In priority order. A new driver should generally continue from here unless the u
 3. ~~**Engine v0.5 — Deeper 24/7 reliability.**~~ **DONE (git `ec88534`, 2026-08-03).** Dead-letter
    handling, supervisor for stuck tasks, event-based alerting. Proven LIVE (stale task recovered;
    re-stale task became a `stalled` dead letter). 505 tests.
-4. **Phase 2.0 — Production Foundation (IN PROGRESS):** migrations ✅ (`ac2cf11`), OTel tracing ✅ (`8d29e3f`), Prometheus `/api/metrics` ✅ (`ac2cf11`), CLI ops ✅ (`e8fe871`), portal `/health` dashboard ✅ (`0647666`, browser-proven), **real SSO round-trip ✅ (`4d55928` — Keycloak RS256 token → api 200, verifiers coexist, tampered → 401; portal /tools tiles + Caddy-proxied paths browser-proven)**. **Remaining:** plugin sandboxing (2.7 — plugins run in-process with full Node privileges today; contractual isolation, not enforced), worker as separate process (2.8), Grafana dashboard JSON (2.3 tail). **Deployment** — VPS via Coolify. **BLOCKED on the user**: provider + monthly budget (D1). Prove everything locally first; no cloud without explicit approval + confirmed cost.
+4. **Phase 2.0 — Production Foundation (COMPLETE as of `3b37129`):** migrations ✅ (`ac2cf11`), OTel tracing ✅ (`8d29e3f`), Prometheus `/api/metrics` ✅ (`ac2cf11`), CLI ops ✅ (`e8fe871`), portal `/health` dashboard ✅ (`0647666`, browser-proven), real SSO round-trip ✅ (`4d55928`), **plugin sandboxing ✅ (`5f268f3` — process mode, OPT-IN, live-proven)**, **worker as separate process ✅ (`3b37129` — ENGINE_WORKER_MODE, live-proven cross-process)**. **Remaining tail:** Grafana dashboard JSON (2.3). **Next: Phase 3.0** — portal full `/engine` task UI (P0), plugin marketplace, visual workflow builder, notification center, multi-model compare, team spaces. **Deployment** — VPS via Coolify. **BLOCKED on the user**: provider + monthly budget (D1). Prove everything locally first; no cloud without explicit approval + confirmed cost.
 
 Known non-blocker gaps carried in `HANDOFF.md §8/§11`: checkpoint O(n²) write volume (raw-SQL fix
 noted); Orion's Brain-page fixes diagnosed-but-unwritten; docs-mode brain indexing unrun;
