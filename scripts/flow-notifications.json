@@ -1,0 +1,99 @@
+[
+ {
+  "act": "goto",
+  "url": "http://localhost:3005/login"
+ },
+ {
+  "act": "wait",
+  "expr": "document.querySelector('input[type=email]') !== null",
+  "wait": 60000
+ },
+ {
+  "act": "type",
+  "selector": "input[type=email]",
+  "t": "admin@constellation.local"
+ },
+ {
+  "act": "type",
+  "selector": "input[type=password]",
+  "t": "changeme"
+ },
+ {
+  "act": "sleep",
+  "ms": 1000
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => /sign in|log in|submit/i.test(x.textContent || '')); if (b) { b.click(); return 'clicked login'; } return 'no login button'; })()"
+ },
+ {
+  "act": "sleep",
+  "ms": 8000
+ },
+ {
+  "act": "goto",
+  "url": "http://localhost:3005/notifications"
+ },
+ {
+  "act": "wait",
+  "expr": "(document.body && document.body.innerText).includes('Schedule fired')",
+  "wait": 30000
+ },
+ {
+  "act": "sleep",
+  "ms": 3000
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const el = document.querySelector('[aria-label*=\"unread notification\"]'); const t = document.body.innerText; const rows = document.querySelectorAll('[role=button]').length; return 'badge=' + (el ? el.textContent : 'none') + ';feedRows=' + rows + ';fired=' + t.includes('Schedule fired') + ';failed=' + t.includes('Task failed') + ';tabs=' + (t.includes('Feed') && t.includes('Audit log')); })()"
+ },
+ {
+  "act": "shot",
+  "shot": "notifications-feed-badge"
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const rows = document.querySelectorAll('[role=button]'); if (!rows.length) return 'no rows'; rows[0].click(); return 'clicked first notification row'; })()"
+ },
+ {
+  "act": "sleep",
+  "ms": 3000
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const rows = document.querySelectorAll('[role=button]'); const r = rows[0]; const dot = r ? r.querySelector('[aria-label=unread]') : null; return 'row1UnreadAfterClick=' + (dot ? 'yes' : 'no') + ';rows=' + rows.length; })()"
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => (x.textContent || '').includes('Mark all read')); if (!b) return 'no mark-all button'; b.click(); return 'clicked Mark all read'; })()"
+ },
+ {
+  "act": "wait",
+  "expr": "document.querySelector('[aria-label*=\"unread notification\"]') === null",
+  "wait": 40000
+ },
+ {
+  "act": "shot",
+  "shot": "notifications-marked-read"
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => (x.textContent || '').includes('Audit log')); if (!b) return 'no audit tab'; b.click(); return 'opened audit tab'; })()"
+ },
+ {
+  "act": "wait",
+  "expr": "(document.body && document.body.innerText).includes('auth.login')",
+  "wait": 15000
+ },
+ {
+  "act": "sleep",
+  "ms": 1500
+ },
+ {
+  "act": "shot",
+  "shot": "notifications-audit-tab"
+ },
+ {
+  "act": "text"
+ }
+]

@@ -65,6 +65,16 @@ const CORE_PLATFORM: FlatNavItem[] = [
     icon: "Activity",
     order: 50,
   },
+  {
+    // Phase 3.0 — notification center: the durable platform event feed
+    // (engine alerts + scheduler events). The sidebar renders an unread
+    // badge next to this item (see UnreadBadge in the shell).
+    id: "core-notifications",
+    label: "Notifications",
+    href: "/notifications",
+    icon: "Bell",
+    order: 55,
+  },
 ];
 
 const CORE_SYSTEM: FlatNavItem[] = [

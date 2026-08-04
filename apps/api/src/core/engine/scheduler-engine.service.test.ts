@@ -346,3 +346,55 @@ describe("SchedulerEngineService — event-triggered schedules", () => {
     expect(health.registeredEvents).toBe(1);
   });
 });
+
+describe("SchedulerEngineService — scheduler events on the bus (notification center)", () => {
+  it("emits scheduler.schedule.fired after a successful fire", async () => {
+    const emits: Array<[string, unknown]> = [];
+    const eventBus = {
+      forPlugin: () => ({
+        onPlatform() {
+          /* noop */
+        },
+        emit(topic: string, payload: unknown) {
+          emits.push([topic, payload]);
+        },
+      }),
+    } as unknown as EventBusService;
+    const { svc } = engine({ eventBus });
+    const sched = { id: "s1", title: "Digest", prompt: "Summarize today.", model: null, maxSteps: 3, maxTokens: 500 };
+    await svc.fireSchedule(sched, NOW);
+    expect(emits).toEqual([["scheduler.schedule.fired", { scheduleId: "s1", name: "Digest", taskId: "task-1" }]]);
+  });
+
+  it("emits scheduler.schedule.error when a cron sweep fire fails", async () => {
+    const emits: Array<[string, unknown]> = [];
+    const eventBus = {
+      forPlugin: () => ({
+        onPlatform() {
+          /* noop */
+        },
+        emit(topic: string, payload: unknown) {
+          emits.push([topic, payload]);
+        },
+      }),
+    } as unknown as EventBusService;
+    const tasks = makeTasks();
+    (tasks.create as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("redis down"));
+    const scheduledTasks = makeScheduledTasks({
+      listDueCronSchedules: vi.fn(async () => [
+        { id: "s1", name: "Digest", title: "Digest", prompt: "Summarize.", model: null, maxSteps: 5, maxTokens: null, kind: "cron" },
+      ]),
+    });
+    const { svc } = engine({ scheduledTasks, tasks, eventBus });
+    const result = await svc.runSweep(NOW);
+    expect(result.errors).toBe(1);
+    expect(emits).toEqual([["scheduler.schedule.error", { scheduleId: "s1", name: "Digest", error: "redis down" }]]);
+  });
+
+  it("stays silent (no emit) when the bus is absent", async () => {
+    const { svc, tasks } = engine({ eventBus: undefined });
+    const sched = { id: "s1", title: "Digest", prompt: "P", model: null, maxSteps: 3, maxTokens: null };
+    await svc.fireSchedule(sched, NOW);
+    expect(tasks.create).toHaveBeenCalled();
+  });
+});

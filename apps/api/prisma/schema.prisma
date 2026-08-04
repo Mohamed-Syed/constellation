@@ -327,3 +327,33 @@ model WorkflowRun {
   @@map("workflow_runs")
   @@schema("core")
 }
+
+// ── Phase 3.0 — notification center ─────────────────────────────────────────
+// Durable, queryable notification feed fed by the platform EventBus: engine
+// alerts (task failed / stale / recovered), scheduler events (schedule fired /
+// error), and any future core topic. Written by NotificationService on every
+// bus event; read / mark-read / dismiss via GET·POST·DELETE /api/notifications.
+model Notification {
+  id        String   @id @default(cuid())
+  /// Semantic topic the notification came from, e.g. "engine.task.failed" or
+  /// "scheduler.schedule.fired" (mirrors the EventBus topic it was born from).
+  kind      String
+  /// info | success | warning | error — drives the portal's icon/colour.
+  severity  String
+  /// Short human summary, e.g. "Task failed".
+  title     String
+  /// Detail line (error text, stale duration, schedule name...).
+  message   String?
+  /// What the notification refers to: "task" | "schedule" | null.
+  refType   String?
+  /// Id of the referenced entity (task id, schedule id...).
+  refId     String?
+  /// Read state — unread drives the portal sidebar badge.
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([read])
+  @@index([createdAt])
+  @@map("notifications")
+  @@schema("core")
+}

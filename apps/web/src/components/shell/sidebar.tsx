@@ -7,6 +7,7 @@ import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { resolveIcon } from "@/lib/icons";
 import type { FlatNavItem, NavGroups } from "@/lib/nav";
+import { UnreadBadge } from "@/components/notifications/unread-badge";
 
 interface SidebarProps {
   navGroups: NavGroups;
@@ -19,7 +20,17 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function NavLink({ item, active, onNavigate }: { item: FlatNavItem; active: boolean; onNavigate: () => void }) {
+function NavLink({
+  item,
+  active,
+  onNavigate,
+  trailing,
+}: {
+  item: FlatNavItem;
+  active: boolean;
+  onNavigate: () => void;
+  trailing?: React.ReactNode;
+}) {
   const Icon = resolveIcon(item.icon);
   return (
     <Link
@@ -36,6 +47,7 @@ function NavLink({ item, active, onNavigate }: { item: FlatNavItem; active: bool
     >
       <Icon className={cn("size-4 shrink-0", active ? "text-accent" : "text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-300")} />
       <span className="truncate">{item.label}</span>
+      {trailing ? <span className="ml-auto">{trailing}</span> : null}
     </Link>
   );
 }
@@ -46,12 +58,14 @@ function NavSection({
   pathname,
   onNavigate,
   emptyLabel,
+  renderTrailing,
 }: {
   title?: string;
   items: FlatNavItem[];
   pathname: string;
   onNavigate: () => void;
   emptyLabel?: string;
+  renderTrailing?: (item: FlatNavItem) => React.ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-1">
@@ -64,7 +78,13 @@ function NavSection({
         <p className="px-3 py-1 text-xs text-neutral-400 dark:text-neutral-500">{emptyLabel}</p>
       ) : (
         items.map((item) => (
-          <NavLink key={item.id} item={item} active={isActive(pathname, item.href)} onNavigate={onNavigate} />
+          <NavLink
+            key={item.id}
+            item={item}
+            active={isActive(pathname, item.href)}
+            onNavigate={onNavigate}
+            trailing={renderTrailing?.(item)}
+          />
         ))
       )}
     </div>
@@ -84,7 +104,12 @@ export function Sidebar({ navGroups, mobileOpen, onMobileOpenChange }: SidebarPr
         <span className="font-semibold tracking-tight">Constellation</span>
       </div>
       <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Primary">
-        <NavSection items={navGroups.platform} pathname={pathname} onNavigate={closeMobile} />
+        <NavSection
+          items={navGroups.platform}
+          pathname={pathname}
+          onNavigate={closeMobile}
+          renderTrailing={(item) => (item.id === "core-notifications" ? <UnreadBadge /> : undefined)}
+        />
         <NavSection
           title="Modules"
           items={navGroups.modules}

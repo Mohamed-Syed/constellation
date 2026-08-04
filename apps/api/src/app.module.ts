@@ -9,6 +9,7 @@ import { FederationModule } from "./core/federation/federation.module.js";
 import { HealthModule } from "./core/health/health.module.js";
 import { LoggingModule } from "./core/logging/logging.module.js";
 import { MemoryModule } from "./core/memory/memory.module.js";
+import { NotificationsModule } from "./core/notifications/notifications.module.js";
 import { ObservabilityModule } from "./core/observability/observability.module.js";
 import { PluginsModule } from "./core/plugins/plugins.module.js";
 import { WorkflowsModule } from "./core/workflows/workflows.module.js";
@@ -51,6 +52,7 @@ import { SettingsModule } from "./core/settings/settings.module.js";
     PluginsModule,
     WorkflowsModule,
     EngineModule,
+    NotificationsModule,
     ObservabilityModule,
   ],
 })

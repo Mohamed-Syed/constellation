@@ -212,6 +212,7 @@ export class SchedulerEngineService implements OnModuleInit, OnModuleDestroy {
       // Event fires are logged, not thrown (the EventBus safeHandler swallows
       // rejections, but we record the error trail on the schedule too).
       await this.scheduledTasks.markRun(sched.id, this.now(), asMessage(err));
+      this.emitSchedulerEvent("scheduler.schedule.error", { scheduleId, name: sched.name, error: asMessage(err) });
       this.logger.error(`Event schedule ${scheduleId} ("${sched.name}") failed: ${asMessage(err)}`);
     }
   }
@@ -248,6 +249,7 @@ export class SchedulerEngineService implements OnModuleInit, OnModuleDestroy {
           // Advance nextRunAt + record the honest error so we don't spin, but
           // the trail says what happened (markRun sets lastError on failure).
           await this.scheduledTasks.markRun(sched.id, now, asMessage(err));
+          this.emitSchedulerEvent("scheduler.schedule.error", { scheduleId: sched.id, name: sched.name, error: asMessage(err) });
           this.logger.error(`Scheduled task ${sched.id} ("${sched.name}") failed: ${asMessage(err)}`);
         }
       }
@@ -286,7 +288,18 @@ export class SchedulerEngineService implements OnModuleInit, OnModuleDestroy {
     );
     await this.queue.enqueue(task.id);
     await this.scheduledTasks.markRun(sched.id, now);
+    this.emitSchedulerEvent("scheduler.schedule.fired", { scheduleId: sched.id, name: sched.title, taskId: task.id });
     this.logger.log(`Scheduled task ${sched.id} ("${sched.title}") -> task ${task.id}`);
+  }
+
+  /** Publish a scheduler event onto the platform bus ("core" scope) — never throws. */
+  private emitSchedulerEvent(topic: string, payload: Record<string, unknown>): void {
+    if (!this.eventBus) return;
+    try {
+      this.eventBus.forPlugin("core").emit(topic, payload);
+    } catch (err) {
+      this.logger.warn(`Could not emit "${topic}" to event bus: ${asMessage(err)}`);
+    }
   }
 
   /** Health for /api/engine/health — scheduler status (enabled, due count, last sweep). */
