@@ -10,6 +10,7 @@ import { ConfigService } from "@nestjs/config";
 import { EngineAlertService } from "./engine-alerts.service.js";
 import { EngineAvailabilityService } from "./engine-availability.service.js";
 import { engineLoopsRunHere } from "./engine-worker-role.js";
+import { MetricsService } from "../observability/metrics/metrics.service.js";
 import { TaskQueueService } from "./task-queue.service.js";
 import { TaskService } from "./task.service.js";
 
@@ -95,6 +96,8 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
     private readonly alerts: EngineAlertService,
     config?: ConfigService,
     @Optional() @Inject(SUPERVISOR_OPTIONS) options?: SupervisorOptions,
+    // Phase 2.0 2.3 — supervisor metrics feed (trailing @Optional()).
+    @Optional() private readonly metrics?: MetricsService,
   ) {
     this.now = options?.now ?? (() => new Date());
     const fromEnv = Number(config?.get("ENGINE_SUPERVISOR_INTERVAL_MS") ?? NaN);
@@ -181,6 +184,7 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
       const staleBefore = new Date(now.getTime() - this.staleTaskMs);
       const stale = await this.tasks.findStaleRunning(staleBefore);
       this.staleFoundTotal += stale.length;
+      for (let i = 0; i < stale.length; i++) this.metrics?.recordSupervisor("staleFound");
 
       // Race guard: snapshot the live working set ONCE per sweep.
       const activeTaskIds = await this.queue.getActiveTaskIds();
@@ -202,6 +206,7 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
           this.alerts.recordTaskFailed(task.id, "stalled", error);
           this.failedStalledTotal++;
           failedStalled++;
+          this.metrics?.recordSupervisor("failedStalled");
           this.logger.error(`Task ${task.id} marked failed (stalled) — ${error}`);
         } else {
           // Resume attempt (BullMQ re-enqueue). Mark queued + resume-once flag,
@@ -213,6 +218,7 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
           this.alerts.recordTaskRecovered(task.id);
           this.recoveredTotal++;
           recovered++;
+          this.metrics?.recordSupervisor("recovered");
           this.logger.warn(`Task ${task.id} re-enqueued by supervisor (stale, resume attempt #1)`);
         }
       }

@@ -3,6 +3,8 @@ import { MODEL_PROVIDERS, type ChatMessage, type ChatResponse, type ModelProvide
 // VALUE import (not `import type`): TracingService is a DI token below; a
 // type-only import is erased and @Optional() then injects undefined.
 import { TracingService } from "../observability/tracing/tracing.service.js";
+// VALUE import: MetricsService is a DI token (Phase 2.0 2.3 engine-metrics feed).
+import { MetricsService } from "../observability/metrics/metrics.service.js";
 
 export type { ChatMessage, ChatResponse, ModelRouterHealth, ModelProvider, ModelUsage } from "./model-provider.js";
 export { MODEL_PROVIDERS, TokenBudget } from "./model-provider.js";
@@ -43,6 +45,7 @@ export class ModelRouterService {
   constructor(
     @Inject(MODEL_PROVIDERS) private readonly providers: ModelProvider[],
     @Optional() @Inject(TracingService) private readonly tracing?: TracingService,
+    @Optional() private readonly metrics?: MetricsService,
   ) {}
 
   /**
@@ -126,7 +129,9 @@ export class ModelRouterService {
   /** The routing + fallback logic of chat() (extracted so tracing wraps it once). */
   private async runChat(provider: ModelProvider, messages: ChatMessage[], resolvedModel: string | undefined): Promise<ChatResponse> {
     try {
-      return await provider.chat(messages, resolvedModel);
+      const response = await provider.chat(messages, resolvedModel);
+      this.recordMetrics(provider, response);
+      return response;
     } catch (err) {
       // Engine v0.3 fallback: a NON-default provider's failure (OpenRouter
       // hiccup, bad key, quota) falls back to Ollama instead of failing the
@@ -139,8 +144,15 @@ export class ModelRouterService {
       // The requested model was meant for the cloud provider (e.g. a
       // "org/model" id Ollama doesn't have) — Ollama uses its own
       // DEFAULT_MODEL for the fallback.
-      return fallback.chat(messages, undefined);
+      const response = await fallback.chat(messages, undefined);
+      this.recordMetrics(fallback, response);
+      return response;
     }
+  }
+
+  /** Phase 2.0 2.3 — feed the model-plane metrics (calls/latency/tokens/cost). */
+  private recordMetrics(provider: ModelProvider, response: ChatResponse): void {
+    this.metrics?.recordModelCall(provider.name, response.model, response.durationMs, response.usage);
   }
 
   async health(): Promise<ModelRouterHealth> {

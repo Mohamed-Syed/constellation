@@ -10,6 +10,7 @@ import { ConfigService } from "@nestjs/config";
 import { EventBusService } from "../events/event-bus.service.js";
 import { EngineAvailabilityService } from "./engine-availability.service.js";
 import { engineLoopsRunHere } from "./engine-worker-role.js";
+import { MetricsService } from "../observability/metrics/metrics.service.js";
 import { ScheduledTaskService } from "./scheduled-task.service.js";
 import { TaskQueueService } from "./task-queue.service.js";
 import { TaskService } from "./task.service.js";
@@ -90,6 +91,8 @@ export class SchedulerEngineService implements OnModuleInit, OnModuleDestroy {
     @Optional() private readonly eventBus?: EventBusService,
     config?: ConfigService,
     @Optional() @Inject(SCHEDULER_ENGINE_OPTIONS) options?: SchedulerEngineOptions,
+    // Phase 2.0 2.3 — schedule-run metrics feed (trailing @Optional()).
+    @Optional() private readonly metrics?: MetricsService,
   ) {
     this.now = options?.now ?? (() => new Date());
     const fromEnv = Number(config?.get("SCHEDULER_POLL_INTERVAL_MS") ?? NaN);
@@ -238,8 +241,10 @@ export class SchedulerEngineService implements OnModuleInit, OnModuleDestroy {
         try {
           await this.fireSchedule(sched, now);
           fired++;
+          this.metrics?.recordScheduleRun("fired");
         } catch (err) {
           errors++;
+          this.metrics?.recordScheduleRun("error");
           // Advance nextRunAt + record the honest error so we don't spin, but
           // the trail says what happened (markRun sets lastError on failure).
           await this.scheduledTasks.markRun(sched.id, now, asMessage(err));

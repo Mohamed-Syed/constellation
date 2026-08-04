@@ -64,6 +64,13 @@ async function main() {
     ws.send(JSON.stringify({ id, method, params }));
   });
 
+  /** Set extra HTTP headers for every subsequent request (e.g. Basic auth). */
+  const setHeaders = async (headers) => {
+    await send("Network.enable", {});
+    await send("Network.setExtraHTTPHeaders", { headers });
+    return `headers set: ${Object.keys(headers).join(", ")}`;
+  };
+
   const result = { shots: [] };
   const step = async (name, fn) => {
     const v = await fn();
@@ -125,6 +132,7 @@ async function main() {
     const { act, url, selector, text: textVal, expr, shot: shotName, wait } = s;
     const t = s.t ?? textVal; // accept both "t" and "text" as the value key
     if (act === "goto") await step(`goto ${url}`, () => navigate(url));
+    if (act === "headers") await step(`headers ${Object.keys(s.headers ?? {}).join(",")}`, () => setHeaders(s.headers));
     if (act === "click") await step(`click ${selector}`, () => click(selector));
     if (act === "fill") await step(`fill ${selector}`, () => fill(selector, t));
     if (act === "type") await step(`type ${selector}`, () => typeInto(selector, t));

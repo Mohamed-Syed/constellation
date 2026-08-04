@@ -139,11 +139,15 @@ export class MetricsService {
   // ---- Metric declarations -------------------------------------------------
   private declareAll(): void {
     const r = this.registry;
-    r.gauge({ name: "constellation_process_uptime_seconds", help: "API process uptime in seconds.", unit: "seconds" });
+    // NOTE: no `unit` on the three metrics whose NAMES already embed the unit
+    // (…_seconds, …_ms) — the registry appends `_<unit>`, and double-appending
+    // emitted `constellation_process_uptime_seconds_seconds` (found live in the
+    // Grafana dashboard round — the declared name never matched the scraped one).
+    r.gauge({ name: "constellation_process_uptime_seconds", help: "API process uptime in seconds." });
 
     // HTTP
     r.counter({ name: "constellation_http_requests_total", help: "HTTP requests processed by method, route and status class." });
-    r.histogram({ name: "constellation_http_request_duration_ms", help: "HTTP request latency in milliseconds.", unit: "milliseconds", buckets: HTTP_LATENCY_BUCKETS_MS });
+    r.histogram({ name: "constellation_http_request_duration_ms", help: "HTTP request latency in milliseconds.", buckets: HTTP_LATENCY_BUCKETS_MS });
 
     // Engine queue (gauges — snapshot depths) + task lifecycle transitions
     r.gauge({ name: "constellation_task_queue_waiting", help: "Tasks currently waiting in the BullMQ engine queue." });
@@ -165,7 +169,7 @@ export class MetricsService {
 
     // Model / LLM
     r.counter({ name: "constellation_model_calls_total", help: "Model provider chat calls by provider and model." });
-    r.histogram({ name: "constellation_model_latency_ms", help: "Model provider call latency in milliseconds.", unit: "milliseconds", buckets: [100, 250, 500, 1000, 2500, 5000, 10000, 30000, 60000] });
+    r.histogram({ name: "constellation_model_latency_ms", help: "Model provider call latency in milliseconds.", buckets: [100, 250, 500, 1000, 2500, 5000, 10000, 30000, 60000] });
     r.counter({ name: "constellation_model_tokens_total", help: "Model tokens used by kind (prompt/completion)." });
     r.counter({ name: "constellation_model_cost_usd_total", help: "Accumulated model spend in USD by provider/model." });
 

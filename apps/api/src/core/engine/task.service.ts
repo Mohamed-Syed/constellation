@@ -1,6 +1,7 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Optional } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../database/prisma.service.js";
+import { MetricsService } from "../observability/metrics/metrics.service.js";
 import type { CreateTaskDto } from "./dto/create-task.dto.js";
 import type { FailureClassification } from "./dead-letter.js";
 
@@ -31,12 +32,17 @@ export interface TaskApproval {
 export class TaskService {
   private readonly logger = new Logger(TaskService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // Phase 2.0 2.3 — engine metrics feed (task lifecycle counter). Trailing
+    // @Optional(): offline tests construct positionally and stay green.
+    @Optional() private readonly metrics?: MetricsService,
+  ) {}
 
   async create(dto: CreateTaskDto, actorId?: string) {
     const db = this.prisma.db;
     if (!db) throw new Error("Database not available");
-    return db.agentTask.create({
+    const task = await db.agentTask.create({
       data: {
         title: dto.title,
         prompt: dto.prompt,
@@ -47,6 +53,8 @@ export class TaskService {
         status: "queued",
       },
     });
+    this.metrics?.recordTaskLifecycle("submitted");
+    return task;
   }
 
   async findAll() {
@@ -79,6 +87,7 @@ export class TaskService {
       where: { id },
       data: { status: "running", startedAt: new Date(), provider },
     });
+    this.metrics?.recordTaskLifecycle("started");
   }
 
   /**
@@ -101,6 +110,7 @@ export class TaskService {
       where: { id },
       data: { status: "completed", result: result as Prisma.InputJsonValue, completedAt: new Date() },
     });
+    this.metrics?.recordTaskLifecycle("completed");
   }
 
   async markFailed(id: string, error: string, classification?: FailureClassification) {
@@ -112,6 +122,7 @@ export class TaskService {
         ? { status: "failed", error, failureClassification: classification, completedAt: new Date() }
         : { status: "failed", error, completedAt: new Date() },
     });
+    this.metrics?.recordTaskLifecycle("failed");
   }
 
   /** Pause a running task (approval gate): status -> "paused". */
@@ -137,6 +148,7 @@ export class TaskService {
       where: { id },
       data: { status: "cancelled", completedAt: new Date() },
     });
+    this.metrics?.recordTaskLifecycle("cancelled");
     return true;
   }
 

@@ -9,6 +9,9 @@ import { EventBusService } from "../events/event-bus.service.js";
 import { buildContextWith, PluginContextFactory } from "./plugin-context.factory.js";
 import { PluginRegistryService } from "./plugin-registry.service.js";
 import { PluginSandboxService } from "./plugin-sandbox.service.js";
+// VALUE imports (not `import type`): TracingService + MetricsService are DI
+// tokens; a type-only import is erased and @Optional() injects undefined.
+import { MetricsService } from "../observability/metrics/metrics.service.js";
 // VALUE import (not `import type`): TracingService is a DI token below; a
 // type-only import is erased and @Optional() then injects undefined.
 import { TracingService } from "../observability/tracing/tracing.service.js";
@@ -90,6 +93,8 @@ export class PluginToolService {
     // keeps the hand-wired offline tests (which construct positionally)
     // green: absent → in-process dispatch, exactly as before.
     @Optional() private readonly sandbox?: PluginSandboxService,
+    // Phase 2.0 2.3 — plugin-tool metrics feed. Same trailing-@Optional() rule.
+    @Optional() private readonly metrics?: MetricsService,
   ) {}
 
   /** Declared tools for a plugin, or `[]` when unknown. Read-only view. */
@@ -158,6 +163,8 @@ export class PluginToolService {
       // as the audit trail. (Rejections never reach dispatch — they return
       // earlier, so no span is created for an unauthorized call.)
       span.setAttributes({ "tool.outcome": result.result.ok ? "ok" : "error" });
+      // Phase 2.0 2.3 — plugin-tool metrics feed (outcome: ok|error).
+      this.metrics?.recordPluginToolCall(pluginId, toolName, result.result.ok ? "ok" : "error");
       return result;
     });
   }

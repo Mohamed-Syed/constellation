@@ -1,8 +1,9 @@
-import { Injectable, Logger, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
+import { Injectable, Logger, Optional, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
 import { AuditService } from "../audit/audit.service.js";
 import { PrismaService } from "../database/prisma.service.js";
+import { MetricsService } from "../observability/metrics/metrics.service.js";
 import type { JwtPayload } from "./jwt-payload.js";
 import type { AuthPrincipal } from "./token-verifier.js";
 
@@ -24,6 +25,9 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly audit: AuditService,
+    // Phase 2.0 2.3 — auth metrics feed (trailing @Optional(), offline tests
+    // construct positionally and stay green).
+    @Optional() private readonly metrics?: MetricsService,
   ) {}
 
   async login(email: string, password: string): Promise<LoginResult> {
@@ -42,6 +46,7 @@ export class AuthService {
     if (!user?.passwordHash || !(await bcrypt.compare(password, user.passwordHash))) {
       // Same message whether the email doesn't exist or the password is
       // wrong — don't leak which one it was.
+      this.metrics?.recordAuthLogin("password", "failure");
       throw new UnauthorizedException("Invalid email or password.");
     }
 
@@ -52,6 +57,7 @@ export class AuthService {
     const accessToken = await this.jwt.signAsync(payload);
 
     await this.audit.record(user.id, "auth.login", user.email);
+    this.metrics?.recordAuthLogin("password", "success");
 
     return { accessToken, user: { id: user.id, email: user.email, roles } };
   }

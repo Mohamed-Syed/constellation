@@ -1,10 +1,9 @@
 # ---------------------------------------------------------------------------
-# Constellation — Prometheus scrape config (P3 observability tile).
-#
-# Deliberately minimal: scrape Prometheus itself plus the core API. The API
-# does not expose /metrics yet (that's a P5 OpenTelemetry item), so its job
-# is defined but will show the target as DOWN until the endpoint exists.
-# That is expected and honest — better than pretending we have metrics.
+# Constellation — Prometheus scrape config (P3 observability tile; extended
+# Phase 2.0 2.3 — the api HAS exposed /api/metrics since ac2cf11, and the
+# host-dev job below makes a host-booted api (scripts/boot-api-v0.3.sh on
+# :4001) observable by the in-docker Prometheus/Grafana stack. Targets that
+# are DOWN are honest: the corresponding service isn't running right now.
 # ---------------------------------------------------------------------------
 
 global:
@@ -18,13 +17,22 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:9090"]
 
-  # Core NestJS API. Expected DOWN until a /metrics endpoint is added (P5).
+  # Core NestJS API in the compose stack (api container, port 4000).
   - job_name: constellation-api
     metrics_path: /api/metrics
     static_configs:
       - targets: ["api:4000"]
         labels:
           service: core-api
+
+  # Host-booted dev API (scripts/boot-api-v0.3.sh runs on :4001 OUTSIDE
+  # compose) — Docker Desktop resolves host.docker.internal to the host.
+  - job_name: constellation-api-host
+    metrics_path: /api/metrics
+    static_configs:
+      - targets: ["host.docker.internal:4001"]
+        labels:
+          service: core-api-host
 
   - job_name: grafana
     metrics_path: /metrics
