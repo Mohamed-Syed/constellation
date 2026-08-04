@@ -58,12 +58,12 @@ The strategic vision + market analysis + full roadmap live in
 
 ## 3. Current state (authoritative as of the last commit) — reconcile, don't assume
 
-**HEAD:** `b6e379f` — `feat(web): Phase 3.0 3.1 — portal full /engine task UI (P0, the #1 UX gap)`.
-Just below it: `0127ce1` (2.3 Grafana dashboard), `3b37129` (2.8 worker), `5f268f3` (2.7
-sandboxing), `4d55928` (2.6 SSO). **PHASE 2.0 COMPLETE; PHASE 3.0 STARTED (3.1 DONE).**
+**HEAD:** `6e596af` — `feat(plugins): Phase 3.0 — plugin marketplace (browse + install + uninstall, hot-reload)`.
+Just below it: `b6e379f` (3.1 /engine task UI), `0127ce1` (2.3 Grafana dashboard),
+`3b37129` (2.8 worker). **PHASE 2.0 COMPLETE; PHASE 3.0 IN PROGRESS (3.1 + 3.2 DONE).**
 Tree is **clean** (only untracked `Prompt to Clau_Partner.txt`, a working artifact).
 
-**Test count (full repo):** **586** — api **462**, web (build+typecheck, no unit
+**Test count (full repo):** **597** — api **473**, web (build+typecheck, no unit
 suite) , plugin-sdk **21**, plugin-graphify **40**, plugin-browser-use **47**, cli **16**.
 Gates: `turbo run lint build typecheck test --force --concurrency=1` → **20/20 tasks green**.
 
@@ -88,6 +88,7 @@ Gates: `turbo run lint build typecheck test --force --concurrency=1` → **20/20
 | Worker separate process | `3b37129` | Phase 2.0 2.8 — ENGINE_WORKER_MODE=embedded\|separate + worker-main.js | ✅ api enqueues w/o consuming; worker completed task + fired cron |
 | Grafana dashboard | `0127ce1` | Phase 2.0 2.3 — provisioned 19-panel dashboard + engine-metrics wiring (2 live-found fixes) | ✅ real Prometheus samples + browser-rendered live data |
 | Portal /engine task UI | `b6e379f` | Phase 3.0 3.1 (P0) — filter tabs, 2s live step streaming + live badge, Re-run, model picker, Result+Copy | ✅ browser: STEP HISTORY (3) + RESULT JSON + Copy + tabs + Re-run |
+| Plugin marketplace | `6e596af` | Phase 3.0 3.2 — browse/install/uninstall with hot-reload (plugins-catalog/ shelf, marker-gated uninstall) | ✅ browser: Install → installed zone + toast → Uninstall → back to available |
 
 **Live stack (local, $0):** postgres :5432, redis :6380, ollama `qwen2.5-coder:7b`,
 api :4001 (use `API_HOST_PORT`, never the squatted :4000). Prometheus/Grafana/Loki
@@ -155,12 +156,16 @@ These are NOT to be actioned without the user resuming them.
   @Optional() MetricsService into all six engine/auth hot paths). LIVE-PROVEN in a real
   browser with live data. **PHASE 2.0 IS COMPLETE.**
 
-**Phase 3.0 — Platform as a Product (IN PROGRESS — 3.1 DONE `b6e379f`):** ~~portal full
+**Phase 3.0 — Platform as a Product (IN PROGRESS — 3.1 + 3.2 DONE):** ~~portal full
 `/engine` task UI (P0 — the #1 UX gap)~~ **DONE (`b6e379f` — status filter tabs with counts,
 2s live step streaming + pulsing 'live' badge, Re-run for finished tasks, model picker
 datalist from the health providers, Result panel with Copy; LIVE-PROVEN in a real browser)**;
-then visual workflow builder, plugin marketplace, plugin scaffolding + hot-reload,
-notification center, multi-model compare, team spaces.
+~~plugin marketplace~~ **DONE (`6e596af` — browse/install/uninstall with HOT-RELOAD (no
+restart): plugins-catalog/ shelf, PluginCatalogService (marker-gated uninstall), loader
+reload(), GET /plugins/catalog + guarded routes; LIVE-PROVEN: install → enabled + folder
+present → uninstall → back to available, in a real browser with toasts)**;
+then visual workflow builder, plugin scaffolding + hot-reload, notification center,
+multi-model compare, team spaces.
 
 **Phase 4.0 — Agentic OS:** multi-agent crews (delegation), persistent memory
 (RAG + Graphify), MCP server + client, agent skill marketplace, autonomous
@@ -191,10 +196,10 @@ Full feature tables with competitor benchmarks + priorities: `docs/MASTER_PLAN.m
 After reading this file, a correct resume must be able to run:
 ```bash
 cd C:/Users/syed.mohamed/Claude/Code/constellation
-git log --oneline -5        # expect b6e379f at HEAD
+git log --oneline -5        # expect 6e596af at HEAD
 git status                  # expect a CLEAN tree
 ./node_modules/.bin/turbo run lint build typecheck test --force --concurrency=1
-# expect 20/20 tasks green, 586 tests (api 462, sdk 21, graphify 40, browser-use 47, cli 16)
+# expect 20/20 tasks green, 597 tests (api 473, sdk 21, graphify 40, browser-use 47, cli 16)
 ```
-Then continue from §6 (Phase 3.0 — next: visual workflow builder / plugin marketplace /
-notification center). Reconcile if any of it differs.
+Then continue from §6 (Phase 3.0 — next: visual workflow builder / notification center).
+Reconcile if any of it differs.
