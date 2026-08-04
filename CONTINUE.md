@@ -58,7 +58,9 @@ The strategic vision + market analysis + full roadmap live in
 
 ## 3. Current state (authoritative as of the last commit) — reconcile, don't assume
 
-**HEAD:** `0647666` — `feat(web): Phase 2.0 — portal /health engine dashboard (2.4)` (just committed).
+**HEAD:** `dd0ff53` — `chore: ignore Python bytecode caches`. Just below it:
+`fbd4cf1` (docs backfill for the /health round) and `0647666` (the round itself —
+`feat(web): Phase 2.0 — portal /health engine dashboard (2.4)`).
 Tree is **clean** (only untracked `Prompt to Clau_Partner.txt`, a working artifact).
 
 **Test count (full repo):** **547** — api **423**, web (build+typecheck, no unit
@@ -165,7 +167,7 @@ Full feature tables with competitor benchmarks + priorities: `docs/MASTER_PLAN.m
 After reading this file, a correct resume must be able to run:
 ```bash
 cd C:/Users/syed.mohamed/Claude/Code/constellation
-git log --oneline -5        # expect 0647666 at HEAD
+git log --oneline -5        # expect dd0ff53 at HEAD
 git status                  # expect a CLEAN tree
 ./node_modules/.bin/turbo run lint build typecheck test --force --concurrency=1
 # expect 20/20 tasks green, 547 tests (api 423, sdk 21, graphify 40, browser-use 47, cli 16)
