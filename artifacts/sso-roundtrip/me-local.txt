@@ -1,0 +1,2 @@
+{"id":"cmsdajzwp0005nkfxf61b466l","email":"admin@constellation.local","roles":["admin"],"permissions":["platform:admin"]}
+HTTP 200

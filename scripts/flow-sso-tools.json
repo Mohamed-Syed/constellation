@@ -1,0 +1,18 @@
+[
+  { "act": "goto", "url": "http://localhost:3005/login" },
+  { "act": "wait", "expr": "document.querySelector('input[type=password]') !== null", "wait": 60000 },
+  { "act": "sleep", "ms": 5000 },
+  { "act": "fill", "selector": "input[type=email]", "t": "admin@constellation.local" },
+  { "act": "fill", "selector": "input[type=password]", "t": "changeme" },
+  { "act": "click", "selector": "button[type=submit]" },
+  { "act": "wait", "expr": "location.pathname !== '/login'", "wait": 30000 },
+  { "act": "goto", "url": "http://localhost:3005/tools" },
+  { "act": "wait", "expr": "document.body.innerText.includes('Grafana') && document.body.innerText.includes('Prometheus')", "wait": 60000 },
+  { "act": "sleep", "ms": 3000 },
+  {
+    "act": "eval",
+    "expr": "(() => { const tiles = Array.from(document.querySelectorAll('a')).filter(a => a.getAttribute('href') && a.getAttribute('href').startsWith('/tools/')).map(a => ({ label: a.textContent.trim(), href: a.getAttribute('href') })); return { path: location.pathname, tileCount: tiles.length, tiles, hasKeycloak: document.body.innerText.includes('Keycloak'), hasLoki: document.body.innerText.includes('Loki'), hasGrafana: document.body.innerText.includes('Grafana'), hasOpenWebUI: document.body.innerText.includes('Open WebUI'), hasLangflow: document.body.innerText.includes('Langflow'), hasCoolify: document.body.innerText.includes('Coolify') }; })()"
+  },
+  { "act": "shot", "shot": "tools-federated-tiles" },
+  { "act": "text" }
+]

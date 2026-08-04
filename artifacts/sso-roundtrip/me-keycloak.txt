@@ -1,0 +1,2 @@
+{"id":"fb1a110a-c958-4cfc-bf68-235149634c9c","email":"sso-user@constellation.local","roles":[],"permissions":[]}
+HTTP 200

@@ -1,0 +1,4 @@
+/auth/realms/constellation 200
+/tools/grafana/api/health 200
+/tools/prometheus/-/healthy 200
+/tools/grafana/ 302
