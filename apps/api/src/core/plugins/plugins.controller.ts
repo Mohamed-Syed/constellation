@@ -19,6 +19,7 @@ import { AuditService } from "../audit/audit.service.js";
 import { PermissionsGuard } from "../rbac/permissions.guard.js";
 import { RequirePermissions } from "../rbac/require-permissions.decorator.js";
 import { PluginLifecycleService } from "./plugin-lifecycle.service.js";
+import { PluginCatalogService } from "./plugin-catalog.service.js";
 import { InvokeToolDto } from "./dto/invoke-tool.dto.js";
 import { PluginRegistryService } from "./plugin-registry.service.js";
 import { PluginToolService } from "./plugin-tool.service.js";
@@ -42,6 +43,7 @@ export class PluginsController {
     private readonly lifecycle: PluginLifecycleService,
     private readonly audit: AuditService,
     private readonly tools: PluginToolService,
+    private readonly catalog: PluginCatalogService,
   ) {}
 
   @Public()
@@ -61,7 +63,53 @@ export class PluginsController {
       healthCheckedAt: p.healthCheckedAt ?? null,
       /** Agent-plane tool count; the full declarations live on the detail route. */
       toolCount: p.manifest.tools.length,
+      /** Phase 3.0 — true when installed via the marketplace (uninstallable). */
+      catalogInstalled: this.catalog.isCatalogInstalled(p.manifest.id),
     }));
+  }
+
+  /**
+   * Phase 3.0 — PLUGIN MARKETPLACE: the browseable catalog. `installed` is
+   * the same summary as GET /plugins; `available` are bundled-but-not-yet-
+   * installed entries from plugins-catalog/ (the marketplace shelf).
+   */
+  @Public()
+  @Get("catalog")
+  @ApiOkResponse({ description: "Installed plugins + available catalog entries." })
+  catalogView() {
+    return {
+      installed: this.list(),
+      available: this.catalog.available().map((e) => ({
+        id: e.id,
+        name: e.name,
+        version: e.version,
+        description: e.description,
+        permissions: e.permissions,
+        toolCount: e.toolCount,
+      })),
+    };
+  }
+
+  /** Phase 3.0 — install a catalog entry (copy into plugins/ + reload). */
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions(CorePermissions.PLUGIN_MANAGE)
+  @Post(":id/install")
+  @ApiOkResponse({ description: "Install a catalog plugin; returns the updated plugin detail." })
+  async install(@Param("id") id: string, @CurrentUser() user?: AuthPrincipal) {
+    const entry = await this.catalog.install(id);
+    await this.audit.record(user?.id ?? null, "plugin.install", id, { version: entry.version });
+    return this.toDetail(this.getOrThrow(id));
+  }
+
+  /** Phase 3.0 — uninstall a CATALOG-installed plugin (marker-gated; reloads). */
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions(CorePermissions.PLUGIN_MANAGE)
+  @Post(":id/uninstall")
+  @ApiOkResponse({ description: "Uninstall a catalog-installed plugin." })
+  async uninstall(@Param("id") id: string, @CurrentUser() user?: AuthPrincipal) {
+    await this.catalog.uninstall(id);
+    await this.audit.record(user?.id ?? null, "plugin.uninstall", id);
+    return { id, installed: false };
   }
 
   @Public()

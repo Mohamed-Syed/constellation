@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { PluginCatalogService } from "./plugin-catalog.service.js";
 import { PluginContextFactory } from "./plugin-context.factory.js";
 import { PluginHealthService } from "./plugin-health.service.js";
 import { PluginLifecycleService } from "./plugin-lifecycle.service.js";
@@ -27,6 +28,7 @@ import { PluginsController } from "./plugins.controller.js";
     PluginHealthService,
     PluginSandboxService,
     PluginToolService,
+    PluginCatalogService,
   ],
   exports: [PluginRegistryService, PluginLifecycleService, PluginToolService],
 })

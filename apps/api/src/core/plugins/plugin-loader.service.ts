@@ -88,6 +88,27 @@ export class PluginLoaderService implements OnModuleInit {
   }
 
   async onModuleInit(): Promise<void> {
+    await this.loadAll();
+  }
+
+  /**
+   * Phase 3.0 — plugin marketplace: reload the registry from the plugins dir
+   * (clear + full re-scan) so install/uninstall take effect WITHOUT a restart.
+   * The plugin entry is imported fresh (dynamic import), so a replaced dist
+   * also reloads. Same behaviour as boot: everything registered cleanly is
+   * enabled afterwards.
+   */
+  async reload(): Promise<void> {
+    this.registry.clear();
+    await this.loadAll();
+  }
+
+  /** The plugins root directory (repo-relative PLUGINS_DIR, default "plugins"). */
+  getPluginsRoot(): string {
+    return this.pluginsDir();
+  }
+
+  private async loadAll(): Promise<void> {
     const dir = this.pluginsDir();
     if (!existsSync(dir)) {
       this.logger.warn(`Plugins directory not found: ${dir} — no plugins loaded`);

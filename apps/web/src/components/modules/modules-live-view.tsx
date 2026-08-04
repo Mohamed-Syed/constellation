@@ -5,12 +5,16 @@ import { RefreshCw } from "lucide-react";
 
 import { useLivePlugins, formatAgo } from "@/lib/use-live";
 import { ModulesView } from "@/components/modules/modules-view";
+import { MarketplaceSection } from "@/components/modules/marketplace-section";
 
 /**
  * OR2-2: wraps the static `ModulesView` with a live poll of `/api/plugins` so
  * health badges update automatically. Degrades gracefully — if the core is
  * down, the last snapshot (or the SSR pass) is shown and an inline "stale"
  * indicator appears instead of an error boundary.
+ *
+ * Phase 3.0: the plugin marketplace section renders below the installed grid
+ * (even when zero plugins are installed — the catalog shelf stays browseable).
  */
 export function ModulesLiveView({ initial }: { initial: Parameters<typeof ModulesView>[0]["plugins"] }) {
   const { data, loading, error, lastUpdated } = useLivePlugins();
@@ -27,6 +31,7 @@ export function ModulesLiveView({ initial }: { initial: Parameters<typeof Module
         <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />
       </div>
       <ModulesView plugins={plugins} />
+      <MarketplaceSection />
     </div>
   );
 }

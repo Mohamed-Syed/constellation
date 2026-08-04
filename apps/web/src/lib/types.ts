@@ -45,6 +45,8 @@ export interface PluginSummary {
   healthCheckedAt?: string | null;
   /** Agent-plane tool count; the full declarations live on the detail route. */
   toolCount?: number;
+  /** Phase 3.0 — true when installed via the marketplace catalog (uninstallable). */
+  catalogInstalled?: boolean;
 }
 
 /** A single declared agent-plane tool (C5). Mirrors `ToolSchema` in the Plugin SDK manifest. */

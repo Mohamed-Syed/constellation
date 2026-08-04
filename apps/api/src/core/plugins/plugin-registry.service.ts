@@ -45,6 +45,14 @@ export class PluginRegistryService {
     p.healthCheckedAt = new Date().toISOString();
   }
 
+  /**
+   * Phase 3.0 — plugin marketplace: drop every entry (used by the loader's
+   * `reload()` before a full re-scan, so uninstalled plugins disappear).
+   */
+  clear(): void {
+    this.plugins.clear();
+  }
+
   count(): number {
     return this.plugins.size;
   }

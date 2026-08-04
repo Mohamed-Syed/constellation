@@ -1,0 +1,13 @@
+{
+  "manifestVersion": 2,
+  "id": "hello-catalog",
+  "name": "Hello Catalog",
+  "version": "0.1.0",
+  "description": "Marketplace demo — bundled in plugins-catalog, installable from the Modules page.",
+  "author": "Constellation",
+  "license": "MIT",
+  "minPlatformVersion": "0.1.0",
+  "permissions": ["hello-catalog:greet:read"],
+  "requiredServices": [],
+  "entry": "dist/index.js"
+}
