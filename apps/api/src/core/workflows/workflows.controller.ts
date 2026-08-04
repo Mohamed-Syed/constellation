@@ -19,6 +19,7 @@ import { PermissionsGuard } from "../rbac/permissions.guard.js";
 import { RequirePermissions } from "../rbac/require-permissions.decorator.js";
 import { WorkflowService } from "./workflow.service.js";
 import { WorkflowRunService } from "./workflow-run.service.js";
+import { WorkflowTriggerService } from "./workflow-trigger.service.js";
 
 /**
  * Phase 3.0 — visual workflow builder: REST surface for stored workflow
@@ -32,6 +33,7 @@ export class WorkflowsController {
   constructor(
     private readonly workflows: WorkflowService,
     private readonly runs: WorkflowRunService,
+    private readonly triggers: WorkflowTriggerService,
     private readonly audit: AuditService,
   ) {}
 
@@ -42,11 +44,14 @@ export class WorkflowsController {
   async create(@Body() body: { name?: unknown; description?: unknown; definition?: unknown }, @CurrentUser() user?: AuthPrincipal) {
     this.requireName(body.name);
     await this.audit.record(user?.id ?? null, "workflow.create", String(body.name ?? ""));
-    return this.workflows.create({
+    const row = await this.workflows.create({
       name: String(body.name),
       description: body.description === undefined ? undefined : String(body.description),
       definition: body.definition,
     });
+    // Workflow triggers round: arm the cron schedule / event listener.
+    await this.triggers.sync(row);
+    return row;
   }
 
   @UseGuards(PermissionsGuard)
@@ -78,11 +83,15 @@ export class WorkflowsController {
   ) {
     if (body.name !== undefined) this.requireName(body.name);
     await this.audit.record(user?.id ?? null, "workflow.update", id);
-    return this.workflows.update(id, {
+    const row = await this.workflows.update(id, {
       name: body.name === undefined ? undefined : String(body.name),
       description: body.description === undefined ? undefined : String(body.description),
       definition: body.definition,
     });
+    if (!row) throw new NotFoundException(`Workflow "${id}" not found`);
+    // Workflow triggers round: re-arm the schedule / listener to the new trigger.
+    await this.triggers.sync(row);
+    return row;
   }
 
   @UseGuards(PermissionsGuard)
@@ -93,6 +102,8 @@ export class WorkflowsController {
     const removed = await this.workflows.remove(id);
     if (!removed) throw new NotFoundException(`Workflow "${id}" not found`);
     await this.audit.record(user?.id ?? null, "workflow.delete", id);
+    // Workflow triggers round: disarm the schedule + listener.
+    await this.triggers.remove(id);
     return { id, removed: true };
   }
 

@@ -75,6 +75,7 @@ function engine(opts: {
   queue?: TaskQueueService;
   eventBus?: EventBusService;
   pollIntervalMs?: number;
+  workflowRuns?: unknown;
 } = {}): {
   svc: SchedulerEngineService;
   scheduledTasks: ScheduledTaskService;
@@ -95,6 +96,8 @@ function engine(opts: {
       now: () => NOW,
       pollIntervalMs: opts.pollIntervalMs ?? 30_000,
     },
+    undefined, // metrics (optional)
+    opts.workflowRuns as never, // workflow runner (workflow triggers round)
   );
   return { svc, scheduledTasks, tasks, queue };
 }
@@ -396,5 +399,24 @@ describe("SchedulerEngineService — scheduler events on the bus (notification c
     const sched = { id: "s1", title: "Digest", prompt: "P", model: null, maxSteps: 3, maxTokens: null };
     await svc.fireSchedule(sched, NOW);
     expect(tasks.create).toHaveBeenCalled();
+  });
+});
+
+describe("SchedulerEngineService — workflow schedules (workflow triggers round)", () => {
+  it("runs the WORKFLOW for a schedule with workflowId — no task is enqueued", async () => {
+    const workflowRuns = { run: vi.fn(async () => ({ id: "r1", workflowId: "w1", status: "running" })) };
+    const { svc, scheduledTasks, tasks, queue } = engine({ workflowRuns });
+    const sched = { id: "s1", title: "Digest", prompt: "", model: null, maxSteps: 1, maxTokens: null, workflowId: "w1" };
+    await svc.fireSchedule(sched, NOW);
+    expect(workflowRuns.run).toHaveBeenCalledWith("w1");
+    expect(tasks.create).not.toHaveBeenCalled();
+    expect(queue.enqueue).not.toHaveBeenCalled();
+    expect((scheduledTasks as unknown as { markRun: ReturnType<typeof vi.fn> }).markRun).toHaveBeenCalledWith("s1", NOW);
+  });
+
+  it("throws an honest error when a workflow schedule fires without a runner", async () => {
+    const { svc } = engine({ workflowRuns: undefined });
+    const sched = { id: "s1", title: "Digest", prompt: "", model: null, maxSteps: 1, maxTokens: null, workflowId: "w1" };
+    await expect(svc.fireSchedule(sched, NOW)).rejects.toThrow(/no workflow runner/);
   });
 });

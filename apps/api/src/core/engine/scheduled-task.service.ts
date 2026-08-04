@@ -48,6 +48,8 @@ export type ScheduledTaskRecord = {
   lastRunAt: Date | null;
   runCount: number;
   lastError: string | null;
+  /** Workflow triggers round: when set, firing runs this workflow, not a task. */
+  workflowId: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -131,6 +133,7 @@ export class ScheduledTaskService {
     lastRunAt: Date | null;
     runCount: number;
     lastError: string | null;
+    workflowId: string | null;
     createdAt: Date;
     updatedAt: Date;
   }): ScheduledTaskRecord {
@@ -173,6 +176,7 @@ export class ScheduledTaskService {
         maxTokens: task.maxTokens ?? null,
         kind: dto.kind,
         spec: spec as unknown as Prisma.InputJsonValue,
+        workflowId: dto.workflowId ?? null,
         enabled: dto.enabled ?? true,
         nextRunAt,
       },

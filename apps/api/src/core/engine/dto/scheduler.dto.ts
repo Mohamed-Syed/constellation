@@ -76,6 +76,11 @@ export class CreateScheduleDto {
   @Type(() => ScheduleTaskTemplateDto)
   task!: ScheduleTaskTemplateDto;
 
+  /** Workflow triggers round: when set, firing this schedule RUNS the workflow (the task template is then ignored). */
+  @IsOptional()
+  @IsString()
+  workflowId?: string;
+
   @IsOptional()
   @IsBoolean()
   enabled?: boolean;

@@ -1,6 +1,7 @@
 import {
-  Injectable,
+  forwardRef,
   Inject,
+  Injectable,
   Logger,
   Optional,
   type OnModuleDestroy,
@@ -8,6 +9,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { EventBusService } from "../events/event-bus.service.js";
+import { WorkflowRunService } from "../workflows/workflow-run.service.js";
 import { EngineAvailabilityService } from "./engine-availability.service.js";
 import { engineLoopsRunHere } from "./engine-worker-role.js";
 import { MetricsService } from "../observability/metrics/metrics.service.js";
@@ -93,6 +95,10 @@ export class SchedulerEngineService implements OnModuleInit, OnModuleDestroy {
     @Optional() @Inject(SCHEDULER_ENGINE_OPTIONS) options?: SchedulerEngineOptions,
     // Phase 2.0 2.3 — schedule-run metrics feed (trailing @Optional()).
     @Optional() private readonly metrics?: MetricsService,
+    // Workflow triggers round — runs WORKFLOWS for schedules whose
+    // `workflowId` is set (forwardRef: WorkflowsModule ↔ EngineModule cycle).
+    // @Optional() so offline hand-wired tests construct without it.
+    @Optional() @Inject(forwardRef(() => WorkflowRunService)) private readonly workflowRuns?: WorkflowRunService,
   ) {
     this.now = options?.now ?? (() => new Date());
     const fromEnv = Number(config?.get("SCHEDULER_POLL_INTERVAL_MS") ?? NaN);
@@ -273,9 +279,28 @@ export class SchedulerEngineService implements OnModuleInit, OnModuleDestroy {
       model: string | null;
       maxSteps: number;
       maxTokens: number | null;
+      workflowId?: string | null;
     },
     now: Date,
   ): Promise<void> {
+    // Workflow triggers round: a schedule with a workflowId RUNS the workflow
+    // instead of enqueuing an engine task (the task template is ignored).
+    // Fire-and-forget — a workflow run (agent steps) can take minutes and the
+    // poll loop must not block on it; the run's own status trail is the record.
+    if (sched.workflowId) {
+      if (!this.workflowRuns) {
+        throw new Error(`Workflow schedule ${sched.id} fired but no workflow runner is available`);
+      }
+      const workflowId = sched.workflowId;
+      await this.scheduledTasks.markRun(sched.id, now);
+      this.emitSchedulerEvent("scheduler.schedule.fired", { scheduleId: sched.id, name: sched.title, taskId: null, workflowId });
+      this.logger.log(`Scheduled workflow ${sched.id} ("${sched.title}") -> workflow ${workflowId}`);
+      void this.workflowRuns.run(workflowId).catch((err: unknown) => {
+        this.logger.error(`Workflow ${workflowId} (schedule ${sched.id}) run failed: ${asMessage(err)}`);
+        void this.scheduledTasks.markRun(sched.id, now, asMessage(err));
+      });
+      return;
+    }
     const task = await this.tasks.create(
       {
         title: sched.title,

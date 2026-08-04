@@ -257,6 +257,11 @@ model ScheduledTask {
   kind      String    @default("cron")
   /// Trigger spec: { cron?, timezone? } for kind="cron"; { event? } for kind="event".
   spec      Json
+  /// Workflow triggers round: when set, firing this schedule RUNS the workflow
+  /// (WorkflowRunService.run) instead of enqueuing an engine task. The task
+  /// template fields above are then ignored. Auto-managed by
+  /// WorkflowTriggerService (name = `workflow:<id>`).
+  workflowId String?
   enabled   Boolean   @default(true)
   /// When the poll loop last ran this schedule (and when the next run is due).
   nextRunAt DateTime?
