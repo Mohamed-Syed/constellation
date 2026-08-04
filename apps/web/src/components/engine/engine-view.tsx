@@ -4,7 +4,9 @@ import * as React from "react";
 import {
   Activity,
   AlertTriangle,
+  Check,
   CheckCircle2,
+  Copy,
   Cpu,
   Flag,
   ListChecks,
@@ -13,6 +15,7 @@ import {
   MessageSquare,
   Play,
   RefreshCw,
+  RotateCcw,
   Send,
   Wrench,
   XCircle,
@@ -48,6 +51,17 @@ import { Reveal } from "@/components/motion/reveal";
 import { toast } from "sonner";
 
 const POLL_MS = 5000;
+
+/** Phase 3.0 — status filter tabs ("" = All). */
+const STATUS_FILTERS: Array<{ key: string; label: string }> = [
+  { key: "", label: "All" },
+  { key: "queued", label: "Queued" },
+  { key: "running", label: "Running" },
+  { key: "paused", label: "Paused" },
+  { key: "completed", label: "Completed" },
+  { key: "failed", label: "Failed" },
+  { key: "cancelled", label: "Cancelled" },
+];
 
 /**
  * The Engine page (HANDOFF §8 item 1b — Orion lane).
@@ -87,6 +101,11 @@ export function EngineView() {
   // ── Human-in-the-loop decisions (approve / reject a paused task) ────────
   const [decidingId, setDecidingId] = React.useState<string | null>(null);
   const [decisionError, setDecisionError] = React.useState<string | null>(null);
+
+  // Phase 3.0 — status filter tabs ("" = all) + re-run in-flight id.
+  const [filter, setFilter] = React.useState("");
+  const [rerunningId, setRerunningId] = React.useState<string | null>(null);
+  const [copied, setCopied] = React.useState(false);
 
   // Live poll: task list + engine health every 5s. On failure we keep the
   // last good snapshot and flip the error flag (the render decides what to
@@ -143,9 +162,11 @@ export function EngineView() {
       }
     };
     void load();
+    // Phase 3.0 — live streaming: poll the OPEN task at 2s (vs the 5s list
+    // cadence) so Think → Act → Observe steps appear as they happen.
     const id = setInterval(() => {
       if (active && !stopped) void load();
-    }, POLL_MS);
+    }, 2000);
     return () => {
       active = false;
       clearInterval(id);
@@ -193,6 +214,62 @@ export function EngineView() {
       toast.info("Task cancelled");
     }
   }
+
+  /**
+   * Phase 3.0 — Re-run a finished task: fetch its detail (the list rows omit
+   * the prompt), then re-submit the SAME title/prompt/model as a fresh task.
+   * No new API surface — composition of the existing detail + submit calls.
+   */
+  async function handleRerun(task: EngineTaskSummary) {
+    if (rerunningId || !token) return;
+    setRerunningId(task.id);
+    setFormError(null);
+    setFormSuccess(null);
+    const detailRes = await fetchEngineTask(task.id, token);
+    if (detailRes.state !== "ok") {
+      setFormError(detailRes.message);
+      setRerunningId(null);
+      return;
+    }
+    const d = detailRes.data;
+    const out = await submitEngineTask(
+      { title: d.title, prompt: d.prompt, model: d.model ?? undefined },
+      token,
+    );
+    if (out.ok) {
+      setFormSuccess(`Re-queued “${out.task.title}” — new run ${out.task.id.slice(0, 8)}…`);
+      setRefreshKey((k) => k + 1);
+    } else {
+      setFormError(out.message);
+    }
+    setRerunningId(null);
+  }
+
+  // Phase 3.0 — derived values for the filter tabs + model picker.
+  const filteredTasks =
+    tasks === null ? null : !filter ? tasks : tasks.filter((t) => t.status === filter);
+  const availableModels = React.useMemo(() => {
+    const seen = new Set<string>();
+    const out: Array<{ id: string; label: string }> = [];
+    for (const p of health?.model.providers ?? []) {
+      if (p.model && !seen.has(p.model)) {
+        seen.add(p.model);
+        out.push({ id: p.model, label: `${p.model} — ${p.provider}${p.reachable ? "" : " (down)"}` });
+      }
+    }
+    return out;
+  }, [health]);
+
+  const copyResult = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard can be denied in embedded contexts — the button just does
+      // nothing visible rather than throwing.
+    }
+  };
 
   /** Approve a paused task's pending tool call (executes it exactly once). */
   async function handleApprove(taskId: string) {
@@ -313,14 +390,28 @@ export function EngineView() {
                 >
                   Model <span className="font-normal text-neutral-400">(optional)</span>
                 </label>
+                {/* Phase 3.0 — picker fed by the health payload's provider list;
+                    free text still works (datalist = suggestions, not a lock). */}
                 <Input
                   id="engine-task-model"
+                  list="engine-models"
                   value={model}
                   onChange={(e) => setModel(e.target.value)}
-                  placeholder="default"
+                  placeholder={
+                    availableModels.length > 0 ? availableModels[0]?.id ?? "default" : "default"
+                  }
                   disabled={!token || submitting}
                   maxLength={120}
                 />
+                {availableModels.length > 0 ? (
+                  <datalist id="engine-models">
+                    {availableModels.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </datalist>
+                ) : null}
               </div>
 
               {formError ? (
@@ -385,6 +476,29 @@ export function EngineView() {
                     Connection lost — showing the last snapshot; retrying automatically.
                   </p>
                 ) : null}
+                <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                  {STATUS_FILTERS.map((f) => {
+                    const count =
+                      f.key === "" ? tasks.length : tasks.filter((t) => t.status === f.key).length;
+                    const active = filter === f.key;
+                    return (
+                      <button
+                        key={f.key || "all"}
+                        type="button"
+                        onClick={() => setFilter(f.key)}
+                        aria-pressed={active}
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                          active
+                            ? "border-accent/60 bg-accent/10 text-accent"
+                            : "border-neutral-200 text-neutral-500 hover:border-neutral-300 hover:text-neutral-700 dark:border-neutral-800 dark:text-neutral-400 dark:hover:border-neutral-700 dark:hover:text-neutral-200"
+                        }`}
+                      >
+                        {f.label}
+                        <span className="tabular-nums opacity-70">{count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
                     <thead>
@@ -397,7 +511,7 @@ export function EngineView() {
                       </tr>
                     </thead>
                     <tbody>
-                      {tasks.map((task) => (
+                      {filteredTasks?.map((task) => (
                         <tr
                           key={task.id}
                           onClick={() => openTask(task.id)}
@@ -478,6 +592,26 @@ export function EngineView() {
                                   Cancel
                                 </Button>
                               ) : null}
+                              {isTerminalStatus(task.status) ? (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void handleRerun(task);
+                                  }}
+                                  disabled={rerunningId === task.id || !token}
+                                  title="Re-run this task with the same title, prompt and model"
+                                >
+                                  {rerunningId === task.id ? (
+                                    <Loader2 className="size-3.5 animate-spin" />
+                                  ) : (
+                                    <RotateCcw className="size-3.5" />
+                                  )}
+                                  Re-run
+                                </Button>
+                              ) : null}
                             </div>
                           </td>
                         </tr>
@@ -520,6 +654,12 @@ export function EngineView() {
                   </span>
                   <span>· started {formatWhen(detail.startedAt)}</span>
                   <span>· finished {formatWhen(detail.completedAt)}</span>
+                  {!isTerminalStatus(detail.status) ? (
+                    <span className="inline-flex items-center gap-1 text-accent">
+                      <span className="size-1.5 animate-pulse rounded-full bg-accent" />
+                      live
+                    </span>
+                  ) : null}
                 </DialogDescription>
               </DialogHeader>
 
@@ -557,6 +697,33 @@ export function EngineView() {
                   </ol>
                 )}
               </div>
+
+              {detail.status === "completed" && detail.result !== null && detail.result !== undefined ? (
+                <div>
+                  <p className="mb-1 flex items-center justify-between text-xs font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+                    <span>Result</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void copyResult(
+                          typeof detail.result === "string"
+                            ? detail.result
+                            : JSON.stringify(detail.result, null, 2),
+                        )
+                      }
+                      className="inline-flex items-center gap-1 rounded border border-neutral-200 px-1.5 py-0.5 font-normal normal-case tracking-normal text-neutral-500 transition-colors hover:border-neutral-300 hover:text-neutral-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent dark:border-neutral-800 dark:text-neutral-400 dark:hover:border-neutral-700 dark:hover:text-neutral-200"
+                    >
+                      {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+                      {copied ? "Copied" : "Copy"}
+                    </button>
+                  </p>
+                  <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-sm text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200">
+                    {typeof detail.result === "string"
+                      ? detail.result
+                      : JSON.stringify(detail.result, null, 2)}
+                  </pre>
+                </div>
+              ) : null}
 
               {cancelError ? (
                 <p role="alert" className="text-xs text-rose-600 dark:text-rose-400">
