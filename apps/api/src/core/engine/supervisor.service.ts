@@ -9,6 +9,7 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { EngineAlertService } from "./engine-alerts.service.js";
 import { EngineAvailabilityService } from "./engine-availability.service.js";
+import { engineLoopsRunHere } from "./engine-worker-role.js";
 import { TaskQueueService } from "./task-queue.service.js";
 import { TaskService } from "./task.service.js";
 
@@ -117,6 +118,12 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit(): Promise<void> {
+    // Phase 2.0 2.8 — separate worker mode: the sweep loop runs in the
+    // dedicated worker process, never in the api.
+    if (!engineLoopsRunHere()) {
+      this.logger.warn(`SupervisorService deferred to the worker process (ENGINE_WORKER_MODE=separate)`);
+      return;
+    }
     await this.start();
   }
 
@@ -218,7 +225,8 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
   /** Health for /api/engine/health — supervision status (enabled, last sweep, counters). */
   async getHealth() {
     return {
-      enabled: this.availability.isEnabled,
+      // In separate worker mode the api honestly reports the sweep as off.
+      enabled: this.availability.isEnabled && engineLoopsRunHere(),
       pollIntervalMs: this.pollIntervalMs,
       staleThresholdMs: this.staleTaskMs,
       lastSweepAt: this.lastSweepAt?.toISOString() ?? null,

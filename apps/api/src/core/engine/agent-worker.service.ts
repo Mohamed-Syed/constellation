@@ -8,6 +8,7 @@ import type { ChatMessage } from "./model-router.service.js";
 import { ModelRouterService } from "./model-router.service.js";
 import { EngineAvailabilityService } from "./engine-availability.service.js";
 import { EngineAlertService } from "./engine-alerts.service.js";
+import { engineLoopsRunHere } from "./engine-worker-role.js";
 import type { FailureClassification } from "./dead-letter.js";
 import { buildRedisConnectionOptions } from "./redis-connection.js";
 import { ENGINE_QUEUE_NAME } from "./task-queue.service.js";
@@ -83,6 +84,12 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit() {
+    // Phase 2.0 2.8 — separate worker mode: the loop runs in the dedicated
+    // worker process, never in the api. Defer with an honest log.
+    if (!engineLoopsRunHere()) {
+      this.logger.warn(`AgentWorker NOT started here — deferred to the worker process (ENGINE_WORKER_MODE=separate)`);
+      return;
+    }
     // Same ordering note as TaskQueueService: ensureProbed() triggers the
     // shared single Redis probe so the verdict is ready before we decide.
     await this.availability.ensureProbed();

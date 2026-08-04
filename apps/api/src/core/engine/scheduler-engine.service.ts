@@ -9,6 +9,7 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { EventBusService } from "../events/event-bus.service.js";
 import { EngineAvailabilityService } from "./engine-availability.service.js";
+import { engineLoopsRunHere } from "./engine-worker-role.js";
 import { ScheduledTaskService } from "./scheduled-task.service.js";
 import { TaskQueueService } from "./task-queue.service.js";
 import { TaskService } from "./task.service.js";
@@ -103,6 +104,12 @@ export class SchedulerEngineService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit(): Promise<void> {
+    // Phase 2.0 2.8 — separate worker mode: the poll loop runs in the
+    // dedicated worker process, never in the api.
+    if (!engineLoopsRunHere()) {
+      this.logger.warn(`SchedulerEngineService deferred to the worker process (ENGINE_WORKER_MODE=separate)`);
+      return;
+    }
     await this.start();
   }
 
@@ -280,7 +287,8 @@ export class SchedulerEngineService implements OnModuleInit, OnModuleDestroy {
   /** Health for /api/engine/health — scheduler status (enabled, due count, last sweep). */
   async getHealth() {
     return {
-      enabled: this.availability.isEnabled,
+      // In separate worker mode the api honestly reports the loop as off.
+      enabled: this.availability.isEnabled && engineLoopsRunHere(),
       pollIntervalMs: this.pollIntervalMs,
       lastSweepAt: this.lastSweepAt?.toISOString() ?? null,
       dueCount: this.dueCount,
