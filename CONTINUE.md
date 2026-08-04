@@ -58,14 +58,14 @@ The strategic vision + market analysis + full roadmap live in
 
 ## 3. Current state (authoritative as of the last commit) — reconcile, don't assume
 
-**HEAD:** `6d23314` — `fix(workflows): typecheck fixes surfaced by the full gate + docs wording`
-(round commit `9e05c7a` = `feat(workflows): Phase 3.0 — visual workflow builder`).
-Just below them: `6e596af` (3.2 plugin marketplace), `b6e379f` (3.1 /engine task UI),
-`0127ce1` (2.3 Grafana dashboard). **PHASE 2.0 COMPLETE; PHASE 3.0 IN PROGRESS (3.1–3.3 DONE).**
+**HEAD:** `35a76fe` — `feat(notifications): Phase 3.0 — notification center (durable event feed + portal UI)`
+(the docs backfill for this round lands directly above it; below it: `6a01000` session summary,
+`6d23314`/`9e05c7a` visual workflow builder, `6e596af` 3.2 plugin marketplace, `b6e379f` 3.1 /engine
+task UI, `0127ce1` 2.3 Grafana dashboard). **PHASE 2.0 COMPLETE; PHASE 3.0 IN PROGRESS (3.1–3.4 DONE).**
 Tree is **clean** (only untracked `Prompt to Clau_Partner.txt`, a working artifact).
 
-**Test count (full repo):** **615** — api **491**, web (build+typecheck, no unit
-suite) , plugin-sdk **21**, plugin-graphify **40**, plugin-browser-use **47**, cli **16**.
+**Test count (full repo):** **637** — api **513**, web (build+typecheck, no unit
+suite), plugin-sdk **21**, plugin-graphify **40**, plugin-browser-use **47**, cli **16**.
 Gates: `turbo run lint build typecheck test --force --concurrency=1` → **20/20 tasks green**.
 
 **What shipped (this is the honest record — see `MASTER_PLAN.md §9` for every round):**
@@ -91,6 +91,7 @@ Gates: `turbo run lint build typecheck test --force --concurrency=1` → **20/20
 | Portal /engine task UI | `b6e379f` | Phase 3.0 3.1 (P0) — filter tabs, 2s live step streaming + live badge, Re-run, model picker, Result+Copy | ✅ browser: STEP HISTORY (3) + RESULT JSON + Copy + tabs + Re-run |
 | Plugin marketplace | `6e596af` | Phase 3.0 3.2 — browse/install/uninstall with hot-reload (plugins-catalog/ shelf, marker-gated uninstall) | ✅ browser: Install → installed zone + toast → Uninstall → back to available |
 | Visual workflow builder | `9e05c7a` (+ fixup `6d23314`) | Phase 3.0 3.3 — Workflow/WorkflowRun + migration, validator + templating, run executor, drag-reorder builder UI | ✅ 2-step agent→tool run completed (templated args) + browser trail rendered |
+| Notification center | `35a76fe` | Phase 3.0 3.4 — durable event feed (engine alerts + NEW scheduler emissions → Notification model), REST list/read/dismiss, portal /notifications + sidebar unread badge + admin audit-log tab | ✅ 5/5 event topics live (cron ×20, terminal failure, stale→recovered) + REST round-trip + real-browser badge/mark-all/audit |
 
 **Live stack (local, $0):** postgres :5432, redis :6380, ollama `qwen2.5-coder:7b`,
 api :4001 (use `API_HOST_PORT`, never the squatted :4000). Prometheus/Grafana/Loki
@@ -106,7 +107,8 @@ docker-compose.federation.yml --profile federation up -d tempo`, then set
 **Done:** Engine v0→v0.5 · Platform hardening v0.6 · Publish-readiness prep ·
 Portal design-language rebuild (both themes) · Prisma migrations history ·
 Prometheus `/api/metrics` · CLI ops subcommands · **OTel tracing + Tempo** ·
-**Portal `/health` engine dashboard**.
+**Portal `/health` engine dashboard** · **Phase 3.0: /engine task UI (3.1),
+plugin marketplace (3.2), visual workflow builder (3.3), notification center (3.4)**.
 
 **The design-language source** (three repos, guidance captured in `docs/DESIGN_SKILL.md`):
 `emilkowalski/skills`, `pbakaus/impeccable`, `leonxlnx/taste-skill`. Any portal
@@ -158,7 +160,7 @@ These are NOT to be actioned without the user resuming them.
   @Optional() MetricsService into all six engine/auth hot paths). LIVE-PROVEN in a real
   browser with live data. **PHASE 2.0 IS COMPLETE.**
 
-**Phase 3.0 — Platform as a Product (IN PROGRESS — 3.1 + 3.2 DONE):** ~~portal full
+**Phase 3.0 — Platform as a Product (IN PROGRESS — 3.1 + 3.2 + 3.3 + 3.4 DONE):** ~~portal full
 `/engine` task UI (P0 — the #1 UX gap)~~ **DONE (`b6e379f` — status filter tabs with counts,
 2s live step streaming + pulsing 'live' badge, Re-run for finished tasks, model picker
 datalist from the health providers, Result panel with Copy; LIVE-PROVEN in a real browser)**;
@@ -172,7 +174,13 @@ the engine queue, tool steps via plugin invoke, per-step crash-safe trail), CRUD
 history routes guarded by core:workflow:manage, zero-dep drag-reorder builder UI on
 /workflows with a live run trail; LIVE-PROVEN: 2-step agent→tool run completed with
 templated args + browser-created workflow ran to completion with the trail rendered)**;
-then plugin scaffolding + hot-reload, notification center, multi-model compare, team spaces.
+~~notification center~~ **DONE (`35a76fe` — durable event feed: Notification model +
+migration, NotificationService on the EventBus (engine.task.failed/stale/recovered + NEW
+scheduler.schedule.fired/error emissions), GET /api/notifications + unread-count +
+read-all + :id/read + :id DELETE, portal /notifications page (filters, severity icons,
+mark-read/dismiss/mark-all, admin Audit-log tab) + sidebar unread badge; LIVE-PROVEN:
+5/5 event topics end-to-end + REST round-trip + real-browser badge/mark-all/audit)**;
+then multi-model compare, team spaces.
 
 **Phase 4.0 — Agentic OS:** multi-agent crews (delegation), persistent memory
 (RAG + Graphify), MCP server + client, agent skill marketplace, autonomous
@@ -203,10 +211,10 @@ Full feature tables with competitor benchmarks + priorities: `docs/MASTER_PLAN.m
 After reading this file, a correct resume must be able to run:
 ```bash
 cd C:/Users/syed.mohamed/Claude/Code/constellation
-git log --oneline -5        # expect 6d23314 at HEAD (9e05c7a below it)
+git log --oneline -5        # expect 35a76fe at HEAD (docs backfill directly above it; 6a01000 below)
 git status                  # expect a CLEAN tree
 ./node_modules/.bin/turbo run lint build typecheck test --force --concurrency=1
-# expect 20/20 tasks green, 615 tests (api 491, sdk 21, graphify 40, browser-use 47, cli 16)
+# expect 20/20 tasks green, 637 tests (api 513, sdk 21, graphify 40, browser-use 47, cli 16)
 ```
-Then continue from §6 (Phase 3.0 — next: notification center / multi-model compare).
+Then continue from §6 (Phase 3.0 — next: multi-model compare / team spaces).
 Reconcile if any of it differs.
