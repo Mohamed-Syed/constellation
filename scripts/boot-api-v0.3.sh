@@ -28,6 +28,20 @@ export SCHEDULER_POLL_INTERVAL_MS="${SCHEDULER_POLL_INTERVAL_MS:-30000}"
 if grep -q '^OPENROUTER_API_KEY=.' .env; then
   export OPENROUTER_API_KEY="$(grep '^OPENROUTER_API_KEY=' .env | cut -d= -f2-)"
 fi
+# OPT-IN cloud provider (2026-08-04 round): DeepSeek direct API. Same rule —
+# key read from root .env only, never committed. Plus the optional tuning vars.
+if grep -q '^DEEPSEEK_API_KEY=.' .env; then
+  export DEEPSEEK_API_KEY="$(grep '^DEEPSEEK_API_KEY=' .env | cut -d= -f2-)"
+  # Optional tuning vars — ONLY export when non-empty, or the empty string
+  # would override the provider's code default (found live in this round:
+  # an empty DEEPSEEK_DEFAULT_MODEL made health() report model:"").
+  if grep -q '^DEEPSEEK_DEFAULT_MODEL=.' .env; then
+    export DEEPSEEK_DEFAULT_MODEL="$(grep '^DEEPSEEK_DEFAULT_MODEL=' .env | cut -d= -f2-)"
+  fi
+  if grep -q '^DEEPSEEK_THINKING=.' .env; then
+    export DEEPSEEK_THINKING="$(grep '^DEEPSEEK_THINKING=' .env | cut -d= -f2-)"
+  fi
+fi
 # OpenTelemetry tracing (Phase 2.0) — OPT-IN, additive: unset endpoint = no
 # tracing at all (zero overhead). Set OTEL_EXPORTER_OTLP_ENDPOINT in .env to
 # export spans (e.g. http://localhost:4318 for the federation Tempo).

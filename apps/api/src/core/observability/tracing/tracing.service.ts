@@ -35,6 +35,25 @@ export interface TracingOptions {
 /** DI token so `@Optional() @Inject(TRACING_OPTIONS)` never breaks Nest at boot. */
 export const TRACING_OPTIONS = Symbol("TRACING_OPTIONS");
 
+/**
+ * Shared no-op span handed to `withSpan` callbacks when tracing is disabled.
+ * FOUND LIVE (2026-08-04 DeepSeek round): the disabled path used to pass
+ * `undefined` — ModelRouterService's span callback dereferenced it
+ * (`span.setAttributes`) on the first model call that carried usage, and
+ * EVERY task failed with "Cannot read properties of undefined (reading
+ * 'setAttributes')" whenever OTEL_EXPORTER_OTLP_ENDPOINT was unset (the
+ * default). "Spans are no-ops" must mean a no-op span, not undefined.
+ * Only the members callers actually touch are implemented.
+ */
+const NOOP_SPAN = {
+  setAttributes: () => {},
+  setStatus: () => {},
+  recordException: () => {},
+  end: () => {},
+  updateName: () => {},
+  isRecording: () => false,
+} as unknown as Span;
+
 /** A started-but-not-yet-ended span handle (HTTP interceptor use). */
 export interface SpanHandle {
   /** End the span, attaching final attributes (e.g. the response status). */
@@ -130,14 +149,16 @@ export class TracingService {
 
   /**
    * Run `fn` inside a span of `name` with `attributes`. When tracing is
-   * disabled this is exactly `await fn()` — zero overhead, no span created.
-   * The span is activated in the OTel context, so spans created inside `fn`
-   * (model calls, tool invokes) parent under it. `fn` receives the span so
-   * callers can attach post-hoc attributes (e.g. usage). Errors are recorded
-   * on the span (ERROR status + exception) and rethrown — behavior unchanged.
+   * disabled this is exactly `await fn(NOOP_SPAN)` — zero overhead (the
+   * no-op span is a shared singleton; nothing is created or sent), and the
+   * span argument is a NO-OP so callers that attach post-hoc attributes
+   * (e.g. usage) work identically in both modes. The span is activated in
+   * the OTel context when enabled, so spans created inside `fn` (model
+   * calls, tool invokes) parent under it. Errors are recorded on the span
+   * (ERROR status + exception) and rethrown — behavior unchanged.
    */
   async withSpan<T>(name: string, attributes: Attributes, fn: (span: Span) => Promise<T>): Promise<T> {
-    if (!this.enabled) return fn(undefined as unknown as Span);
+    if (!this.enabled) return fn(NOOP_SPAN);
     const span = this.tracer().startSpan(name, { attributes });
     const ctx = trace.setSpan(context.active(), span);
     try {

@@ -217,6 +217,46 @@ describe("ModelRouterService — real routing by canHandleModel (Engine v0.3)", 
     expect(res.provider).toBe("ollama");
   });
 
+  it("routes a BARE cloud model id to the cloud provider even though Ollama also claims non-slash ids (DeepSeek regression)", async () => {
+    // The DeepSeek live proof found this: "deepseek-v4-flash" has no "/", so
+    // Ollama's canHandleModel (accepts every non-slash id) matched FIRST in
+    // the old first-match scan and the task died with "model
+    // 'deepseek-v4-flash' not found" from Ollama. Cloud providers must scan
+    // BEFORE the default provider.
+    const ollama = makeOllamaProvider();
+    const openrouter = makeOpenRouterProvider();
+    const deepseek = makeProvider({
+      name: "deepseek",
+      chat: vi.fn(async () => ({ content: "deepseek says hi", model: "deepseek-v4-flash", provider: "deepseek", durationMs: 1 })),
+      canHandleModel: (model?: string) =>
+        model !== undefined && (model.startsWith("deepseek:") || model.startsWith("deepseek-")),
+    });
+    const router = new ModelRouterService([ollama, openrouter, deepseek]);
+
+    const res = await router.chat(messages, "deepseek-v4-flash");
+
+    expect(deepseek.chat).toHaveBeenCalledWith(messages, "deepseek-v4-flash");
+    expect(ollama.chat).not.toHaveBeenCalled();
+    expect(openrouter.chat).not.toHaveBeenCalled();
+    expect(res.provider).toBe("deepseek");
+  });
+
+  it("strips the deepseek: prefix before calling the DeepSeek provider", async () => {
+    const ollama = makeOllamaProvider();
+    const deepseek = makeProvider({
+      name: "deepseek",
+      chat: vi.fn(async () => ({ content: "deepseek says hi", model: "deepseek-v4-flash", provider: "deepseek", durationMs: 1 })),
+      canHandleModel: (model?: string) =>
+        model !== undefined && (model.startsWith("deepseek:") || model.startsWith("deepseek-")),
+    });
+    const router = new ModelRouterService([ollama, deepseek]);
+
+    await router.chat(messages, "deepseek:deepseek-v4-flash");
+
+    expect(deepseek.chat).toHaveBeenCalledWith(messages, "deepseek-v4-flash");
+    expect(ollama.chat).not.toHaveBeenCalled();
+  });
+
   it("defaults to the Ollama provider when no model is specified ($0 default)", async () => {
     const ollama = makeOllamaProvider();
     const openrouter = makeOpenRouterProvider();

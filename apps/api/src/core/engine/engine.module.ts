@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { PluginsModule } from "../plugins/plugins.module.js";
 import { AgentWorkerService } from "./agent-worker.service.js";
+import { DeepSeekModelProvider } from "./deepseek-model-provider.js";
 import { EngineAlertService } from "./engine-alerts.service.js";
 import { EngineAvailabilityService } from "./engine-availability.service.js";
 import { EngineController } from "./engine.controller.js";
@@ -42,17 +43,22 @@ import { TaskService } from "./task.service.js";
     SupervisorService,
     EngineAlertService,
     // Model plane: OllamaModelProvider is the $0 default; OpenRouterModelProvider
-    // (Engine v0.3) is the OPT-IN cloud provider — unconfigured it reports
-    // honest health and the router never selects it. ModelRouterService routes
-    // between them by canHandleModel with fallback to Ollama. Add another
-    // provider by registering it here and appending it to the factory array —
-    // callers never change.
+    // (Engine v0.3) and DeepSeekModelProvider (2026-08-04) are the OPT-IN cloud
+    // providers — unconfigured they report honest health and the router never
+    // selects them. ModelRouterService routes between them by canHandleModel
+    // with fallback to Ollama. Add another provider by registering it here and
+    // appending it to the factory array — callers never change.
     OllamaModelProvider,
     OpenRouterModelProvider,
+    DeepSeekModelProvider,
     {
       provide: MODEL_PROVIDERS,
-      useFactory: (ollama: OllamaModelProvider, openrouter: OpenRouterModelProvider) => [ollama, openrouter],
-      inject: [OllamaModelProvider, OpenRouterModelProvider],
+      useFactory: (
+        ollama: OllamaModelProvider,
+        openrouter: OpenRouterModelProvider,
+        deepseek: DeepSeekModelProvider,
+      ) => [ollama, openrouter, deepseek],
+      inject: [OllamaModelProvider, OpenRouterModelProvider, DeepSeekModelProvider],
     },
     ModelRouterService,
     EngineAvailabilityService,

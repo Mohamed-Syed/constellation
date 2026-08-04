@@ -32,6 +32,25 @@ describe("TracingService — disabled (the default; SDK never started)", () => {
     expect(result).toBe(42);
   });
 
+  it("hands the callback a NO-OP span when disabled — a caller attaching usage attrs must not crash (DeepSeek-round regression)", async () => {
+    // Found LIVE in the DeepSeek round: withSpan's disabled path used to pass
+    // `undefined`; ModelRouterService's span callback dereferenced it
+    // (span.setAttributes) on the first model call carrying usage, so EVERY
+    // task failed with "Cannot read properties of undefined" whenever
+    // OTEL_EXPORTER_OTLP_ENDPOINT was unset (the default). The disabled
+    // contract is a no-op span, not undefined.
+    const svc = new TracingService(config({}));
+    let seen: { setAttributes: unknown } | undefined;
+    await svc.withSpan("model.call", { "gen_ai.provider": "deepseek" }, async (span) => {
+      seen = span as unknown as { setAttributes: unknown };
+      // Exactly what ModelRouterService.chat() does when usage is present:
+      span.setAttributes({ "gen_ai.usage.cost_usd": 0.0001 });
+      return "ok";
+    });
+    expect(seen).toBeDefined();
+    expect(typeof seen?.setAttributes).toBe("function");
+  });
+
   it("startSpan returns null when disabled (interceptor passthrough)", () => {
     const svc = new TracingService(config({}));
     expect(svc.startSpan("http.request")).toBeNull();

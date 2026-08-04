@@ -13,9 +13,16 @@ export { MODEL_PROVIDERS, TokenBudget } from "./model-provider.js";
  * into an honest router:
  *
  *   selectProvider(model?)  — no model → Ollama (providers[0], the $0
- *     default); model → the FIRST provider whose canHandleModel(model) is
- *     true (a provider without canHandleModel handles everything, backward
- *     compatible); no match → Ollama.
+ *     default); model → the FIRST NON-DEFAULT provider whose
+ *     canHandleModel(model) is true (a provider without canHandleModel
+ *     handles everything, backward compatible), else the DEFAULT provider
+ *     (Ollama) if it claims the id, else the no-match fallback. Scanning
+ *     cloud providers BEFORE the default is what lets a bare cloud id like
+ *     "deepseek-v4-flash" reach DeepSeek: Ollama's canHandleModel accepts
+ *     every non-slash id and sits at providers[0], so a first-match scan
+ *     would hand the cloud id to Ollama, which 404s terminally (found live
+ *     in the DeepSeek round — the v0.3 order only worked because OpenRouter
+ *     ids always contain "/").
  *
  *   chat() — routes to the selected provider, strips the "openrouter:" /
  *     "ollama:" router prefix, and on ANY failure of a NON-default provider
@@ -39,10 +46,15 @@ export class ModelRouterService {
   ) {}
 
   /**
-   * Pick the provider for a model request (Engine v0.3).
+   * Pick the provider for a model request (Engine v0.3, refined 2026-08-04).
    *  - No model → providers[0] (Ollama — the $0 default).
-   *  - Model → the FIRST provider that canHandleModel(model) (a missing
-   *    canHandleModel = "handles everything").
+   *  - Model → the FIRST NON-DEFAULT provider that canHandleModel(model)
+   *    (a missing canHandleModel = "handles everything"), then the DEFAULT
+   *    provider. Cloud providers scan before the default so a bare cloud id
+   *    ("deepseek-v4-flash") is not captured by Ollama's permissive
+   *    canHandleModel and 404-terminally-failed (the DeepSeek live proof
+   *    caught exactly that; the v0.3 first-match order only worked because
+   *    OpenRouter ids always contain "/").
    *  - No match → FALL BACK to providers[0] (Ollama) with ITS default model:
    *    the requested model belongs to a provider that isn't available here
    *    (e.g. a "/" cloud id while OpenRouter is unconfigured) — handing the
@@ -57,20 +69,31 @@ export class ModelRouterService {
       throw new Error("Model router error: no model provider is configured");
     }
     if (requestedModel == null) return { provider: fallback, model: undefined };
-    const match = this.providers.find((p) => p.canHandleModel?.(requestedModel) ?? true);
-    if (match) return { provider: match, model: this.stripPrefix(requestedModel) };
+    // Cloud (non-default) providers first: an id they claim (a "/" id for
+    // OpenRouter, a bare deepseek-* id for DeepSeek) must never be captured
+    // by the default provider's more permissive canHandleModel.
+    for (const provider of this.providers.slice(1)) {
+      if (provider.canHandleModel?.(requestedModel) ?? true) {
+        return { provider, model: this.stripPrefix(requestedModel) };
+      }
+    }
+    // Default provider (Ollama) claims local ids (no slash / its own tags).
+    if (fallback.canHandleModel?.(requestedModel) ?? true) {
+      return { provider: fallback, model: this.stripPrefix(requestedModel) };
+    }
     this.logger.warn(
       `Model router: no provider can handle "${requestedModel}" — falling back to Ollama (${fallback.name}) with its default model`,
     );
     return { provider: fallback, model: undefined };
   }
 
-  /** Strip a provider-routing prefix ("openrouter:", "ollama:") — it is for
-   *  the ROUTER, not the upstream API. */
+  /** Strip a provider-routing prefix ("openrouter:", "ollama:", "deepseek:") —
+   *  it is for the ROUTER, not the upstream API. */
   private stripPrefix(model?: string): string | undefined {
     if (model == null) return model;
     if (model.startsWith("openrouter:")) return model.slice("openrouter:".length);
     if (model.startsWith("ollama:")) return model.slice("ollama:".length);
+    if (model.startsWith("deepseek:")) return model.slice("deepseek:".length);
     return model;
   }
 
