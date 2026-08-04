@@ -120,3 +120,56 @@ export function dismissNotification(token: string | null, id: string): Promise<N
 export function fetchAuditEntries(token: string | null, limit = 50): Promise<NotificationsResult<AuditEntry[]>> {
   return request<AuditEntry[]>(`/audit?limit=${limit}`, token);
 }
+
+/** A configured outbound notification channel (webhook family). */
+export interface NotificationChannel {
+  id: string;
+  name: string;
+  type: "webhook";
+  url: string;
+  format: "slack" | "discord" | "teams" | "generic";
+  kinds: string[];
+  enabled: boolean;
+}
+
+export type NotificationChannelInput = {
+  id?: string;
+  name: string;
+  url: string;
+  format: NotificationChannel["format"];
+  kinds: string[];
+  enabled: boolean;
+};
+
+/** GET /api/notifications/channels — configured outbound channels. */
+export async function fetchNotificationChannels(token: string | null): Promise<NotificationsResult<NotificationChannel[]>> {
+  const result = await request<{ channels: NotificationChannel[] }>("/notifications/channels", token);
+  return result.state === "ok" ? { state: "ok", data: result.data.channels } : result;
+}
+
+/** POST /api/notifications/channels — create or update a channel. */
+export function upsertNotificationChannel(
+  token: string | null,
+  input: NotificationChannelInput,
+): Promise<NotificationsResult<{ channel: NotificationChannel }>> {
+  return request<{ channel: NotificationChannel }>("/notifications/channels", token, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+/** DELETE /api/notifications/channels/:id — remove a channel. */
+export function deleteNotificationChannel(token: string | null, id: string): Promise<NotificationsResult<{ id: string; removed: boolean }>> {
+  return request<{ id: string; removed: boolean }>(`/notifications/channels/${encodeURIComponent(id)}`, token, { method: "DELETE" });
+}
+
+/** POST /api/notifications/channels/:id/test — deliver a test message. */
+export function testNotificationChannel(
+  token: string | null,
+  id: string,
+): Promise<NotificationsResult<{ ok: boolean; status?: number; error?: string }>> {
+  return request<{ ok: boolean; status?: number; error?: string }>(`/notifications/channels/${encodeURIComponent(id)}/test`, token, {
+    method: "POST",
+  });
+}

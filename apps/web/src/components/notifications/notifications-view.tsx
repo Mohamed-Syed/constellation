@@ -21,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Reveal } from "@/components/motion/reveal";
 import { hasPermission } from "@/lib/permissions";
 import { formatRelativeTime } from "@/lib/engine";
+import { ChannelsPanel } from "./channels-panel";
 import {
   dismissNotification,
   fetchAuditEntries,
@@ -88,6 +89,7 @@ function shortId(id: string): string {
 export function NotificationsView() {
   const { token, permissions } = useAuth();
   const canReadAudit = hasPermission(permissions, "core:audit:read");
+  const canManageChannels = hasPermission(permissions, "platform:admin");
 
   const [tab, setTab] = React.useState<string>("feed");
   const [filter, setFilter] = React.useState<FilterId>("all");
@@ -141,7 +143,6 @@ export function NotificationsView() {
     return () => {
       active = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, canReadAudit, token, audit]);
 
   const handleRowClick = (n: PlatformNotification) => {
@@ -211,6 +212,7 @@ export function NotificationsView() {
         <TabsList aria-label="Notification center">
           <TabsTrigger value="feed">Feed</TabsTrigger>
           {canReadAudit ? <TabsTrigger value="audit">Audit log</TabsTrigger> : null}
+          {canManageChannels ? <TabsTrigger value="channels">Channels</TabsTrigger> : null}
         </TabsList>
 
         <TabsContent value="feed">
@@ -302,6 +304,10 @@ export function NotificationsView() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="channels">
+          <ChannelsPanel />
         </TabsContent>
       </Tabs>
     </div>

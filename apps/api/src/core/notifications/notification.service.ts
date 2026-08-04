@@ -1,13 +1,12 @@
 import { Injectable, Logger, Optional, OnModuleInit } from "@nestjs/common";
 import { EventBusService } from "../events/event-bus.service.js";
-// VALUE import (not `import type`): PrismaService is a constructor-injected
-// dependency, and `import type` erases the runtime metadata Nest reflects —
-// the container then sees `Function` at index [0] and the live boot fails
-// with "Nest can't resolve dependencies of the NotificationService (?, ...)"
-// while every offline `new NotificationService(...)` test stays green.
-// Same class of bug as the OTel round (see constellation-platform skill,
-// "NestJS DI param traps" #3).
+// VALUE import (not `import type`): constructor-injected dependencies must
+// carry runtime metadata for Nest's DI reflection — `import type` erases it
+// and the live boot fails with "argument Function at index [N]" while offline
+// tests stay green (documented DI trap #3 — hit on PrismaService in this
+// round's sibling service too).
 import { PrismaService } from "../database/prisma.service.js";
+import { NotificationChannelService } from "./notification-channel.service.js";
 
 /** One durable notification row as returned by the API (dates serialized). */
 export interface NotificationRecord {
@@ -60,30 +59,32 @@ export class NotificationService implements OnModuleInit {
   private warnedNoDb = false;
   private started = false;
 
-  constructor(
-    private readonly prisma: PrismaService,
-    @Optional() private readonly eventBus?: EventBusService,
-  ) {}
-
   /** The EventBus topics this center persists (all "core" scope). */
   static readonly SOURCE_TOPICS = [
     "engine.task.failed",
     "engine.task.stale",
     "engine.task.recovered",
+    "engine.task.completed",
+    "engine.task.paused",
     "scheduler.schedule.fired",
     "scheduler.schedule.error",
   ] as const;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly eventBus?: EventBusService,
+    @Optional() private readonly channels?: NotificationChannelService,
+  ) {}
 
   onModuleInit(): void {
     if (this.started || !this.eventBus) return;
     this.started = true;
     const events = this.eventBus.forPlugin("core");
     for (const topic of NotificationService.SOURCE_TOPICS) {
-      events.on(topic, (payload: unknown) => {
-        void this.handleBusEvent(topic, payload).catch((err) =>
-          this.logger.warn(`Notification handler for "${topic}" rejected: ${asMessage(err)}`),
-        );
-      });
+      // Return the promise (not `void`): EventBusService.safeHandler awaits
+      // promise-returning handlers, so a rejection is caught + logged there
+      // and the notification write completes before the emit returns.
+      events.on(topic, (payload: unknown) => this.handleBusEvent(topic, payload));
     }
     this.logger.log(`Notification center listening on ${NotificationService.SOURCE_TOPICS.length} platform topics`);
   }
@@ -227,12 +228,12 @@ export class NotificationService implements OnModuleInit {
     switch (topic) {
       case "engine.task.failed": {
         const taskId = str(p.taskId);
-        await this.record("engine.task.failed", "error", "Task failed", str(p.detail), "task", taskId);
+        await this.emit("engine.task.failed", "error", "Task failed", str(p.detail), "task", taskId);
         return;
       }
       case "engine.task.stale": {
         const taskId = str(p.taskId);
-        await this.record(
+        await this.emit(
           "engine.task.stale",
           "warning",
           "Task flagged stale",
@@ -244,7 +245,7 @@ export class NotificationService implements OnModuleInit {
       }
       case "engine.task.recovered": {
         const taskId = str(p.taskId);
-        await this.record(
+        await this.emit(
           "engine.task.recovered",
           "success",
           "Task recovered",
@@ -254,11 +255,28 @@ export class NotificationService implements OnModuleInit {
         );
         return;
       }
+      case "engine.task.completed": {
+        const taskId = str(p.taskId);
+        await this.emit("engine.task.completed", "success", "Task completed", "Finished successfully", "task", taskId);
+        return;
+      }
+      case "engine.task.paused": {
+        const taskId = str(p.taskId);
+        await this.emit(
+          "engine.task.paused",
+          "warning",
+          "Task needs approval",
+          str(p.detail) ?? "Paused for a human decision",
+          "task",
+          taskId,
+        );
+        return;
+      }
       case "scheduler.schedule.fired": {
         const scheduleId = str(p.scheduleId);
         const name = str(p.name) || "Schedule";
         const taskId = str(p.taskId);
-        await this.record(
+        await this.emit(
           "scheduler.schedule.fired",
           "info",
           "Schedule fired",
@@ -272,7 +290,7 @@ export class NotificationService implements OnModuleInit {
         const scheduleId = str(p.scheduleId);
         const name = str(p.name) || "Schedule";
         const error = str(p.error);
-        await this.record(
+        await this.emit(
           "scheduler.schedule.error",
           "error",
           "Schedule run failed",
@@ -284,6 +302,28 @@ export class NotificationService implements OnModuleInit {
       }
       default:
         this.logger.warn(`Unhandled notification topic "${topic}" — ignoring`);
+    }
+  }
+
+  /**
+   * Persist one notification AND dispatch it to the configured outbound
+   * channels (webhooks). Dispatch is fire-and-forget — a failing channel
+   * never breaks the feed.
+   */
+  private async emit(
+    kind: string,
+    severity: string,
+    title: string,
+    message: string | null = null,
+    refType: string | null = null,
+    refId: string | null = null,
+  ): Promise<void> {
+    await this.record(kind, severity, title, message, refType, refId);
+    if (!this.channels) return;
+    try {
+      await this.channels.dispatch(kind, { kind, severity, title, message, refType, refId });
+    } catch (err) {
+      this.logger.warn(`Channel dispatch failed for "${kind}": ${asMessage(err)}`);
     }
   }
 

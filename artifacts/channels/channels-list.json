@@ -1,0 +1,1 @@
+{"channels":[{"id":"ch_msf3xsdif01yjb","url":"http://127.0.0.1:9080/hook","name":"generic-proof","type":"webhook","kinds":[],"format":"generic","enabled":true},{"id":"ch_msf3xshsd9qr3x","url":"http://127.0.0.1:9080/slack","name":"slack-proof","type":"webhook","kinds":["engine.task.failed"],"format":"slack","enabled":true}]}

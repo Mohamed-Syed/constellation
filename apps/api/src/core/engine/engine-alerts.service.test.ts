@@ -57,6 +57,19 @@ describe("EngineAlertService — ring buffer", () => {
     expect(summary[1]!.detail).toBe("3600000ms");
   });
 
+  it("records completed and paused alerts (notification channels round)", () => {
+    const { bus, emit } = makeEventBus();
+    const svc = new EngineAlertService(bus, 50);
+    svc.recordTaskCompleted("t2");
+    svc.recordTaskPaused("t3");
+    const summary = svc.getAlertSummary();
+    expect(summary.map((a) => a.type)).toEqual(["engine.task.paused", "engine.task.completed"]);
+    expect(summary[0]!.taskId).toBe("t3");
+    expect(summary[1]!.taskId).toBe("t2");
+    expect(emit).toHaveBeenCalledWith("engine.task.completed", expect.objectContaining({ taskId: "t2" }));
+    expect(emit).toHaveBeenCalledWith("engine.task.paused", expect.objectContaining({ taskId: "t3", detail: "awaiting approval" }));
+  });
+
   it("caps the buffer at the configured limit (oldest dropped)", () => {
     const svc = new EngineAlertService(undefined, 3);
     svc.recordTaskFailed("t1", "terminal", "e1");

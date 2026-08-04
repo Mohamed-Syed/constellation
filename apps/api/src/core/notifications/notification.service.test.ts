@@ -280,4 +280,62 @@ describe("NotificationService — EventBus wiring", () => {
     const noBus = new NotificationService({ db } as unknown as PrismaService, undefined);
     expect(() => noBus.onModuleInit()).not.toThrow();
   });
+
+  it("maps engine.task.completed onto a success notification", async () => {
+    const { bus, handlers } = makeBus();
+    const db = makeDb();
+    const svc = svcWith(db, bus);
+    svc.onModuleInit();
+    await handlers.get("engine.task.completed")!({ taskId: "t9", detail: null, at: NOW.toISOString() });
+    const data = (db.notification.create.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data;
+    expect(data).toMatchObject({ kind: "engine.task.completed", severity: "success", title: "Task completed", refType: "task", refId: "t9" });
+  });
+
+  it("maps engine.task.paused onto a needs-approval warning", async () => {
+    const { bus, handlers } = makeBus();
+    const db = makeDb();
+    const svc = svcWith(db, bus);
+    svc.onModuleInit();
+    await handlers.get("engine.task.paused")!({ taskId: "t10", detail: "awaiting approval", at: NOW.toISOString() });
+    const data = (db.notification.create.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data;
+    expect(data).toMatchObject({ kind: "engine.task.paused", severity: "warning", title: "Task needs approval", refType: "task", refId: "t10" });
+  });
+
+  it("dispatches every persisted event to the configured channels (fire-and-forget)", async () => {
+    const { bus, handlers } = makeBus();
+    const db = makeDb();
+    const channels = { dispatch: vi.fn(async () => undefined) };
+    const svc = new NotificationService(
+      { db } as unknown as PrismaService,
+      bus,
+      channels as unknown as never,
+    );
+    svc.onModuleInit();
+    await handlers.get("engine.task.failed")!({ taskId: "t1", detail: "boom", at: NOW.toISOString(), classification: "terminal" });
+    expect(channels.dispatch).toHaveBeenCalledWith("engine.task.failed", {
+      kind: "engine.task.failed",
+      severity: "error",
+      title: "Task failed",
+      message: "boom",
+      refType: "task",
+      refId: "t1",
+    });
+    expect(db.notification.create).toHaveBeenCalled();
+  });
+
+  it("a throwing channel dispatch never breaks persistence", async () => {
+    const { bus, handlers } = makeBus();
+    const db = makeDb();
+    const channels = {
+      dispatch: vi.fn(async () => {
+        throw new Error("webhook down");
+      }),
+    };
+    const warn = vi.spyOn(Logger.prototype, "warn").mockImplementation(() => undefined);
+    const svc = new NotificationService({ db } as unknown as PrismaService, bus, channels as unknown as never);
+    svc.onModuleInit();
+    await expect(handlers.get("engine.task.completed")!({ taskId: "t9", detail: null, at: NOW.toISOString() })).resolves.toBeUndefined();
+    expect(db.notification.create).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
 });

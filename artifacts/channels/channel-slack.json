@@ -1,0 +1,1 @@
+{"channel":{"id":"ch_msf3xshsd9qr3x","name":"slack-proof","type":"webhook","url":"http://127.0.0.1:9080/slack","format":"slack","kinds":["engine.task.failed"],"enabled":true}}

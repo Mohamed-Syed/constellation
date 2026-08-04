@@ -47,7 +47,7 @@ interface Fakes {
   modelRouter: { chat: ReturnType<typeof vi.fn>; health: ReturnType<typeof vi.fn> };
   pluginTool: { invoke: ReturnType<typeof vi.fn> };
   registry: { get: ReturnType<typeof vi.fn>; all: ReturnType<typeof vi.fn> };
-  alerts: { recordTaskFailed: ReturnType<typeof vi.fn> };
+  alerts: { recordTaskFailed: ReturnType<typeof vi.fn>; recordTaskCompleted: ReturnType<typeof vi.fn>; recordTaskPaused: ReturnType<typeof vi.fn> };
 }
 
 function makeWorker(opts: {
@@ -111,6 +111,8 @@ function makeWorker(opts: {
   };
   const alerts = {
     recordTaskFailed: vi.fn().mockResolvedValue(undefined),
+    recordTaskCompleted: vi.fn().mockResolvedValue(undefined),
+    recordTaskPaused: vi.fn().mockResolvedValue(undefined),
   };
   const svc = new AgentWorkerService(
     taskService as unknown as TaskService,

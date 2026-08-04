@@ -74,6 +74,16 @@ export class EngineAlertService {
     this.push("engine.task.recovered", taskId, null, {});
   }
 
+  /** The worker completed a task successfully (notification channels round). */
+  recordTaskCompleted(taskId: string): void {
+    this.push("engine.task.completed", taskId, null, {});
+  }
+
+  /** The worker paused a task for a human approval decision (notification channels round). */
+  recordTaskPaused(taskId: string): void {
+    this.push("engine.task.paused", taskId, "awaiting approval", {});
+  }
+
   private push(type: string, taskId: string | null, detail: string | null, payload: Record<string, unknown>): void {
     const at = new Date().toISOString();
     this.alerts.unshift({ at, type, taskId, detail });

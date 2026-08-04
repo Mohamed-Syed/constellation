@@ -328,6 +328,7 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
           content: { result: action.result ?? rawResponse },
         });
         await this.persistUsage(taskId, budget);
+        this.alerts.recordTaskCompleted(taskId);
         await this.taskService.markCompleted(taskId, { summary: action.result ?? rawResponse });
         return;
 
@@ -471,6 +472,7 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
       content: { plugin, tool, args },
     });
     await this.taskService.markPaused(taskId);
+    this.alerts.recordTaskPaused(taskId);
 
     this.logger.warn(`Task ${taskId} paused at step ${stepIndex} — awaiting approval for ${plugin}.${tool}`);
   }
