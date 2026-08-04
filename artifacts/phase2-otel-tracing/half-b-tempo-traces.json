@@ -1,0 +1,436 @@
+{
+  "search": {
+    "traces": [
+      {
+        "traceID": "79c0b19d06adad61ff5ca9001b5acc37",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785838977463000000",
+        "durationMs": 16
+      },
+      {
+        "traceID": "e5f20863f08820690da18631232f71bc",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785838967313000000",
+        "durationMs": 136
+      },
+      {
+        "traceID": "8bd09da0712ebd8f54bcbb5cae6ae717",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785838957159000000",
+        "durationMs": 129
+      },
+      {
+        "traceID": "c1f7728952188497871eb229330f41cc",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785838947119000000",
+        "durationMs": 23
+      },
+      {
+        "traceID": "e372beb41ef19a0473aac91c559ae071",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785838936870000000",
+        "durationMs": 235
+      },
+      {
+        "traceID": "9b6dbca9730ad6b7d860ac6028c39b07",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785838926763000000",
+        "durationMs": 71
+      },
+      {
+        "traceID": "dce3df31dd3e6cd927511e4db6494698",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785838916656000000",
+        "durationMs": 66
+      },
+      {
+        "traceID": "5314e19c0cd0a5c42b730ae94eff24d2",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785838905328000000",
+        "durationMs": 1189
+      },
+      {
+        "traceID": "ab7d89cecb9343512c20d099d602be63",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785838894528000000",
+        "durationMs": 569
+      },
+      {
+        "traceID": "3dec39a5432450bd36a34a908a720fff",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785838884428000000",
+        "durationMs": 76
+      },
+      {
+        "traceID": "eba681ef5d769626e0bef59329686f29",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785838873903000000",
+        "durationMs": 439
+      },
+      {
+        "traceID": "e037ab1424286c6073113d6e64056466",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785838863685000000",
+        "durationMs": 49
+      },
+      {
+        "traceID": "f1bee2f4672a29841e6bc511a601d5be",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785838853648000000",
+        "durationMs": 25
+      },
+      {
+        "traceID": "6658869095d6c813e476122f3881fe92",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785838843544000000",
+        "durationMs": 63
+      },
+      {
+        "traceID": "4f9d4fec0c374853252ad0cd63195294",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785838833466000000",
+        "durationMs": 54
+      },
+      {
+        "traceID": "10a8b11af11b871e10e477e28c56a8db",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785838823440000000",
+        "durationMs": 13
+      },
+      {
+        "traceID": "6e72c0998108241333a259b9606949a5",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785838813390000000",
+        "durationMs": 39
+      },
+      {
+        "traceID": "23ff005fe40d4120f3c62468468794a2",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785838803369000000",
+        "durationMs": 10
+      },
+      {
+        "traceID": "cda71e10eda68abae784c38fa5914b5f",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785838793342000000",
+        "durationMs": 17
+      },
+      {
+        "traceID": "5a111a13d51c943fadd0d2450fea6eee",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785838783293000000",
+        "durationMs": 36
+      },
+      {
+        "traceID": "240e5b53b67a73c16e7539f8b25ad2d4",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785838773247000000",
+        "durationMs": 34
+      },
+      {
+        "traceID": "b9cf6b1d11e80647fad0d6a554549f7e",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785838763215000000",
+        "durationMs": 19
+      },
+      {
+        "traceID": "ce0460de3ab1a4b5826a10ed15e43b5a",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837924833000000",
+        "durationMs": 6
+      },
+      {
+        "traceID": "35f8d96b2af2249d1d23b204a9ff1b3c",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837914817000000",
+        "durationMs": 8
+      },
+      {
+        "traceID": "d15749a11f4bf8125fe4832381128383",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837904794000000",
+        "durationMs": 14
+      },
+      {
+        "traceID": "50509d8902f28442d36b0703e393e264",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837894773000000",
+        "durationMs": 11
+      },
+      {
+        "traceID": "1d23db00fce55d3c34dc7baae2015a54",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837884726000000",
+        "durationMs": 37
+      },
+      {
+        "traceID": "2d6958d9abe09f4f42ad3588bbb27d97",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837874696000000",
+        "durationMs": 17
+      },
+      {
+        "traceID": "98dbc3cb1c04cc2102a00d0cedde57e6",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837864678000000",
+        "durationMs": 8
+      },
+      {
+        "traceID": "23c6edfdb290ac02597651900711edd9",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837854632000000",
+        "durationMs": 36
+      },
+      {
+        "traceID": "926ec98a36595a81dc0d86f093c3bcf3",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837844609000000",
+        "durationMs": 14
+      },
+      {
+        "traceID": "5e5190e02253f6b9c4c49f71a4af4884",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837834591000000",
+        "durationMs": 6
+      },
+      {
+        "traceID": "fc231f4be3837c3a16377c138753a4e5",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837824553000000",
+        "durationMs": 28
+      },
+      {
+        "traceID": "62e7813fba7bc9532d8b55ea00108b2f",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837814513000000",
+        "durationMs": 11
+      },
+      {
+        "traceID": "6249b5852b7020dd95029fb8e25fd2b8",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837804468000000",
+        "durationMs": 36
+      },
+      {
+        "traceID": "104ef5d2621b23eaad5fbdbef4350e76",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837794448000000",
+        "durationMs": 7
+      },
+      {
+        "traceID": "67e767b55e364ef4f462e99bd25926f0",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837784428000000",
+        "durationMs": 10
+      },
+      {
+        "traceID": "d97984bc141692e5382171ead37755fe",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837774379000000",
+        "durationMs": 37
+      },
+      {
+        "traceID": "1df83b113a5e76c4ac3c4b1da0dad06",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837764361000000",
+        "durationMs": 7
+      },
+      {
+        "traceID": "fa6f86fbc94d93663c6e8e1e9aff36df",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837754337000000",
+        "durationMs": 13
+      },
+      {
+        "traceID": "4f77363beccc71175189a3e46e7ffda6",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837744292000000",
+        "durationMs": 33
+      },
+      {
+        "traceID": "df03479c0b43addfbc8584d1fedb2892",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837734246000000",
+        "durationMs": 36
+      },
+      {
+        "traceID": "1bd78549b303cb9b6ad4c98474eb915a",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837724221000000",
+        "durationMs": 11
+      },
+      {
+        "traceID": "d5068d166a5cc81baa45da27f859547",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837714161000000",
+        "durationMs": 48
+      },
+      {
+        "traceID": "e72ab4c15297c6a5d70df4c58c709a13",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837704134000000",
+        "durationMs": 7
+      },
+      {
+        "traceID": "eb262462d9fe505cc70df1eb83b4073a",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837694114000000",
+        "durationMs": 10
+      },
+      {
+        "traceID": "d39c21826ee0236548fe0febb9f8193",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837684094000000",
+        "durationMs": 8
+      },
+      {
+        "traceID": "37c3c14967cc04cffc5e9b589af40202",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837674069000000",
+        "durationMs": 15
+      },
+      {
+        "traceID": "633d7491596957e810fddc550af04486",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837673888000000",
+        "durationMs": 173
+      },
+      {
+        "traceID": "4e8fc35bd707c7d1fe8a3cce9190c770",
+        "rootServiceName": "constellation-api",
+        "rootTraceName": "http.request",
+        "startTimeUnixNano": "1785837668286000000",
+        "durationMs": 1
+      }
+    ],
+    "metrics": {
+      "inspectedTraces": 43,
+      "inspectedBytes": "163744",
+      "totalBlocks": 1,
+      "completedJobs": 3,
+      "totalJobs": 4,
+      "totalBlockBytes": "30582"
+    }
+  },
+  "traces": [
+    {
+      "traceID": "79c0b19d06adad61ff5ca9001b5acc37",
+      "spans": [
+        "http.request"
+      ],
+      "rootName": "constellation-api"
+    },
+    {
+      "traceID": "e5f20863f08820690da18631232f71bc",
+      "spans": [
+        "http.request"
+      ],
+      "rootName": "constellation-api"
+    },
+    {
+      "traceID": "8bd09da0712ebd8f54bcbb5cae6ae717",
+      "spans": [
+        "http.request"
+      ],
+      "rootName": "constellation-api"
+    },
+    {
+      "traceID": "c1f7728952188497871eb229330f41cc",
+      "spans": [
+        "http.request"
+      ],
+      "rootName": "constellation-api"
+    },
+    {
+      "traceID": "e372beb41ef19a0473aac91c559ae071",
+      "spans": [
+        "http.request"
+      ],
+      "rootName": "constellation-api"
+    },
+    {
+      "traceID": "9b6dbca9730ad6b7d860ac6028c39b07",
+      "spans": [
+        "http.request"
+      ],
+      "rootName": "constellation-api"
+    },
+    {
+      "traceID": "dce3df31dd3e6cd927511e4db6494698",
+      "spans": [
+        "http.request"
+      ],
+      "rootName": "constellation-api"
+    },
+    {
+      "traceID": "5314e19c0cd0a5c42b730ae94eff24d2",
+      "spans": [
+        "http.request"
+      ],
+      "rootName": "constellation-api"
+    },
+    {
+      "traceID": "ab7d89cecb9343512c20d099d602be63",
+      "spans": [
+        "http.request"
+      ],
+      "rootName": "constellation-api"
+    },
+    {
+      "traceID": "3dec39a5432450bd36a34a908a720fff",
+      "spans": [
+        "http.request"
+      ],
+      "rootName": "constellation-api"
+    }
+  ]
+}

@@ -171,6 +171,30 @@ services:
       start_period: 30s
     networks: [constellation]
 
+  # --- Tracing backend (Phase 2.0 — OTel): receives OTLP from the api when
+  # OTEL_EXPORTER_OTLP_ENDPOINT is set; Grafana (above) gets a Tempo
+  # datasource automatically via infra/grafana/provisioning.
+  tempo:
+    image: grafana/tempo:2.7.1
+    container_name: constellation-tempo
+    profiles: [federation]
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./infra/tempo/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "${TEMPO_OTLP_GRPC_HOST_PORT:-4317}:4317" # OTLP gRPC
+      - "${TEMPO_OTLP_HTTP_HOST_PORT:-4318}:4318" # OTLP HTTP
+      - "${TEMPO_HOST_PORT:-3200}:3200"           # Tempo query API
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:3200/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    networks: [constellation]
+
   # --- Chat federation (C7: keep Open WebUI alongside an in-house chat) ---
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
@@ -226,5 +250,6 @@ volumes:
   prometheus-data:
   loki-data:
   grafana-data:
+  tempo-data:
   open-webui-data:
   langflow-data:

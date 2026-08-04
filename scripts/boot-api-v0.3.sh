@@ -28,5 +28,14 @@ export SCHEDULER_POLL_INTERVAL_MS="${SCHEDULER_POLL_INTERVAL_MS:-30000}"
 if grep -q '^OPENROUTER_API_KEY=.' .env; then
   export OPENROUTER_API_KEY="$(grep '^OPENROUTER_API_KEY=' .env | cut -d= -f2-)"
 fi
+# OpenTelemetry tracing (Phase 2.0) — OPT-IN, additive: unset endpoint = no
+# tracing at all (zero overhead). Set OTEL_EXPORTER_OTLP_ENDPOINT in .env to
+# export spans (e.g. http://localhost:4318 for the federation Tempo).
+if grep -q '^OTEL_EXPORTER_OTLP_ENDPOINT=.' .env; then
+  export OTEL_EXPORTER_OTLP_ENDPOINT="$(grep '^OTEL_EXPORTER_OTLP_ENDPOINT=' .env | cut -d= -f2-)"
+fi
+if grep -q '^OTEL_SERVICE_NAME=.' .env; then
+  export OTEL_SERVICE_NAME="$(grep '^OTEL_SERVICE_NAME=' .env | cut -d= -f2-)"
+fi
 cd apps/api
 exec node dist/main.js

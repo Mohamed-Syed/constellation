@@ -1,0 +1,15 @@
+{
+  "traces": 72,
+  "span_kinds": [
+    "engine.task.run",
+    "engine.task.step",
+    "http.request",
+    "model.call",
+    "plugin.tool.invoke",
+    "probe.direct",
+    "probe2.model",
+    "probe2.run",
+    "probe2.step"
+  ],
+  "missing": []
+}

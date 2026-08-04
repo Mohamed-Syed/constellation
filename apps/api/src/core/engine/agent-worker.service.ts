@@ -1,4 +1,4 @@
-import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
+import { Injectable, Inject, Logger, Optional, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Worker, type ConnectionOptions, type Job } from "bullmq";
 import { PluginRegistryService } from "../plugins/plugin-registry.service.js";
@@ -12,6 +12,10 @@ import type { FailureClassification } from "./dead-letter.js";
 import { buildRedisConnectionOptions } from "./redis-connection.js";
 import { ENGINE_QUEUE_NAME } from "./task-queue.service.js";
 import { TaskService } from "./task.service.js";
+// VALUE import (not `import type`): TracingService is used as a DI token below,
+// and a type-only import would be erased, leaving design:paramtypes = Function
+// so @Optional() silently injects undefined — the engine spans would never exist.
+import { TracingService } from "../observability/tracing/tracing.service.js";
 
 interface AgentAction {
   type: "thought" | "tool_call" | "done" | "error";
@@ -70,6 +74,7 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
     private readonly config: ConfigService,
     private readonly availability: EngineAvailabilityService,
     private readonly alerts: EngineAlertService,
+    @Optional() @Inject(TracingService) private readonly tracing?: TracingService,
   ) {
     this.connection = buildRedisConnectionOptions(config.get("REDIS_URL", "redis://localhost:6379"));
     this.approveAll = config.get("ENGINE_REQUIRE_APPROVAL_ALL", "false") === "true";
@@ -127,6 +132,28 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    // ── Trace the whole run (additive — no-op when tracing is disabled) ──
+    // The run span covers the full loop: model calls, tool invocations,
+    // checkpoints, and every exit path (done/failed/cancelled/paused).
+    await this.trace(
+      "engine.task.run",
+      { "task.id": taskId, "task.title": task.title ?? "", "task.model": task.model ?? "" },
+      () => this.runTask(task, taskId),
+    );
+  }
+
+  /** Run `fn` inside an OTel span when tracing is enabled; plain `fn()` otherwise. */
+  private trace<T>(name: string, attributes: Record<string, string>, fn: () => Promise<T>): Promise<T> {
+    if (!this.tracing) return fn();
+    return this.tracing.withSpan(name, attributes, fn);
+  }
+
+  /**
+   * The agent loop body (extracted from processJob so the run can be traced).
+   * Completes/fails/cancels/pauses — the returns inside the loop flow through
+   * the caller's span, which always ends.
+   */
+  private async runTask(task: NonNullable<Awaited<ReturnType<TaskService["findOne"]>>>, taskId: string): Promise<void> {
     // ── Attempt to resume from checkpoint ──────────────────────────────────
     let checkpoint = await this.taskService.loadCheckpoint(taskId);
     let messages: ChatMessage[];
@@ -210,12 +237,20 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
       // unknown model) and retries exhausted fall through to markFailed.
       let rawResponse: string;
       try {
-        const response = await retryTransient(
-          () => this.modelRouter.chat(messages, task.model ?? undefined),
-          {
-            maxAttempts: this.modelRetries,
-            delayMs: (attempt) => Math.min(500 * (attempt + 1), 2000),
-          },
+        // One span per agent step — the model call (with its bounded retries)
+        // is the step's substance; model.call / plugin.tool.invoke spans
+        // parent under it (additive — no-op when tracing is disabled).
+        const response = await this.trace(
+          "engine.task.step",
+          { "task.id": taskId, "step.index": String(stepIndex), "task.model": task.model ?? "" },
+          () =>
+            retryTransient(
+              () => this.modelRouter.chat(messages, task.model ?? undefined),
+              {
+                maxAttempts: this.modelRetries,
+                delayMs: (attempt) => Math.min(500 * (attempt + 1), 2000),
+              },
+            ),
         );
         rawResponse = response.content;
 

@@ -1,0 +1,335 @@
+{
+  "batches": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "constellation-api"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "constellation-api"
+          },
+          "spans": [
+            {
+              "traceId": "smU3zxXaLoOpnp4c297Izw==",
+              "spanId": "s5qap+ZpN4g=",
+              "name": "engine.task.run",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1785838591559000000",
+              "endTimeUnixNano": "1785838973220881300",
+              "attributes": [
+                {
+                  "key": "task.id",
+                  "value": {
+                    "stringValue": "cmsei6s6n0006t0fx8pockhnl"
+                  }
+                },
+                {
+                  "key": "task.title",
+                  "value": {
+                    "stringValue": "otel live proof"
+                  }
+                },
+                {
+                  "key": "task.model",
+                  "value": {
+                    "stringValue": ""
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "smU3zxXaLoOpnp4c297Izw==",
+              "spanId": "OkV+OPTbo9Q=",
+              "parentSpanId": "s5qap+ZpN4g=",
+              "name": "engine.task.step",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1785838645574000000",
+              "endTimeUnixNano": "1785838973179003800",
+              "attributes": [
+                {
+                  "key": "task.id",
+                  "value": {
+                    "stringValue": "cmsei6s6n0006t0fx8pockhnl"
+                  }
+                },
+                {
+                  "key": "step.index",
+                  "value": {
+                    "stringValue": "2"
+                  }
+                },
+                {
+                  "key": "task.model",
+                  "value": {
+                    "stringValue": ""
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "smU3zxXaLoOpnp4c297Izw==",
+              "spanId": "KymNbyvHMxk=",
+              "parentSpanId": "OkV+OPTbo9Q=",
+              "name": "model.call",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1785838826110000000",
+              "endTimeUnixNano": "1785838973179033100",
+              "attributes": [
+                {
+                  "key": "gen_ai.provider",
+                  "value": {
+                    "stringValue": "ollama"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": ""
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "4078"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "38"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.total_tokens",
+                  "value": {
+                    "intValue": "4116"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.cost_usd",
+                  "value": {
+                    "intValue": "0"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "constellation-api"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "constellation-api"
+          },
+          "spans": [
+            {
+              "traceId": "smU3zxXaLoOpnp4c297Izw==",
+              "spanId": "w/N1Y7rhgUU=",
+              "parentSpanId": "s5qap+ZpN4g=",
+              "name": "engine.task.step",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1785838591574000000",
+              "endTimeUnixNano": "1785838645339164900",
+              "attributes": [
+                {
+                  "key": "task.id",
+                  "value": {
+                    "stringValue": "cmsei6s6n0006t0fx8pockhnl"
+                  }
+                },
+                {
+                  "key": "step.index",
+                  "value": {
+                    "stringValue": "0"
+                  }
+                },
+                {
+                  "key": "task.model",
+                  "value": {
+                    "stringValue": ""
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "smU3zxXaLoOpnp4c297Izw==",
+              "spanId": "PQsyiCX20UQ=",
+              "parentSpanId": "w/N1Y7rhgUU=",
+              "name": "model.call",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1785838591575000000",
+              "endTimeUnixNano": "1785838645339393900",
+              "attributes": [
+                {
+                  "key": "gen_ai.provider",
+                  "value": {
+                    "stringValue": "ollama"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": ""
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "428"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "58"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.total_tokens",
+                  "value": {
+                    "intValue": "486"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.cost_usd",
+                  "value": {
+                    "intValue": "0"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "smU3zxXaLoOpnp4c297Izw==",
+              "spanId": "YRD5JypYqpI=",
+              "parentSpanId": "s5qap+ZpN4g=",
+              "name": "plugin.tool.invoke",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1785838645410000000",
+              "endTimeUnixNano": "1785838645485179800",
+              "attributes": [
+                {
+                  "key": "plugin.id",
+                  "value": {
+                    "stringValue": "graphify"
+                  }
+                },
+                {
+                  "key": "tool.name",
+                  "value": {
+                    "stringValue": "graph.query"
+                  }
+                },
+                {
+                  "key": "tool.outcome",
+                  "value": {
+                    "stringValue": "ok"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "constellation-api"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "constellation-api"
+          },
+          "spans": [
+            {
+              "traceId": "smU3zxXaLoOpnp4c297Izw==",
+              "spanId": "nwNgo0yzbE4=",
+              "parentSpanId": "OkV+OPTbo9Q=",
+              "name": "model.call",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1785838645574000000",
+              "endTimeUnixNano": "1785838825601103900",
+              "attributes": [
+                {
+                  "key": "gen_ai.provider",
+                  "value": {
+                    "stringValue": "ollama"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": ""
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1785838825600942800",
+                  "name": "exception",
+                  "attributes": [
+                    {
+                      "key": "exception.type",
+                      "value": {
+                        "stringValue": "ModelCallError"
+                      }
+                    },
+                    {
+                      "key": "exception.message",
+                      "value": {
+                        "stringValue": "Model router error: This operation was aborted"
+                      }
+                    },
+                    {
+                      "key": "exception.stacktrace",
+                      "value": {
+                        "stringValue": "ModelCallError: Model router error: This operation was aborted\n    at OllamaModelProvider.chat (C:\\Users\\<user>\\Claude\\Code\\constellation\\apps\\api\\dist\\core\\engine\\ollama-model-provider.js:84:19)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async ModelRouterService.runChat (C:\\Users\\<user>\\Claude\\Code\\constellation\\apps\\api\\dist\\core\\engine\\model-router.service.js:116:20)\n    at async C:\\Users\\<user>\\Claude\\Code\\constellation\\apps\\api\\dist\\core\\engine\\model-router.service.js:101:30\n    at async TracingService.withSpan (C:\\Users\\<user>\\Claude\\Code\\constellation\\apps\\api\\dist\\core\\observability\\tracing\\tracing.service.js:119:20)\n    at async retryTransient (C:\\Users\\<user>\\Claude\\Code\\constellation\\apps\\api\\dist\\core\\engine\\model-provider.js:48:20)\n    at async TracingService.withSpan (C:\\Users\\<user>\\Claude\\Code\\constellation\\apps\\api\\dist\\core\\observability\\tracing\\tracing.service.js:119:20)\n    at async AgentWorkerService.runTask (C:\\Users\\<user>\\Claude\\Code\\constellation\\apps\\api\\dist\\core\\engine\\agent-worker.service.js:217:34)\n    at async TracingService.withSpan (C:\\Users\\<user>\\Claude\\Code\\constellation\\apps\\api\\dist\\core\\observability\\tracing\\tracing.service.js:119:20)\n    at async AgentWorkerService.processJob (C:\\Users\\<user>\\Claude\\Code\\constellation\\apps\\api\\dist\\core\\engine\\agent-worker.service.js:132:9)"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {
+                "message": "Model router error: This operation was aborted",
+                "code": "STATUS_CODE_ERROR"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

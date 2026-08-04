@@ -1,5 +1,8 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import { MODEL_PROVIDERS, type ChatMessage, type ChatResponse, type ModelProvider, type ModelRouterHealth } from "./model-provider.js";
+// VALUE import (not `import type`): TracingService is a DI token below; a
+// type-only import is erased and @Optional() then injects undefined.
+import { TracingService } from "../observability/tracing/tracing.service.js";
 
 export type { ChatMessage, ChatResponse, ModelRouterHealth, ModelProvider, ModelUsage } from "./model-provider.js";
 export { MODEL_PROVIDERS, TokenBudget } from "./model-provider.js";
@@ -30,7 +33,10 @@ export { MODEL_PROVIDERS, TokenBudget } from "./model-provider.js";
 export class ModelRouterService {
   private readonly logger = new Logger(ModelRouterService.name);
 
-  constructor(@Inject(MODEL_PROVIDERS) private readonly providers: ModelProvider[]) {}
+  constructor(
+    @Inject(MODEL_PROVIDERS) private readonly providers: ModelProvider[],
+    @Optional() @Inject(TracingService) private readonly tracing?: TracingService,
+  ) {}
 
   /**
    * Pick the provider for a model request (Engine v0.3).
@@ -70,6 +76,32 @@ export class ModelRouterService {
 
   async chat(messages: ChatMessage[], model?: string): Promise<ChatResponse> {
     const { provider, model: resolvedModel } = this.selectProvider(model);
+    // OTel span for every model call (additive — no-op when tracing is
+    // disabled). Covers the routed provider AND any fallback (see runChat);
+    // usage/cost attach as attributes when the provider reports them.
+    if (!this.tracing) {
+      return this.runChat(provider, messages, resolvedModel);
+    }
+    return this.tracing.withSpan(
+      "model.call",
+      { "gen_ai.provider": provider.name, "gen_ai.request.model": resolvedModel ?? "" },
+      async (span) => {
+        const response = await this.runChat(provider, messages, resolvedModel);
+        if (response.usage) {
+          span.setAttributes({
+            "gen_ai.usage.input_tokens": response.usage.inputTokens ?? 0,
+            "gen_ai.usage.output_tokens": response.usage.outputTokens ?? 0,
+            "gen_ai.usage.total_tokens": response.usage.totalTokens ?? 0,
+            "gen_ai.usage.cost_usd": response.usage.costUSD ?? 0,
+          });
+        }
+        return response;
+      },
+    );
+  }
+
+  /** The routing + fallback logic of chat() (extracted so tracing wraps it once). */
+  private async runChat(provider: ModelProvider, messages: ChatMessage[], resolvedModel: string | undefined): Promise<ChatResponse> {
     try {
       return await provider.chat(messages, resolvedModel);
     } catch (err) {

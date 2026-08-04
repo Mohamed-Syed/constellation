@@ -132,6 +132,14 @@ services:
       # directly and never see this line.
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
 
+      # --- OpenTelemetry tracing (Phase 2.0) — OPTIONAL, fully additive ---
+      # Unset = the tracer no-ops (zero overhead). Set to an OTLP/HTTP
+      # receiver (e.g. the federation overlay's Tempo at
+      # http://tempo:4318 or the host's http://host.docker.internal:4318).
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-constellation-api}
+      OTEL_TRACES_ENABLED: ${OTEL_TRACES_ENABLED:-}
+
       # --- Capability plugin backends (agent plane) -----------------------
       # These are read by the PLUGINS (plugins/browser-use, plugins/graphify)
       # as an env fallback behind their per-plugin settings. Distinct from

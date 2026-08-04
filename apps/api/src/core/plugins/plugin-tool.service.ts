@@ -1,4 +1,4 @@
-import { Injectable, Logger, Optional } from "@nestjs/common";
+import { Injectable, Inject, Logger, Optional } from "@nestjs/common";
 import {
   hasAllPermissions,
   type LoadedPlugin,
@@ -8,6 +8,13 @@ import {
 import { EventBusService } from "../events/event-bus.service.js";
 import { buildContextWith, PluginContextFactory } from "./plugin-context.factory.js";
 import { PluginRegistryService } from "./plugin-registry.service.js";
+// VALUE import (not `import type`): TracingService is a DI token below; a
+// type-only import is erased and @Optional() then injects undefined.
+import { TracingService } from "../observability/tracing/tracing.service.js";
+import type { Span } from "@opentelemetry/api";
+
+/** No-op span handed to callbacks when tracing is disabled (never recorded). */
+const NOOP_SPAN = { setAttributes: () => NOOP_SPAN } as unknown as Span;
 
 /** A declared tool as it appears in a manifest's `tools` array. */
 type DeclaredTool = PluginManifest["tools"][number];
@@ -77,6 +84,7 @@ export class PluginToolService {
     private readonly registry: PluginRegistryService,
     @Optional() private readonly contextFactory?: PluginContextFactory,
     @Optional() private readonly events?: EventBusService,
+    @Optional() @Inject(TracingService) private readonly tracing?: TracingService,
   ) {}
 
   /** Declared tools for a plugin, or `[]` when unknown. Read-only view. */
@@ -138,7 +146,29 @@ export class PluginToolService {
       };
     }
 
-    return this.dispatch(plugin, tool, args);
+    return this.withToolSpan(pluginId, toolName, async (span) => {
+      const result = await this.dispatch(plugin, tool, args);
+      // Honest outcome attribute: ok / error (a completed call that failed
+      // inside the plugin). Args are NEVER logged or attributed — same rule
+      // as the audit trail. (Rejections never reach dispatch — they return
+      // earlier, so no span is created for an unauthorized call.)
+      span.setAttributes({ "tool.outcome": result.result.ok ? "ok" : "error" });
+      return result;
+    });
+  }
+
+  /** OTel span around one tool dispatch (additive — no-op when disabled). */
+  private withToolSpan<T>(
+    pluginId: string,
+    toolName: string,
+    fn: (span: Span) => Promise<T>,
+  ): Promise<T> {
+    if (!this.tracing) return fn(NOOP_SPAN);
+    return this.tracing.withSpan(
+      "plugin.tool.invoke",
+      { "plugin.id": pluginId, "tool.name": toolName },
+      fn,
+    );
   }
 
   /** Runs the plugin's `invokeTool` under a timeout, converting any throw into `ok:false`. */

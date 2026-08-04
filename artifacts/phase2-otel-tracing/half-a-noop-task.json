@@ -1,0 +1,44 @@
+{
+  "task": {
+    "id": "cmsehl75w000644fxtxchudqx",
+    "title": "otel no-op proof",
+    "prompt": "Say the word 'done'. Do not call any tools.",
+    "status": "completed",
+    "model": null,
+    "provider": "ollama",
+    "stepCount": 1,
+    "maxSteps": 6,
+    "maxTokens": null,
+    "actorId": "cmsdajzwp0005nkfxf61b466l",
+    "result": {
+      "summary": "Task completed."
+    },
+    "error": null,
+    "failureClassification": null,
+    "stallRetried": false,
+    "createdAt": "2026-08-04T09:59:44.516Z",
+    "updatedAt": "2026-08-04T10:00:18.051Z",
+    "startedAt": "2026-08-04T09:59:44.545Z",
+    "completedAt": "2026-08-04T10:00:18.048Z",
+    "steps": [
+      {
+        "id": "cmsehlx0q000744fx6smp8lit",
+        "taskId": "cmsehl75w000644fxtxchudqx",
+        "stepIndex": 0,
+        "type": "done",
+        "content": {
+          "result": "Task completed."
+        },
+        "createdAt": "2026-08-04T10:00:18.026Z"
+      }
+    ]
+  },
+  "tempo_before": {
+    "_http_error": 400,
+    "_body": "invalid start: strconv.ParseInt: parsing \"1785835784477012480\": value out of range"
+  },
+  "tempo_after": {
+    "_http_error": 400,
+    "_body": "invalid start: strconv.ParseInt: parsing \"1785835834600536576\": value out of range"
+  }
+}
