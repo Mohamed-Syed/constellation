@@ -58,12 +58,12 @@ The strategic vision + market analysis + full roadmap live in
 
 ## 3. Current state (authoritative as of the last commit) — reconcile, don't assume
 
-**HEAD:** `dd0ff53` — `chore: ignore Python bytecode caches`. Just below it:
-`fbd4cf1` (docs backfill for the /health round) and `0647666` (the round itself —
-`feat(web): Phase 2.0 — portal /health engine dashboard (2.4)`).
+**HEAD:** `4d55928` — `feat(ops): Phase 2.0 2.6 — real SSO round-trip LIVE-PROVEN`. Just below it:
+`2d813de` (DeepSeek model provider round), `df0397c` (CONTINUE.md HEAD → dd0ff53), `dd0ff53`
+(chore: ignore Python bytecode caches), `fbd4cf1` (docs backfill for the /health round).
 Tree is **clean** (only untracked `Prompt to Clau_Partner.txt`, a working artifact).
 
-**Test count (full repo):** **547** — api **423**, web (build+typecheck, no unit
+**Test count (full repo):** **571** — api **447**, web (build+typecheck, no unit
 suite) , plugin-sdk **21**, plugin-graphify **40**, plugin-browser-use **47**, cli **16**.
 Gates: `turbo run lint build typecheck test --force --concurrency=1` → **20/20 tasks green**.
 
@@ -82,6 +82,8 @@ Gates: `turbo run lint build typecheck test --force --concurrency=1` → **20/20
 | CLI ops | `e8fe871` | `constellation ops health|engine status|tasks|schedules|deadletters|plugins` | ✅ 16 cli tests, TSC=0 |
 | OTel tracing | `8d29e3f` | Additive OTel tracer (HTTP/engine-step/model/tool spans) + Tempo in the federation overlay | ✅ LIVE both ways: unset→0 traces, set→full parented tree in Tempo |
 | Health dashboard | `0647666` | Portal `/health` — live engine dashboard (queue, model providers, scheduler, supervisor, alerts) | ✅ browser-proven: all cards live, 5s poll |
+| DeepSeek provider | `2d813de` | Third ModelProvider (direct DeepSeek API, `deepseek-v4-flash`, derived cost) + 2 live-found bug fixes (router cloud-first scan, NOOP_SPAN) | ✅ task completed `provider:"deepseek"` (≈$0.00001) |
+| Real SSO round-trip | `4d55928` | Phase 2.0 2.6 — Keycloak RS256 token → api 200, verifiers coexist, tampered → 401, portal tiles + Caddy paths | ✅ four-curl set + real-browser /tools pass |
 
 **Live stack (local, $0):** postgres :5432, redis :6380, ollama `qwen2.5-coder:7b`,
 api :4001 (use `API_HOST_PORT`, never the squatted :4000). Prometheus/Grafana/Loki
@@ -126,12 +128,19 @@ These are NOT to be actioned without the user resuming them.
   rendering the engine health endpoint as a live dashboard (engine status, queue
   depth incl. failedTasks, model providers, scheduler, supervisor, alert trail);
   browser-proven (evidence in `artifacts/health-dashboard/`).
-- **Real SSO round-trip (2.6):** Keycloak + Caddy are IN compose and running;
-  prove login → token → portal tile end-to-end (the OIDC seam exists).
+- ~~**Real SSO round-trip (2.6)**~~ **DONE (`4d55928`)** — real Keycloak RS256 token →
+  api 200 (Keycloak UUID principal), verifiers coexist, tampered → 401; portal `/tools`
+  federated tiles + Caddy-proxied paths LIVE-PROVEN in a real browser (evidence in
+  `artifacts/sso-roundtrip/`; realm is in-memory H2 — the kcadm recipe in the federation
+  reference is the reproducible path).
+- **DeepSeek model provider** (user request, `2d813de`) — a THIRD ModelProvider (direct
+  DeepSeek API like OpenRouter): `deepseek-v4-flash`, OPT-IN key, thinking-mode toggle,
+  derived cost; LIVE-PROVEN (task completed `provider:"deepseek"`, ≈$0.00001 spend).
+  Key lives in git-ignored `.env` only.
 - **Plugin sandboxing** (2.7): plugins run in-process today (documented). Optional
-  `vm2`/sidecar isolation with resource limits. Enterprise security requirement.
-- **Worker as separate process** (2.8): BullMQ worker currently in-process with
-  the API. Extract for HA + horizontal scale.
+  process-isolation with resource limits. Enterprise security requirement.
+- **Worker as separate process** (2.8): BullMQ worker currently in-process with the
+  API. Extract for HA + horizontal scale.
 
 **Phase 3.0 — Platform as a Product (after 2.0):** full engine task UI depth,
 visual workflow builder, plugin marketplace, plugin scaffolding + hot-reload,
@@ -167,9 +176,9 @@ Full feature tables with competitor benchmarks + priorities: `docs/MASTER_PLAN.m
 After reading this file, a correct resume must be able to run:
 ```bash
 cd C:/Users/syed.mohamed/Claude/Code/constellation
-git log --oneline -5        # expect dd0ff53 at HEAD
+git log --oneline -5        # expect 4d55928 at HEAD
 git status                  # expect a CLEAN tree
 ./node_modules/.bin/turbo run lint build typecheck test --force --concurrency=1
-# expect 20/20 tasks green, 547 tests (api 423, sdk 21, graphify 40, browser-use 47, cli 16)
+# expect 20/20 tasks green, 571 tests (api 447, sdk 21, graphify 40, browser-use 47, cli 16)
 ```
 Then continue from §6. Reconcile if any of it differs.
