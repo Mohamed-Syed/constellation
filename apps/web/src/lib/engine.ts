@@ -78,15 +78,58 @@ export interface EngineTaskDetail extends EngineTaskSummary {
   steps: EngineStep[];
 }
 
-/** `GET /api/engine/health` payload. */
+/** One engine alert from the in-memory ring buffer (v0.5). */
+export interface EngineAlert {
+  at: string;
+  type: string;
+  taskId: string | null;
+  detail: string | null;
+}
+
+/** `GET /api/engine/health` payload (v0.5 shape — the /health dashboard consumes this). */
 export interface EngineHealth {
   /** Engine v0.1: "available" when Redis is reachable, "unavailable" when disabled. */
   engine: "available" | "unavailable";
   /** Human-readable reason when `engine` is "unavailable"; null when ready. */
   reason: string | null;
   /** Queue counters when enabled; null when the engine is disabled. */
-  queue: { queue: string; waiting: number; active: number; failed: number } | null;
-  model: { provider: string; model: string; reachable: boolean; error?: string };
+  queue: {
+    queue: string;
+    waiting: number;
+    active: number;
+    failed: number;
+    enabled: boolean;
+    /** Engine v0.5 — durable failed-TASK count (dead-letter rows), distinct from BullMQ failed jobs. */
+    failedTasks: number;
+  } | null;
+  /** Primary model verdict; `providers[]` present when more than one provider is configured. */
+  model: {
+    provider: string;
+    model: string;
+    reachable: boolean;
+    error?: string;
+    providers?: Array<{ provider: string; model: string; reachable: boolean; error?: string }>;
+  };
+  /** Engine v0.4 — scheduler poll loop state. */
+  scheduler: {
+    enabled: boolean;
+    pollIntervalMs: number;
+    lastSweepAt: string | null;
+    dueCount: number;
+    registeredEvents: number;
+  };
+  /** Engine v0.5 — stuck-task supervisor totals. */
+  supervision: {
+    enabled: boolean;
+    pollIntervalMs: number;
+    staleThresholdMs: number;
+    lastSweepAt: string | null;
+    staleFound: number;
+    recovered: number;
+    failedStalled: number;
+  };
+  /** Engine v0.5 — recent alert trail (ring buffer, resets on restart). */
+  alerts: EngineAlert[];
   timestamp: string;
 }
 

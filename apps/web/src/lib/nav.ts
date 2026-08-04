@@ -54,6 +54,16 @@ const CORE_PLATFORM: FlatNavItem[] = [
     icon: "Cpu",
     order: 40,
   },
+  {
+    // Phase 2.0 item 2.4 — live engine health dashboard. The endpoint is
+    // public; the page renders queue depth, model availability, scheduler,
+    // supervisor and alert trail.
+    id: "core-health",
+    label: "Health",
+    href: "/health",
+    icon: "Activity",
+    order: 50,
+  },
 ];
 
 const CORE_SYSTEM: FlatNavItem[] = [
