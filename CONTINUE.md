@@ -58,7 +58,7 @@ The strategic vision + market analysis + full roadmap live in
 
 ## 3. Current state (authoritative as of the last commit) — reconcile, don't assume
 
-**HEAD:** `86c61e0` — `feat(crews-followup): Phase 4.0 — budget flow-down + sub-agent result merging` (above `ebef6dc` alerts, `095234e` audit PDF, `97d2383` brain search, `7e56229` MCP client, `0803ddd` skills, `70e81a1` brain+RAG, `518a5b3` compliance, `609da8a` MCP server, `359ece8` SMTP, `7216f45` teams portal, `418c0d8` teams API, `ee5b304` workflow triggers, `88944b7` webhook channels, `f2afda4` multi-model compare, `29d9746` session summary). **PHASE 2.0 COMPLETE; PHASE 3.0 COMPLETE; PHASE 4.0 largely SHIPPED (crews + budget/merge, MCP server+client, skills, semantic retrieval, CSV+PDF compliance, alert ingestion, brain UX+RAG).**
+**HEAD:** `6df94b9` — `fix: commit SkillsModule wiring (app.module) + brain.service Optional/cosine-safety fixes` (directly above `8ffac12` docs SHA-backfill and `549d087` docs backfill, which sit above the last feature commit `86c61e0` `feat(crews-followup): Phase 4.0 — budget flow-down + sub-agent result merging`; further below: `ebef6dc` alerts, `095234e` audit PDF, `97d2383` brain search, `7e56229` MCP client, `0803ddd` skills, `70e81a1` brain+RAG, `518a5b3` compliance, `609da8a` MCP server, `359ece8` SMTP, `7216f45` teams portal, `418c0d8` teams API, `ee5b304` workflow triggers, `88944b7` webhook channels, `f2afda4` multi-model compare, `29d9746` session summary). **PHASE 2.0 COMPLETE; PHASE 3.0 COMPLETE; PHASE 4.0 largely SHIPPED (crews + budget/merge, MCP server+client, skills, semantic retrieval, CSV+PDF compliance, alert ingestion, brain UX+RAG).**
 Tree is **clean** (only untracked `Prompt to Clau_Partner.txt`, a working artifact).
 
 **Test count (full repo):** **728** — api **604** (45 files), web (build+typecheck, no unit
@@ -255,10 +255,12 @@ Full feature tables with competitor benchmarks + priorities: `docs/MASTER_PLAN.m
 After reading this file, a correct resume must be able to run:
 ```bash
 cd C:/Users/syed.mohamed/Claude/Code/constellation
-git log --oneline -5        # expect 35a76fe at HEAD (docs backfill directly above it; 6a01000 below)
-git status                  # expect a CLEAN tree
+git log --oneline -5        # expect 6df94b9 at HEAD (docs SHA-backfill 8ffac12 + 549d087 directly below it)
+git status                  # expect a CLEAN tree (only untracked "Prompt to Clau_Partner.txt")
 ./node_modules/.bin/turbo run lint build typecheck test --force --concurrency=1
-# expect 20/20 tasks green, 637 tests (api 513, sdk 21, graphify 40, browser-use 47, cli 16)
+# expect 20/20 tasks green, 728 tests (api 604, sdk 21, graphify 40, browser-use 47, cli 16)
 ```
-Then continue from §6 (Phase 3.0 — next: multi-model compare / team spaces).
-Reconcile if any of it differs.
+Then continue from §6 (Phase 4.0 remaining backlog — next: federated agent mesh (4.6) /
+portal-wide delegation view / scheduled PDF delivery / team-scoped schedules).
+Reconcile if any of it differs — verified live against this exact tree on 2026-08-05:
+20/20 tasks green, 728/728 tests passing.
