@@ -233,11 +233,20 @@ services:
       GRAPHIFY_CORPUS: /corpus
       GRAPHIFY_MCP_PORT: 8791
       # code-only (keyless, default) | docs (markdown+PDF via local Ollama)
-      GRAPHIFY_MODE: ${GRAPHIFY_MODE:-code-only}
+      # RAG round (2026-08-05): the DEFAULT is now docs — the platform brain is
+      # built over docs/ + brain/ with local Ollama embeddings (nomic-embed-text).
+      GRAPHIFY_MODE: ${GRAPHIFY_MODE:-docs}
       GRAPHIFY_BACKEND: ${GRAPHIFY_BACKEND:-ollama}
-      GRAPHIFY_MODEL: ${GRAPHIFY_MODEL:-}
+      # 7b (not 1.5b): the docs semantic extraction demands JSON-shaped graph
+      # output; the small coder model produced "hollow" unparseable responses
+      # and every chunk bisected into failure. Verified 2026-08-05.
+      GRAPHIFY_MODEL: ${GRAPHIFY_MODEL:-qwen2.5-coder:7b}
       # Reach a host-installed Ollama from inside the container.
       OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
+      # The graphify CLI requires this env to be SET even for a local Ollama
+      # backend (it treats the key as auth for the OpenAI-compatible endpoint).
+      # "local" is a placeholder — the key is never sent to host.docker.internal.
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-local}
       GRAPHIFY_WATCH: ${GRAPHIFY_WATCH:-1}
       GRAPHIFY_API_KEY: ${GRAPHIFY_API_KEY:-}
     volumes:
@@ -251,8 +260,10 @@ services:
       - ./packages:/corpus/packages:ro
       - ./plugins:/corpus/plugins:ro
       # The only writable path: graphify always writes <corpus>/graphify-out.
-      # This is the volume the api (Nova's core/memory) reads graph.json from.
-      - graphify-out:/corpus/graphify-out
+      # BOUND to the host (was a named volume) so the HOST-run api's core/memory
+      # reads graph.json from ./graphify-out — the RAG round's fix (the named
+      # volume silently hid the built graph from the api).
+      - ./graphify-out:/corpus/graphify-out
     ports:
       # Bound to loopback: an unauthenticated MCP server should not be on the
       # LAN. Set GRAPHIFY_API_KEY before changing this.

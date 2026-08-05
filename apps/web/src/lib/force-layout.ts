@@ -116,7 +116,6 @@ export function forceLayout(
 ): Layout {
   const width = options.width ?? 960;
   const height = options.height ?? 560;
-  const iterations = options.iterations ?? 300;
   const maxNodes = options.maxNodes ?? 300;
 
   // Degree first — it decides both which nodes survive the cap and how big they draw.
@@ -139,6 +138,13 @@ export function forceLayout(
 
   const count = kept.length;
   if (count === 0) return { nodes: [], edges: [], width, height };
+
+  // Brain-page UX round: ADAPTIVE iteration count — the O(n²) repulsion pass
+  // dominates; at the 300-node cap the full 300 iterations costs a noticeable
+  // main-thread block on every layout. Scale it down by size (small graphs
+  // keep the high-quality settle, big ones stay responsive). Callers can
+  // still override with an explicit `iterations`.
+  const iterations = options.iterations ?? (count > 250 ? 150 : count > 150 ? 220 : 300);
 
   const random = makeRandom(1337);
   const index = new Map<string, number>();

@@ -24,7 +24,10 @@ ARG GRAPHIFY_VERSION=
 # `graphify watch` exits immediately with "error: watchdog not installed"
 # without it. Verified 2026-08-02 — the sidecar looked healthy while the
 # graph silently never refreshed. Keep it pinned in here.
-RUN pip install --no-cache-dir "graphifyy[mcp]${GRAPHIFY_VERSION:+==${GRAPHIFY_VERSION}}" watchdog
+# RAG round (2026-08-05): the `[ollama]` extra adds the `openai` client the
+# docs backend needs — WITHOUT it every semantic chunk fails with "the
+# 'openai' package is required for this backend". Verified the hard way.
+RUN pip install --no-cache-dir "graphifyy[mcp,ollama]${GRAPHIFY_VERSION:+==${GRAPHIFY_VERSION}}" watchdog
 
 # The corpus is mounted read-only per-subfolder; only graphify-out is writable
 # (graphify always writes <corpus>/graphify-out, so that path is a volume).

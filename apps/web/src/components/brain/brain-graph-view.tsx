@@ -23,6 +23,11 @@ import { Button } from "@/components/ui/button";
 const VIEW_WIDTH = 960;
 const VIEW_HEIGHT = 560;
 
+/** Hub labels only render above this zoom — below it they crowd into mush. */
+const LABEL_MIN_ZOOM = 0.9;
+/** Minimum distance between two placed label anchors (px in layout space). */
+const LABEL_GAP_PX = 46;
+
 export function BrainGraphView({
   graph,
   highlightIds = [],
@@ -33,6 +38,14 @@ export function BrainGraphView({
   highlightIds?: readonly string[];
   onSelectNode?: (nodeId: string | null) => void;
 }) {
+  // Brain-page UX round: key the layout on CONTENT, not the graph object
+  // identity — the parent polls and gets a fresh object each tick; recomputing
+  // the O(n²) physics on every poll was the 1200+-node jank. The key changes
+  // only when the graph actually changes.
+  const graphKey = `${graph.nodes.length}|${graph.edges.length}|${graph.nodes
+    .slice(0, 8)
+    .map((n) => n.id)
+    .join(",")}`;
   const layout = React.useMemo(
     () =>
       forceLayout(
@@ -40,7 +53,8 @@ export function BrainGraphView({
         graph.edges.map((e) => ({ source: e.source, target: e.target })),
         { width: VIEW_WIDTH, height: VIEW_HEIGHT },
       ),
-    [graph],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [graphKey],
   );
 
   const [zoom, setZoom] = React.useState(1);
@@ -105,6 +119,29 @@ export function BrainGraphView({
 
   const truncated = graph.nodes.length > layout.nodes.length;
 
+  // Brain-page UX round — LABEL ANTI-COLLISION + zoom gating. Compute once
+  // which nodes actually get labels: selected/highlighted always win; hub
+  // labels (degree >= 4) render only above LABEL_MIN_ZOOM and yield when
+  // their anchor lands within LABEL_GAP_PX of an already-placed label, so a
+  // dense cluster reads instead of overlapping into one blob.
+  const labeledIds = React.useMemo(() => {
+    const result = new Set<string>();
+    const placed: Array<{ x: number; y: number }> = [];
+    const showHubs = zoom >= LABEL_MIN_ZOOM;
+    for (const node of layout.nodes) {
+      const isSelected = selected === node.id;
+      const isHighlighted = highlighted.has(node.id);
+      if (!isSelected && !isHighlighted && !(showHubs && node.degree >= 4)) continue;
+      if (!isSelected && !isHighlighted) {
+        const crowded = placed.some((p) => Math.hypot(p.x - node.x, p.y - node.y) < LABEL_GAP_PX);
+        if (crowded) continue;
+      }
+      placed.push({ x: node.x, y: node.y });
+      result.add(node.id);
+    }
+    return result;
+  }, [layout.nodes, zoom, selected, highlighted]);
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -124,6 +161,13 @@ export function BrainGraphView({
       </div>
 
       <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950">
+        {truncated ? (
+          <div className="border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">
+            Degraded view — the corpus is too large to lay out at interactive speed, so the{" "}
+            {layout.nodes.length} most-connected nodes are shown. Zoom in to read labels; ask a
+            question below to work with the full graph.
+          </div>
+        ) : null}
         <svg
           role="img"
           aria-label={`Knowledge graph with ${layout.nodes.length} nodes and ${layout.edges.length} edges`}
@@ -180,7 +224,7 @@ export function BrainGraphView({
                     strokeWidth={isSelected ? 2.5 : 1}
                   />
                   {/* Labels only for hubs / highlighted / selected nodes — otherwise the view is unreadable. */}
-                  {isSelected || isHighlighted || node.degree >= 4 ? (
+                  {labeledIds.has(node.id) ? (
                     <text
                       y={radius + 11}
                       textAnchor="middle"
