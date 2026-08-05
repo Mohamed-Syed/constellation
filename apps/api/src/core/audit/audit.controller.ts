@@ -5,6 +5,7 @@ import { CorePermissions } from "@constellation/plugin-sdk";
 import { PermissionsGuard } from "../rbac/permissions.guard.js";
 import { RequirePermissions } from "../rbac/require-permissions.decorator.js";
 import { AuditService, auditToCsv } from "./audit.service.js";
+import { auditToPdf } from "./pdf-export.js";
 
 /** `GET /api/audit` — admin-only (requires `core:audit:read`, which `platform:admin` implies). */
 @ApiTags("audit")
@@ -35,19 +36,24 @@ export class AuditController {
     @Query("actor") actor?: string,
     @Query("action") action?: string,
     @Query("limit") limit?: string,
+    @Query("format") format?: string,
   ) {
-    const parsedLimit = limit ? Number.parseInt(limit, 10) : undefined;
-    const rows = await this.audit.listForExport({
-      actor,
-      action,
-      limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
+    const parsedLimit = limit ? Number(limit) : 1000;
+    const entries = await this.audit.listForExport({
+      limit: Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 1000) : 1000,
+      actor: actor || undefined,
+      action: action || undefined,
     });
-    const csv = auditToCsv(rows);
+    if (format === "pdf") {
+      const pdf = auditToPdf(entries);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="constellation-audit-${new Date().toISOString().slice(0, 10)}.pdf"`);
+      res.send(pdf);
+      return;
+    }
+    const csv = auditToCsv(entries);
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="constellation-audit-${new Date().toISOString().replace(/[:.]/g, "-")}.csv"`,
-    );
+    res.setHeader("Content-Disposition", `attachment; filename="constellation-audit-${new Date().toISOString().slice(0, 10)}.csv"`);
     res.send(csv);
   }
 }
