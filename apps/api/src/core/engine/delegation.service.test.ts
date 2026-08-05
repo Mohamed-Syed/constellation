@@ -155,3 +155,30 @@ describe("DelegationService — crews round (4.1)", () => {
     expect(svc.isTerminal("running")).toBe(false);
   });
 });
+
+describe("DelegationService — crews follow-up (budget flow-down + result merging)", () => {
+  it("tree aggregates descendant usage onto the root (budget flow-down)", async () => {
+    const db = makeDb();
+    db.rows.set("p1", row("p1", { status: "running" }));
+    db.rows.set("c1", row("c1", { parentTaskId: "p1", status: "completed", totalTokens: 100, costUSD: 0.01 }));
+    db.rows.set("c2", row("c2", { parentTaskId: "p1", status: "completed", totalTokens: 50, costUSD: 0.005 }));
+    const { svc } = makeSvc({ db });
+    const tree = await svc.tree("p1");
+    expect(tree.childCount).toBe(2);
+    expect(tree.childrenTotalTokens).toBe(150);
+    expect(tree.childrenCostUSD).toBeCloseTo(0.015, 5);
+  });
+
+  it("mergeResults writes the merged children payload onto the parent's result", async () => {
+    const db = makeDb();
+    db.rows.set("p1", row("p1", { status: "completed", result: { summary: "original" } }));
+    db.rows.set("c1", row("c1", { parentTaskId: "p1", status: "completed", totalTokens: 10, result: { summary: "sub result" } }));
+    const { svc } = makeSvc({ db });
+    const merged = await svc.mergeResults("p1");
+    expect(merged?.summary).toContain("Merged 1 sub-agent result");
+    expect((merged?.children as Array<Record<string, unknown>>)[0]?.title).toBe("task-c1");
+    expect(db.agentTask.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "p1" }, data: expect.objectContaining({ result: expect.any(Object) }) }),
+    );
+  });
+});

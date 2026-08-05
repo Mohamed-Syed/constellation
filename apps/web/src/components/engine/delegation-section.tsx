@@ -5,15 +5,23 @@ import { GitBranch, Loader2, Network, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 import { delegateTask, fetchTaskTree, type DelegationTreeNode } from "@/lib/engine";
+import { API_BASE } from "@/lib/api-base";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "./status-badge";
+
+function authHeaders(token: string | null): Record<string, string> {
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 /**
  * Crews round (Phase 4.0 4.1) — the delegation tree inside the task detail
  * dialog. Shows the durable parent/child tree under the selected task and lets
  * the task's owner delegate a sub-agent task (title + prompt) right there.
  * The tree re-fetches after each delegate so the new child appears live.
+ * Crews follow-up: budget flow-down (descendants' cumulative tokens/cost) +
+ * a Merge-results action that folds the children's outcomes into the parent's
+ * result.
  */
 export function DelegationSection({
   token,
@@ -27,6 +35,7 @@ export function DelegationSection({
   const [tree, setTree] = React.useState<DelegationTreeNode | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [delegating, setDelegating] = React.useState(false);
+  const [merging, setMerging] = React.useState(false);
   const [title, setTitle] = React.useState("");
   const [prompt, setPrompt] = React.useState("");
 
@@ -39,6 +48,24 @@ export function DelegationSection({
   React.useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const handleMerge = async () => {
+    setMerging(true);
+    try {
+      const res = await fetch(`${API_BASE}/engine/tasks/${encodeURIComponent(taskId)}/merge`, {
+        method: "POST",
+        headers: authHeaders(token),
+      });
+      if (res.ok) {
+        toast.success(`Merged ${tree?.childCount ?? 0} sub-agent result(s) into this task.`);
+        void refresh();
+      } else {
+        toast.error("Merge failed.");
+      }
+    } finally {
+      setMerging(false);
+    }
+  };
 
   const handleDelegate = async () => {
     if (!title.trim() || !prompt.trim()) {
@@ -77,16 +104,23 @@ export function DelegationSection({
           Delegation
           {tree && tree.children.length > 0 ? (
             <span className="rounded-full bg-neutral-200 px-2 py-0.5 text-[11px] font-normal text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
-              {count} tasks in this tree
+              {count} tasks · {tree.childrenTotalTokens ?? 0} tok · ${(tree.childrenCostUSD ?? 0).toFixed(5)}
             </span>
           ) : null}
         </h3>
         {loading ? (
           <Loader2 className="size-3.5 animate-spin text-neutral-400" />
         ) : (
-          <Button type="button" variant="ghost" size="sm" onClick={() => void refresh()}>
-            <GitBranch className="size-3.5" /> Refresh
-          </Button>
+          <div className="flex items-center gap-1">
+            {canManage && tree && tree.children.length > 0 ? (
+              <Button type="button" variant="outline" size="sm" onClick={() => void handleMerge()} disabled={merging} aria-label="Merge sub-agent results">
+                {merging ? <Loader2 className="size-3.5 animate-spin" /> : <GitBranch className="size-3.5" />} Merge results
+              </Button>
+            ) : null}
+            <Button type="button" variant="ghost" size="sm" onClick={() => void refresh()}>
+              <GitBranch className="size-3.5" /> Refresh
+            </Button>
+          </div>
         )}
       </div>
 

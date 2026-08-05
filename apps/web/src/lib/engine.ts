@@ -485,6 +485,10 @@ export interface DelegationTreeNode {
   createdAt: string;
   completedAt: string | null;
   children: DelegationTreeNode[];
+  /** Crews follow-up: descendants' cumulative usage (budget flow-down view). */
+  childCount?: number;
+  childrenTotalTokens?: number | null;
+  childrenCostUSD?: number | null;
 }
 
 /** GET /engine/tasks/:id/tree — the full delegation tree under a task. */

@@ -24,6 +24,10 @@ export interface DelegationTreeNode {
   createdAt: string;
   completedAt: string | null;
   children: DelegationTreeNode[];
+  /** Crews follow-up: descendants' cumulative usage (budget flow-down view). */
+  childCount?: number;
+  childrenTotalTokens?: number | null;
+  childrenCostUSD?: number | null;
 }
 
 const TREE_MAX_DEPTH = 4;
@@ -131,7 +135,73 @@ export class DelegationService {
       }
       return node;
     };
-    return walk(parentId, 0);
+    const treeRoot = await walk(parentId, 0);
+
+    // Crews follow-up: BUDGET FLOW-DOWN accounting — descendants' cumulative
+    // usage aggregated onto the root so an orchestrator sees what its crew spent.
+    const tally = (n: DelegationTreeNode): { count: number; tokens: number | null; cost: number | null } => {
+      let count = 0;
+      let tokens: number | null = null;
+      let cost: number | null = null;
+      for (const kid of n.children) {
+        count += 1;
+        tokens = (tokens ?? 0) + (kid.totalTokens ?? 0);
+        cost = (cost ?? 0) + (kid.costUSD ?? 0);
+        const sub = tally(kid);
+        count += sub.count;
+        tokens = (tokens ?? 0) + (sub.tokens ?? 0);
+        cost = (cost ?? 0) + (sub.cost ?? 0);
+      }
+      return { count, tokens, cost };
+    };
+    const t = tally(treeRoot);
+    if (t.count > 0) {
+      treeRoot.childCount = t.count;
+      treeRoot.childrenTotalTokens = t.tokens;
+      treeRoot.childrenCostUSD = t.cost;
+    }
+    return treeRoot;
+  }
+
+  /**
+   * Crews follow-up: RESULT MERGING — collect every descendant's outcome and
+   * write a merged summary onto the parent task's `result` (so the orchestrator
+   * row carries its crew's answers). Returns the merged payload.
+   */
+  async mergeResults(parentId: string): Promise<Record<string, unknown> | null> {
+    const db = this.prisma.db;
+    if (!db) {
+      this.warnNoDbOnce();
+      return null;
+    }
+    const parent = await db.agentTask.findUnique({ where: { id: parentId } });
+    if (!parent) return null;
+
+    const collect = async (id: string, depth: number): Promise<Record<string, unknown>[]> => {
+      if (depth > 2) return [];
+      const rows = await db.agentTask.findMany({ where: { parentTaskId: id }, orderBy: { createdAt: "asc" } });
+      const out: Record<string, unknown>[] = [];
+      for (const row of rows) {
+        const r = row as Record<string, unknown>;
+        out.push({
+          id: r.id,
+          title: r.title,
+          status: r.status,
+          result: r.result ?? null,
+          totalTokens: r.totalTokens ?? null,
+          costUSD: r.costUSD ?? null,
+        });
+        out.push(...(await collect(String(r.id), depth + 1)));
+      }
+      return out;
+    };
+    const children = await collect(parentId, 0);
+    const merged: Record<string, unknown> = {
+      summary: `Merged ${children.length} sub-agent result(s) under ${String((parent as Record<string, unknown>).title ?? parentId)}`,
+      children,
+    };
+    await db.agentTask.update({ where: { id: parentId }, data: { result: merged as never } });
+    return merged;
   }
 
   /**

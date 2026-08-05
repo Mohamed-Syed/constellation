@@ -141,12 +141,22 @@ export class EngineController {
     return { items: await this.delegation.childrenOf(id) };
   }
 
-  /** Crews round: the full delegation tree under a task. */
+  /** Crews round: the full delegation tree under a task (with budget flow-down aggregation). */
   @Get("tasks/:id/tree")
   async taskTree(@Param("id") id: string, @CurrentUser() user: AuthPrincipal) {
     const task = await this.tasks.findOne(id);
     await this.assertCanSeeTask(task, user);
     return this.delegation.tree(id);
+  }
+
+  /** Crews follow-up: merge the sub-agents' results onto the parent task's result. */
+  @Post("tasks/:id/merge")
+  async mergeTaskResults(@Param("id") id: string, @CurrentUser() user: AuthPrincipal) {
+    const task = await this.tasks.findOne(id);
+    await this.assertCanSeeTask(task, user);
+    const merged = await this.delegation.mergeResults(id);
+    if (!merged) throw new NotFoundException("Task not found.");
+    return { ok: true, result: merged };
   }
 
   /** Crews round: delegate a sub-agent task under this task. */
