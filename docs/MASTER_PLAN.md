@@ -152,7 +152,7 @@ built a real, live-proven, enterprise-hardened foundation:
 | **Agentic engine (v0→v0.5)** | BullMQ-backed durable task runtime, ReAct loop (think-act-observe), step checkpointing + kill-restart resume, human-in-the-loop approval gate, per-task token budget, real model router (OpenRouter cloud + Ollama local, fallback), cron/event scheduler with Crontab parser (auto-enqueue: "runs while you sleep"), dead-letter trail (classified failures + DLQ view), stuck-task supervisor (race-guarded resume-once, re-stale → `stalled` dead letter), event-based alerting (`engine.task.failed/stale/recovered`) | All live-proven: scheduler auto-enqueued a task that completed on Ollama; supervisor recovered a stale task and failed a re-stale one; deadletters/alerts return honest classified trails |
 | **Knowledge graph + memory** | Graphify plugin (Neo4j-backed entity/relation store) + `core/memory` service + Brain view in portal | 40 graphify tests, live-verified |
 | **Browser automation** | `browser-use` plugin — CDP-driven, tool-callable by agents | 47 browser-use tests |
-| **Security hardening** | httpOnly SameSite=Lax cookie auth, `syed.mohamed` username sanitized from public-facing docs/scripts, defensive SQL-injection guard on per-plugin schema bootstrap, secret/PII sweep clean on all tracked files | Sweep: 0 real keys/secrets in tracked files |
+| **Security hardening** | httpOnly SameSite=Lax cookie auth, `<user>` username sanitized from public-facing docs/scripts, defensive SQL-injection guard on per-plugin schema bootstrap, secret/PII sweep clean on all tracked files | Sweep: 0 real keys/secrets in tracked files |
 | **Testing** | **519 unit tests** (api 402, browser-use 47, graphify 40, sdk 21, cli 9) | Full mono gate: lint/build/typecheck/test 20/20 tasks, every commit |
 | **Docs** | `MASTER_PLAN.md` §9 per-round verification log with SHAs and literal evidence; `HANDOFF.md` §3/§8/§11 current state + pending; `ORCHESTRATOR.md` full driver's handbook; `BRAIN.md` | Every round backfill-committed |
 
@@ -1639,7 +1639,7 @@ engine files · 1b portal `/engine` page (Orion's lane) · Ollama integration te
     `Get-NetTCPConnection -LocalPort 4001 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }`.
     Also: a background boot dies with its shell unless launched via `exec node dist/main.js`.
   - **Secret/PII sweep before commit:** clean — only env-var *names* (`BROWSER_USE_API_KEY`,
-    `GRAPHIFY_API_KEY`) and test fixtures; no real credentials, no `syed.mohamed`/employer identity
+    `GRAPHIFY_API_KEY`) and test fixtures; no real credentials, no `<user>`/employer identity
     in any tracked file; `.env` still untracked.
   - **NOT yet proven (honest gap):** `docker-compose.federation.yml` and the `infra/` Caddy/Keycloak/
     Grafana configs have **never been run**. No real SSO round-trip, no proxied/embedded tile.

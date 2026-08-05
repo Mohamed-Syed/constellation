@@ -1,7 +1,7 @@
 # CONTINUE — Resume Constellation In One Prompt
 
 > **Read this FIRST.** It makes the whole project self-contained inside
-> `C:\Users\syed.mohamed\Claude\Code\constellation` — no outside context needed.
+> `C:\Users\<user>\Claude\Code\constellation` — no outside context needed.
 > A fresh CLI session (new terminal, new agent) reads this file, confirms the
 > state, and continues from exactly where we left off. Nothing you need lives
 > outside this folder.
@@ -10,7 +10,7 @@
 
 ## 0. The one prompt to resume (paste this in a fresh session)
 
-> Read `C:\Users\syed.mohamed\Claude\Code\constellation\CONTINUE.md` in full,
+> Read `C:\Users\<user>\Claude\Code\constellation\CONTINUE.md` in full,
 > then `docs/ORCHESTRATOR.md`, `docs/MASTER_PLAN.md`, and `docs/HANDOFF.md`.
 > Confirm the exact current state (commits, test counts, live stack) matches what
 > CONTINUE.md says — reconcile if stale. Then continue the roadmap from §4
@@ -23,7 +23,7 @@
 
 ## 1. Project root & hard rules
 
-- **Root ONLY:** operate exclusively inside `C:\Users\syed.mohamed\Claude\Code\constellation`.
+- **Root ONLY:** operate exclusively inside `C:\Users\<user>\Claude\Code\constellation`.
   Any doc/artifact found outside it must be moved in. The stray `~/kctok.txt`
   (a real Keycloak JWT) was already moved to `artifacts/sso-test-tokens/` (git-ignored).
 - **Polaris operating method** (see `docs/ORCHESTRATOR.md §4`): one task at a time,
@@ -254,7 +254,7 @@ Full feature tables with competitor benchmarks + priorities: `docs/MASTER_PLAN.m
 
 After reading this file, a correct resume must be able to run:
 ```bash
-cd C:/Users/syed.mohamed/Claude/Code/constellation
+cd C:/Users/<user>/Claude/Code/constellation
 git log --oneline -5        # expect 6df94b9 at HEAD (docs SHA-backfill 8ffac12 + 549d087 directly below it)
 git status                  # expect a CLEAN tree (only untracked "Prompt to Clau_Partner.txt")
 ./node_modules/.bin/turbo run lint build typecheck test --force --concurrency=1

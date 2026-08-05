@@ -82,7 +82,7 @@ npx impeccable detect apps/web/src
 ```
 And re-run the web build + typecheck:
 ```bash
-cd /c/Users/syed.mohamed/Claude/Code/constellation
+cd /c/Users/<user>/Claude/Code/constellation
 ./node_modules/.bin/turbo run typecheck build --force --concurrency=1 --filter=@constellation/web
 ```
 Both light and dark themes must compile and render. Keep every rule above.

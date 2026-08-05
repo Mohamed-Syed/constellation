@@ -63,7 +63,7 @@ engine.task.run                      task.title="otel live proof", task.id=cmsei
 ## Operational notes
 
 - **PII follow-up (publish-readiness):** span `exception` events embed the full
-  Error stack, which carries absolute paths (`C:\Users\syed.mohamed\...`) — the
+  Error stack, which carries absolute paths (`C:\Users\<user>\...`) — the
   captured trace JSON leaked the real Windows username and had to be sanitized
   to `<user>` before commit. The platform's own telemetry is local-only, but if
   traces ever leave the host (or the repo goes public), sanitize exception
