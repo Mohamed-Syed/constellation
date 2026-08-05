@@ -396,9 +396,12 @@ export function cosineSimilarity(a: number[], b: number[]): number {
   let na = 0;
   let nb = 0;
   for (let i = 0; i < a.length; i += 1) {
-    dot += a[i] * b[i];
-    na += a[i] * a[i];
-    nb += b[i] * b[i];
+    const av = a[i];
+    const bv = b[i];
+    if (av === undefined || bv === undefined) continue;
+    dot += av * bv;
+    na += av * av;
+    nb += bv * bv;
   }
   const denom = Math.sqrt(na) * Math.sqrt(nb);
   return denom === 0 ? 0 : dot / denom;

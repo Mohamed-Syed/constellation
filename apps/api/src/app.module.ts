@@ -17,6 +17,7 @@ import { RbacModule } from "./core/rbac/rbac.module.js";
 import { SettingsModule } from "./core/settings/settings.module.js";
 import { TeamsModule } from "./core/teams/teams.module.js";
 import { McpModule } from "./core/mcp/mcp.module.js";
+import { SkillsModule } from "./core/skills/skills.module.js";
 
 /**
  * The core platform module. It stays deliberately small: config, logging,
@@ -57,6 +58,7 @@ import { McpModule } from "./core/mcp/mcp.module.js";
     NotificationsModule,
     TeamsModule,
     McpModule,
+    SkillsModule,
     ObservabilityModule,
   ],
 })
