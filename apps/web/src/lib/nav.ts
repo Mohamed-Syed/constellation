@@ -44,6 +44,7 @@ const CORE_PLATFORM: FlatNavItem[] = [
     icon: "Users",
     order: 25,
   },
+  { id: "core-skills", label: "Skills", href: "/skills", icon: "Wrench", order: 30 },
   {
     // The platform's memory / knowledge graph (docs/BRAIN.md). Role-aware like
     // Admin: hidden unless the caller can read the brain.
