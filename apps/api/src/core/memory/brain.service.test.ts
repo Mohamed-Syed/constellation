@@ -398,3 +398,56 @@ describe("GraphifyAdapter — transport selection", () => {
     expect(warn).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("BrainService — semantic search (retrieval layer, 4.2 tail)", () => {
+  it("cosineSimilarity: identical = 1, orthogonal = 0, empty = 0", async () => {
+    const { cosineSimilarity } = await import("./brain.service.js");
+    expect(cosineSimilarity([1, 2, 3], [1, 2, 3])).toBeCloseTo(1, 6);
+    expect(cosineSimilarity([1, 0], [0, 1])).toBeCloseTo(0, 6);
+    expect(cosineSimilarity([], [1])).toBe(0);
+  });
+
+  it("search embeds the query + the index and returns ranked items", async () => {
+    await fs.mkdir(path.join(process.env.BRAIN_VAULT_DIR as string, "notes"), { recursive: true });
+    await fs.writeFile(
+      path.join(process.env.BRAIN_VAULT_DIR as string, "notes", "2026-08-05.md"),
+      "# notes\n\n## Crews delegation\n\nTask delegation ships as parentTaskId.\n",
+      "utf8",
+    );
+    const graphDir = path.dirname(process.env.GRAPHIFY_GRAPH_PATH as string);
+    await fs.mkdir(graphDir, { recursive: true });
+    await fs.writeFile(
+      process.env.GRAPHIFY_GRAPH_PATH as string,
+      JSON.stringify({ nodes: [{ id: "n1", label: "ModelRouterService" }, { id: "n2", label: "DelegationService" }], links: [] }),
+      "utf8",
+    );
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ embeddings: [[1, 0, 0], [1, 0, 0], [1, 0, 0], [1, 0, 0]] }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const adapter = await makeAdapter();
+      const svc = new BrainService(adapter);
+      const res = await svc.search("delegation");
+      expect(res.unavailable).toBe(false);
+      expect(res.items.length).toBeGreaterThan(0);
+      expect(res.items.map((i) => i.label)).toContain("DelegationService");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("search degrades to unavailable when the embedder is down", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 500 })));
+    try {
+      const adapter = await makeAdapter();
+      const svc = new BrainService(adapter);
+      const res = await svc.search("anything");
+      expect(res.unavailable).toBe(true);
+      expect(res.items).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});

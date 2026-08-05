@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import * as path from "node:path";
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Optional } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import type {
   GraphJson,
   GraphRef,
@@ -40,10 +41,18 @@ export class BrainService implements PluginMemory {
   /** Absolute path of the markdown vault. */
   readonly vaultDir: string;
   private warnedVault = false;
+  private readonly ollamaUrl: string;
+  private readonly embedModel: string;
+  private indexCache: { at: number; docs: Array<{ id: string; label: string; vector: number[] }> } | null = null;
 
-  constructor(private readonly graphify: GraphifyAdapter) {
+  constructor(
+    private readonly graphify: GraphifyAdapter,
+    @Optional() private readonly config?: ConfigService,
+  ) {
     this.vaultDir =
       process.env.BRAIN_VAULT_DIR?.trim() || path.join(this.graphify.corpusRoot, "brain");
+    this.ollamaUrl = config?.get("OLLAMA_BASE_URL", "http://localhost:11434") ?? "http://localhost:11434";
+    this.embedModel = process.env.BRAIN_EMBED_MODEL?.trim() || "nomic-embed-text";
   }
 
   // ------------------------------------------------------------- write
@@ -151,6 +160,96 @@ export class BrainService implements PluginMemory {
   }
 
   /** Counts + freshness. `available: false` = brain not built yet. */
+  // ------------------------------------------------------- semantic search
+
+  /**
+   * Retrieval layer (Phase 4.0 4.2 tail): SEMANTIC search over the memory —
+   * the vault notes + the knowledge-graph node labels, embedded with a local
+   * Ollama model (nomic-embed-text by default; BRAIN_EMBED_MODEL to change)
+   * and ranked by cosine similarity. This is the pgvector/Chroma alternative
+   * that ships with ZERO new infra: the embedding pass runs in-process and is
+   * cached; the index lives in memory (rebuilt on demand). Honest degrade:
+   * without Ollama the endpoint returns an empty list + unavailable: true.
+   */
+  async search(question: string, topK = 8): Promise<{ items: Array<{ id: string; label: string; score: number }>; unavailable: boolean }> {
+    const q = (question ?? "").trim();
+    if (!q) return { items: [], unavailable: false };
+    const queryVec = await this.embedTexts([q]);
+    if (!queryVec?.length) return { items: [], unavailable: true };
+
+    const docs = await this.loadIndex();
+    const scored = docs
+      .map((d) => ({ id: d.id, label: d.label, score: cosineSimilarity(queryVec[0] ?? [], d.vector) }))
+      .filter((d) => Number.isFinite(d.score) && d.score > 0.16)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, topK);
+    return { items: scored.map((d) => ({ id: d.id, label: d.label, score: Number(d.score.toFixed(4)) })), unavailable: false };
+  }
+
+  /** Embed texts via the local Ollama /api/embed (batched 64). Null when unavailable. */
+  private async embedTexts(texts: string[]): Promise<number[][] | null> {
+    const out: number[][] = [];
+    try {
+      for (let i = 0; i < texts.length; i += 64) {
+        const chunk = texts.slice(i, i + 64);
+        const res = await fetch(`${this.ollamaUrl}/api/embed`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model: this.embedModel, input: chunk }),
+          signal: AbortSignal.timeout(30_000),
+        });
+        if (!res.ok) return null;
+        const body = (await res.json()) as { embeddings?: unknown };
+        if (!Array.isArray(body.embeddings)) return null;
+        out.push(...(body.embeddings as number[][]));
+      }
+      return out;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Vault notes (## sections) + graph node labels, embedded lazily (5-min cache). */
+  private async loadIndex(): Promise<Array<{ id: string; label: string; vector: number[] }>> {
+    if (this.indexCache && Date.now() - this.indexCache.at < 5 * 60_000) return this.indexCache.docs;
+
+    const texts: Array<{ id: string; label: string; text: string }> = [];
+    try {
+      const notesDir = path.join(this.vaultDir, "notes");
+      const files = await fs.readdir(notesDir).catch(() => []);
+      for (const file of files.filter((f) => f.endsWith(".md"))) {
+        const raw = await fs.readFile(path.join(notesDir, file), "utf8").catch(() => "");
+        for (const section of raw.split(/\n##\s+/).filter(Boolean)) {
+          const label = section.split("\n")[0]?.slice(0, 80) ?? file;
+          texts.push({ id: `vault:${file}:${label}`, label, text: section.slice(0, 1200) });
+        }
+      }
+    } catch {
+      /* vault unreadable → graph-only index */
+    }
+
+    const graph = await this.graphify.readGraph().catch(() => null);
+    const nodes = graph?.json?.nodes ?? [];
+    const seen = new Set<string>();
+    for (const node of nodes) {
+      const label = String((node as Record<string, unknown>).label ?? (node as Record<string, unknown>).id ?? "");
+      if (!label || seen.has(label)) continue;
+      seen.add(label);
+      texts.push({ id: `graph:${label}`, label, text: label });
+    }
+
+    const vectors = await this.embedTexts(texts.map((t) => t.text));
+    if (!vectors || vectors.length !== texts.length) {
+      this.indexCache = { at: Date.now(), docs: [] };
+      return [];
+    }
+    const docs = texts.map((t, i) => ({ id: t.id, label: t.label, vector: vectors[i] ?? [] }));
+    this.indexCache = { at: Date.now(), docs };
+    return docs;
+  }
+
+  // --------------------------------------------------------------- stats
+
   async stats(): Promise<MemoryStats> {
     const vaultNotes = await this.countVaultNotes();
     try {
@@ -288,4 +387,19 @@ export class BrainService implements PluginMemory {
 
 function message(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+/** Cosine similarity between two vectors (empty vectors → 0). Exported for tests. */
+export function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length === 0 || b.length === 0 || a.length !== b.length) return 0;
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  const denom = Math.sqrt(na) * Math.sqrt(nb);
+  return denom === 0 ? 0 : dot / denom;
 }

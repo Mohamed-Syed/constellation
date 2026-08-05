@@ -57,6 +57,13 @@ export class BrainController {
     return this.brain.query(dto.question);
   }
 
+  @Post("search")
+  @RequirePermissions(CorePermissions.BRAIN_READ)
+  @ApiOperation({ summary: "Semantic search over the memory (vault notes + graph labels) via local embeddings." })
+  search(@Body() dto: QueryDto): Promise<{ items: Array<{ id: string; label: string; score: number }>; unavailable: boolean }> {
+    return this.brain.search(dto.question);
+  }
+
   @Get("graph")
   @RequirePermissions(CorePermissions.BRAIN_READ)
   @ApiOperation({ summary: "graph.json for the portal visualization (empty when unbuilt)." })
