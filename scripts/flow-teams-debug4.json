@@ -1,0 +1,7 @@
+[
+ { "act": "goto", "url": "http://localhost:3005/teams" },
+ { "act": "sleep", "ms": 6000 },
+ { "act": "eval", "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => (x.textContent || '').includes('core-team')); if (!b) return 'no team'; b.click(); return 'clicked'; })()" },
+ { "act": "sleep", "ms": 4000 },
+ { "act": "eval", "expr": "(() => { const t = document.body ? document.body.innerText : 'NO BODY'; return t.slice(0, 600).replace(/\\n/g, ' | '); })()" }
+]

@@ -36,6 +36,15 @@ const CORE_PLATFORM: FlatNavItem[] = [
   { id: "core-workflows", label: "Workflows", href: "/workflows", icon: "Workflow", order: 15 },
   { id: "core-tools", label: "Tools", href: "/tools", icon: "Boxes", order: 20 },
   {
+    // Phase 3.0 item 3.7 — team spaces: org/team memberships + member
+    // management (owner/admin only; the API enforces it).
+    id: "core-teams",
+    label: "Teams",
+    href: "/teams",
+    icon: "Users",
+    order: 25,
+  },
+  {
     // The platform's memory / knowledge graph (docs/BRAIN.md). Role-aware like
     // Admin: hidden unless the caller can read the brain.
     id: "core-brain",

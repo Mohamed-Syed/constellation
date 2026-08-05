@@ -1,0 +1,70 @@
+[
+ {
+  "act": "goto",
+  "url": "http://localhost:3005/login"
+ },
+ {
+  "act": "wait",
+  "expr": "document.querySelector('input[type=email]') !== null",
+  "wait": 60000
+ },
+ {
+  "act": "type",
+  "selector": "input[type=email]",
+  "t": "admin@constellation.local"
+ },
+ {
+  "act": "type",
+  "selector": "input[type=password]",
+  "t": "changeme"
+ },
+ {
+  "act": "sleep",
+  "ms": 1000
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => /sign in|log in|submit/i.test(x.textContent || '')); if (b) { b.click(); return 'clicked login'; } return 'no login button'; })()"
+ },
+ {
+  "act": "sleep",
+  "ms": 8000
+ },
+ {
+  "act": "goto",
+  "url": "http://localhost:3005/teams"
+ },
+ {
+  "act": "wait",
+  "expr": "(document.body && document.body.innerText).includes('core-team')",
+  "wait": 30000
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const t = document.body.innerText; return 'createForm=' + (t.includes('Create a team') && t.includes('Create team')) + ';myTeams=' + (t.includes('My teams')) + ';team=' + (t.includes('core-team')) + ';ownerBadge=' + (t.includes('OWNER')); })()"
+ },
+ {
+  "act": "shot",
+  "shot": "teams-list"
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => (x.textContent || '').includes('core-team')); if (!b) return 'team button not found'; b.click(); return 'selected core-team'; })()"
+ },
+ {
+  "act": "wait",
+  "expr": "(document.body && document.body.innerText.toLowerCase()).includes('add member by email')",
+  "wait": 20000
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const t = document.body.innerText; return 'detail=' + (t.includes('core-team')) + ';adminMember=' + (t.includes('admin@constellation.local')) + ';viewerMember=' + (t.includes('viewer@constellation.local')) + ';addForm=' + (t.toLowerCase().includes('add member by email')) + ';canManage=' + (t.includes('you can manage members')); })()"
+ },
+ {
+  "act": "shot",
+  "shot": "teams-detail"
+ },
+ {
+  "act": "text"
+ }
+]

@@ -1,0 +1,6 @@
+[
+ { "act": "goto", "url": "http://localhost:3005/teams" },
+ { "act": "sleep", "ms": 6000 },
+ { "act": "eval", "expr": "(() => { const t = document.body ? document.body.innerText : 'NO BODY'; return 'URL=' + location.href + ';;TEXT=' + t.slice(0, 300).replace(/\\n/g, ' | '); })()" },
+ { "act": "shot", "shot": "teams-debug" }
+]
