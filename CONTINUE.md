@@ -58,13 +58,10 @@ The strategic vision + market analysis + full roadmap live in
 
 ## 3. Current state (authoritative as of the last commit) — reconcile, don't assume
 
-**HEAD:** `35a76fe` — `feat(notifications): Phase 3.0 — notification center (durable event feed + portal UI)`
-(the docs backfill for this round lands directly above it; below it: `6a01000` session summary,
-`6d23314`/`9e05c7a` visual workflow builder, `6e596af` 3.2 plugin marketplace, `b6e379f` 3.1 /engine
-task UI, `0127ce1` 2.3 Grafana dashboard). **PHASE 2.0 COMPLETE; PHASE 3.0 IN PROGRESS (3.1–3.4 DONE).**
+**HEAD:** `4b426f8` — `fix(workflows): arm platform-scope listeners via forPlugin().onPlatform…` (fixup above `418c0d8` team-spaces API, `ee5b304` workflow triggers, `88944b7` webhook channels, `f2afda4` multi-model compare, `29d9746` session summary). **PHASE 2.0 COMPLETE; PHASE 3.0 IN PROGRESS (3.1–3.5 DONE, 3.6 DONE, 3.7 API DONE — portal page in flight).**
 Tree is **clean** (only untracked `Prompt to Clau_Partner.txt`, a working artifact).
 
-**Test count (full repo):** **637** — api **513**, web (build+typecheck, no unit
+**Test count (full repo):** **678** — api **554** (38 files), web (build+typecheck, no unit
 suite), plugin-sdk **21**, plugin-graphify **40**, plugin-browser-use **47**, cli **16**.
 Gates: `turbo run lint build typecheck test --force --concurrency=1` → **20/20 tasks green**.
 
@@ -92,6 +89,10 @@ Gates: `turbo run lint build typecheck test --force --concurrency=1` → **20/20
 | Plugin marketplace | `6e596af` | Phase 3.0 3.2 — browse/install/uninstall with hot-reload (plugins-catalog/ shelf, marker-gated uninstall) | ✅ browser: Install → installed zone + toast → Uninstall → back to available |
 | Visual workflow builder | `9e05c7a` (+ fixup `6d23314`) | Phase 3.0 3.3 — Workflow/WorkflowRun + migration, validator + templating, run executor, drag-reorder builder UI | ✅ 2-step agent→tool run completed (templated args) + browser trail rendered |
 | Notification center | `35a76fe` | Phase 3.0 3.4 — durable event feed (engine alerts + NEW scheduler emissions → Notification model), REST list/read/dismiss, portal /notifications + sidebar unread badge + admin audit-log tab | ✅ 5/5 event topics live (cron ×20, terminal failure, stale→recovered) + REST round-trip + real-browser badge/mark-all/audit |
+| Multi-model compare | `f2afda4` | Phase 3.0 3.6 — cumulative usage/cost PERSISTED on tasks (TokenBudget input/output/cost, migration add_task_usage) + portal /compare (same prompt on 2+ models, side-by-side latency/tokens/$) | ✅ LIVE: ollama 51.0s/$0 vs deepseek-v4-flash 2.3s/$0.000018, persisted tokens on both; browser results table + cards verified |
+| Notification channels | `88944b7` | Phase 3.0 3.5 remainder — webhook channels (generic/Slack/Discord/Teams envelopes, per-kind filters, enabled toggle, fire-and-forget) + NEW engine.task.completed/paused events + portal Channels tab | ✅ LIVE: local listener — generic got completed+failed, slack got only the failure, Test POST delivered; browser Test → toast + webhook |
+| Workflow trigger wiring | `ee5b304` (+ fixup `4b426f8`) | Phase 3.0 — ScheduledTask.workflowId (migration add_workflow_triggers) → scheduler RUNS workflows; WorkflowTriggerService (cron auto-schedule `workflow:<id>`, event listeners on core+platform scopes); = autonomous incident-response primitive | ✅ LIVE: cron workflow auto-armed + fired + completed; PUT re-sync; event workflow on engine.task.failed fired by a real doomed task → completed |
+| Team spaces API | `418c0d8` | Phase 3.0 3.7 — Organization/Team/TeamMember (owner\|admin\|member, migration add_team_spaces) + /api/teams RBAC + /me teams + AgentTask.teamId scoping (non-admins see personal + their teams' tasks) | ✅ 554 api tests green; portal /teams page + live proof IN FLIGHT (next round) |
 
 **Live stack (local, $0):** postgres :5432, redis :6380, ollama `qwen2.5-coder:7b`,
 api :4001 (use `API_HOST_PORT`, never the squatted :4000). Prometheus/Grafana/Loki
@@ -108,7 +109,9 @@ docker-compose.federation.yml --profile federation up -d tempo`, then set
 Portal design-language rebuild (both themes) · Prisma migrations history ·
 Prometheus `/api/metrics` · CLI ops subcommands · **OTel tracing + Tempo** ·
 **Portal `/health` engine dashboard** · **Phase 3.0: /engine task UI (3.1),
-plugin marketplace (3.2), visual workflow builder (3.3), notification center (3.4)**.
+plugin marketplace (3.2), visual workflow builder (3.3), notification center
+(3.4), notification channels (3.5 remainder), multi-model compare (3.6),
+workflow trigger wiring, team-spaces API (3.7 API — portal page in flight)**.
 
 **The design-language source** (three repos, guidance captured in `docs/DESIGN_SKILL.md`):
 `emilkowalski/skills`, `pbakaus/impeccable`, `leonxlnx/taste-skill`. Any portal
@@ -180,7 +183,30 @@ scheduler.schedule.fired/error emissions), GET /api/notifications + unread-count
 read-all + :id/read + :id DELETE, portal /notifications page (filters, severity icons,
 mark-read/dismiss/mark-all, admin Audit-log tab) + sidebar unread badge; LIVE-PROVEN:
 5/5 event topics end-to-end + REST round-trip + real-browser badge/mark-all/audit)**;
-then multi-model compare, team spaces.
+~~notification channels (3.5 remainder)~~ **DONE (`88944b7` — webhook channels with
+generic/Slack/Discord/Teams envelopes + per-kind filters, fire-and-forget delivery that never
+breaks the feed, REST /api/notifications/channels + Test, NEW engine.task.completed/paused
+events so the 'completed/failed/needs-approval' vision is real, admin Channels tab;
+LIVE-PROVEN against a local listener incl. browser Test → toast + POST)**;
+~~multi-model compare (3.6)~~ **DONE (`f2afda4` — usage/cost PERSISTED on tasks
+(TokenBudget accumulation + worker persistUsage at every terminal path, migration
+add_task_usage) + portal /compare: pick 2+ models, run the same prompt, side-by-side
+latency/tokens/cost cards; LIVE-PROVEN: ollama vs deepseek same prompt, real persisted
+numbers in API + browser)**;
+~~workflow trigger wiring~~ **DONE (`ee5b304` + fixup `4b426f8` — ScheduledTask.workflowId
+(migration add_workflow_triggers): firing a workflow schedule RUNS the workflow instead of
+enqueuing a task (fire-and-forget); WorkflowTriggerService arms cron auto-schedules
+`workflow:<id>` + event listeners on BOTH core/platform scopes; sync on create/update,
+remove on delete; bidirectional forwardRef modules. This IS the autonomous incident-response
+primitive: a workflow on engine.task.failed remediates failures. LIVE-PROVEN: cron fired +
+completed, PUT re-sync, real doomed task → event workflow completed)**;
+**team spaces (3.7) — API SHIPPED (`418c0d8`: Organization/Team/TeamMember owner|admin|member
++ migration add_team_spaces, /api/teams RBAC, /me includes teams, AgentTask.teamId scoping —
+submit-into-team requires membership, list filters by team, non-admins see personal + their
+teams' tasks). IN FLIGHT: the portal /teams page (create team, add member by email, team
+task views) + live browser proof + round docs.** Then: push-channel email/SMTP (webhooks
+done), team-scoped schedules/workflows, per-user notification targeting, Phase 4.0 slices
+(MCP server, compliance/audit export, brain-page UX fixes, docs-mode RAG).
 
 **Phase 4.0 — Agentic OS:** multi-agent crews (delegation), persistent memory
 (RAG + Graphify), MCP server + client, agent skill marketplace, autonomous
