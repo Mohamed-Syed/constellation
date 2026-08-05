@@ -1,0 +1,13 @@
+{
+    "jsonrpc": "2.0",
+    "id": 7,
+    "result": {
+        "content": [
+            {
+                "type": "text",
+                "text": "{\"ok\":true,\"task\":{\"id\":\"cmsfpvrh0000jxkfxv06o6oxi\",\"title\":\"mcp-sub-agent\",\"status\":\"queued\",\"provider\":null,\"model\":null,\"actorId\":\"cmsf38z600002r4fxublnkbhg\",\"stepCount\":0,\"totalTokens\":null,\"costUSD\":null,\"parentTaskId\":null,\"teamId\":null,\"createdAt\":\"2026-08-05T06:39:40.500Z\",\"completedAt\":null},\"summary\":{\"ok\":true,\"pending\":0,\"done\":3,\"timedOut\":false,\"children\":[{\"id\":\"cmsfpvrh0000jxkfxv06o6oxi\",\"title\":\"mcp-sub-agent\",\"status\":\"completed\",\"provider\":\"ollama\",\"model\":null,\"actorId\":\"cmsf38z600002r4fxublnkbhg\",\"stepCount\":3,\"totalTokens\":1371,\"costUSD\":0,\"parentTaskId\":\"cmsfpv8m20004xkfxzppctsoa\",\"teamId\":null,\"createdAt\":\"2026-08-05T06:39:40.500Z\",\"completedAt\":\"2026-08-05T06:40:00.098Z\"},{\"id\":\"cmsfpve89000axkfxx4cb1urc\",\"title\":\"sub-agent-b\",\"status\":\"completed\",\"provider\":\"ollama\",\"model\":null,\"actorId\":\"cmsf38z600002r4fxublnkbhg\",\"stepCount\":2,\"totalTokens\":873,\"costUSD\":0,\"parentTaskId\":\"cmsfpv8m20004xkfxzppctsoa\",\"teamId\":null,\"createdAt\":\"2026-08-05T06:39:23.337Z\",\"completedAt\":\"2026-08-05T06:39:38.653Z\"},{\"id\":\"cmsfpve2j0009xkfxh0kf456q\",\"title\":\"sub-agent-a\",\"status\":\"completed\",\"provider\":\"ollama\",\"model\":null,\"actorId\":\"cmsf38z600002r4fxublnkbhg\",\"stepCount\":2,\"totalTokens\":878,\"costUSD\":0,\"parentTaskId\":\"cmsfpv8m20004xkfxzppctsoa\",\"teamId\":null,\"createdAt\":\"2026-08-05T06:39:23.131Z\",\"completedAt\":\"2026-08-05T06:39:33.833Z\"}]}}"
+            }
+        ],
+        "isError": false
+    }
+}

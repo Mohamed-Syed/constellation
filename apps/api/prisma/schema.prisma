@@ -243,6 +243,14 @@ model AgentTask {
   outputTokens Int?
   totalTokens  Int?
   costUSD      Float?
+  /// Crews round (Phase 4.0 4.1): the parent task this task was delegated
+  /// from (null = top-level). Parent/child links form the delegation tree —
+  /// an orchestrator task can spawn sub-agents and wait for their results.
+  parentTaskId String?
+
+  parent   AgentTask?    @relation("TaskDelegation", fields: [parentTaskId], references: [id], onDelete: SetNull)
+  children AgentTask[]   @relation("TaskDelegation")
+
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   startedAt   DateTime?
@@ -252,6 +260,7 @@ model AgentTask {
   checkpoint  TaskCheckpoint?
 
   @@index([status, createdAt])
+  @@index([parentTaskId])
   @@map("agent_tasks")
   @@schema("core")
 }

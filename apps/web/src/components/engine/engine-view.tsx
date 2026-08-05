@@ -32,7 +32,6 @@ import {
   isCancellableStatus,
   isTerminalStatus,
   rejectEngineTask,
-  statusVariant,
   stepSucceeded,
   stepSummaryText,
   submitEngineTask,
@@ -47,6 +46,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DelegationSection } from "./delegation-section";
+import { StatusBadge } from "./status-badge";
 import { Reveal } from "@/components/motion/reveal";
 import { toast } from "sonner";
 
@@ -75,7 +76,7 @@ const STATUS_FILTERS: Array<{ key: string; label: string }> = [
  * own errors instead of throwing.
  */
 export function EngineView() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
 
   // ── Live data ───────────────────────────────────────────────────────────
   const [tasks, setTasks] = React.useState<EngineTaskSummary[] | null>(null);
@@ -785,6 +786,13 @@ export function EngineView() {
                   </Button>
                 ) : null}
               </div>
+
+              {/* Crews round (4.1): delegation tree + delegate form. */}
+              <DelegationSection
+                token={token}
+                taskId={detail.id}
+                canManage={user?.id != null && user.id === detail.actorId}
+              />
             </>
           ) : null}
         </DialogContent>
@@ -878,10 +886,6 @@ function StatCard({
       ) : null}
     </div>
   );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  return <Badge variant={statusVariant(status)}>{status}</Badge>;
 }
 
 function StepRow({ step }: { step: EngineStep }) {

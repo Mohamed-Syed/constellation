@@ -32,6 +32,7 @@ function makeSvc(overrides: Record<string, unknown> = {}) {
     scheduler as never,
     supervisor as never,
     alerts as never,
+    undefined, // delegation — not exercised in this harness
     1, // pollDelayMs — tests stay fast
   );
   return { svc, tasks, queue, schedules, modelRouter };
@@ -66,17 +67,19 @@ describe("McpService — protocol handshake", () => {
     });
   });
 
-  it("tools/list exposes the four constellation tools", async () => {
+  it("tools/list exposes the five constellation tools", async () => {
     const { svc } = makeSvc();
-    const res = (await svc.handle({ jsonrpc: "2.0", id: 5, method: "tools/list" })) as { result: { tools: Array<{ name: string; inputSchema: unknown }> } };
-    const names = res.result.tools.map((t) => t.name);
-    expect(names).toEqual([
+    const result = (await svc.handle({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} })) as {
+      result: { tools: { name: string }[] };
+    };
+    expect(result.result.tools.map((t) => t.name)).toEqual([
       "constellation.list_tasks",
       "constellation.run_task",
       "constellation.engine_health",
       "constellation.list_schedules",
+      "constellation.delegate_task",
     ]);
-    for (const tool of res.result.tools) {
+    for (const tool of result.result.tools) {
       expect(tool.inputSchema).toBeTruthy();
     }
   });

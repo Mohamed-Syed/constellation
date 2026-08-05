@@ -16,6 +16,7 @@ import { CurrentUser } from "../auth/current-user.decorator.js";
 import type { AuthPrincipal } from "../auth/token-verifier.js";
 import { AuditService } from "../audit/audit.service.js";
 import { TeamService } from "../teams/team.service.js";
+import { DelegationService, type DelegateChildInput } from "./delegation.service.js";
 import { EngineAlertService } from "./engine-alerts.service.js";
 import { DEAD_LETTER_LIMIT } from "./dead-letter.js";
 import { CreateTaskDto } from "./dto/create-task.dto.js";
@@ -63,6 +64,7 @@ export class EngineController {
     private readonly supervisor: SupervisorService,
     private readonly alerts: EngineAlertService,
     private readonly teams: TeamService,
+    private readonly delegation: DelegationService,
   ) {}
 
   @Post("tasks")
@@ -118,6 +120,47 @@ export class EngineController {
   private async canAccessTeam(user: AuthPrincipal | undefined, teamId: string): Promise<boolean> {
     if (user?.permissions?.includes("platform:admin")) return true;
     return this.teams.isMember(user?.id ?? null, teamId);
+  }
+
+  /** Visibility: owner, platform admin, or a member of the task's team. */
+  private async assertCanSeeTask(task: Record<string, unknown> | null, user: AuthPrincipal | undefined): Promise<void> {
+    if (!task) throw new NotFoundException("Task not found.");
+    if (user?.permissions?.includes("platform:admin")) return;
+    const owner = user?.id && task.actorId === user.id;
+    if (owner) return;
+    const teamId = task.teamId;
+    if (typeof teamId === "string" && (await this.canAccessTeam(user, teamId))) return;
+    throw new ForbiddenException("You cannot access this task.");
+  }
+
+  /** Crews round (Phase 4.0 4.1): children of a task. */
+  @Get("tasks/:id/children")
+  async taskChildren(@Param("id") id: string, @CurrentUser() user: AuthPrincipal) {
+    const task = await this.tasks.findOne(id);
+    await this.assertCanSeeTask(task, user);
+    return { items: await this.delegation.childrenOf(id) };
+  }
+
+  /** Crews round: the full delegation tree under a task. */
+  @Get("tasks/:id/tree")
+  async taskTree(@Param("id") id: string, @CurrentUser() user: AuthPrincipal) {
+    const task = await this.tasks.findOne(id);
+    await this.assertCanSeeTask(task, user);
+    return this.delegation.tree(id);
+  }
+
+  /** Crews round: delegate a sub-agent task under this task. */
+  @Post("tasks/:id/delegate")
+  async delegateTask(
+    @Param("id") id: string,
+    @Body() dto: DelegateChildInput,
+    @CurrentUser() user: AuthPrincipal,
+  ) {
+    const task = await this.tasks.findOne(id);
+    await this.assertCanSeeTask(task, user);
+    const child = await this.delegation.spawnChild(id, dto);
+    if (!child) throw new BadRequestException("Cannot delegate: parent not found.");
+    return { ok: true, task: child };
   }
 
   /**

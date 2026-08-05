@@ -1,0 +1,43 @@
+{
+    "id": "cmsfpv8m20004xkfxzppctsoa",
+    "title": "crews-parent",
+    "status": "completed",
+    "provider": "ollama",
+    "model": null,
+    "actorId": "cmsf38z600002r4fxublnkbhg",
+    "stepCount": 2,
+    "totalTokens": 875,
+    "costUSD": 0,
+    "createdAt": "2026-08-05T06:39:16.058Z",
+    "completedAt": "2026-08-05T06:39:22.424Z",
+    "children": [
+        {
+            "id": "cmsfpve2j0009xkfxh0kf456q",
+            "title": "sub-agent-a",
+            "status": "completed",
+            "provider": "ollama",
+            "model": null,
+            "actorId": "cmsf38z600002r4fxublnkbhg",
+            "stepCount": 2,
+            "totalTokens": 878,
+            "costUSD": 0,
+            "createdAt": "2026-08-05T06:39:23.131Z",
+            "completedAt": "2026-08-05T06:39:33.833Z",
+            "children": []
+        },
+        {
+            "id": "cmsfpve89000axkfxx4cb1urc",
+            "title": "sub-agent-b",
+            "status": "completed",
+            "provider": "ollama",
+            "model": null,
+            "actorId": "cmsf38z600002r4fxublnkbhg",
+            "stepCount": 2,
+            "totalTokens": 873,
+            "costUSD": 0,
+            "createdAt": "2026-08-05T06:39:23.337Z",
+            "completedAt": "2026-08-05T06:39:38.653Z",
+            "children": []
+        }
+    ]
+}

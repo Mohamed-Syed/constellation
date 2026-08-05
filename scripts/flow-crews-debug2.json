@@ -1,0 +1,5 @@
+[
+ { "act": "goto", "url": "http://localhost:3005/engine" },
+ { "act": "sleep", "ms": 12000 },
+ { "act": "eval", "expr": "(() => { const t = document.body.innerText; return t.slice(0, 700).replace(/\\n/g, ' | '); })()" }
+]

@@ -1,6 +1,7 @@
 import { Injectable, Logger, Optional } from "@nestjs/common";
 import { TaskQueueService } from "../engine/task-queue.service.js";
 import { TaskService } from "../engine/task.service.js";
+import { DelegationService } from "../engine/delegation.service.js";
 import { ScheduledTaskService } from "../engine/scheduled-task.service.js";
 import { EngineAvailabilityService } from "../engine/engine-availability.service.js";
 import { ModelRouterService } from "../engine/model-router.service.js";
@@ -83,6 +84,23 @@ const TOOLS: McpTool[] = [
     description: "List scheduler schedules (cron/event) with run counts and last error.",
     inputSchema: { type: "object", properties: {} },
   },
+  {
+    name: "constellation.delegate_task",
+    description:
+      "Crews (4.1): spawn a sub-agent task under an existing task and wait for it to finish. Returns the child + a completion summary.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parentId: { type: "string", description: "Id of the parent (orchestrator) task." },
+        title: { type: "string" },
+        prompt: { type: "string" },
+        model: { type: "string", description: "Optional model override." },
+        maxSteps: { type: "number", description: "Optional step cap (defaults to parent's minus 2)." },
+        waitMs: { type: "number", description: "How long to wait for the child (default 120000)." },
+      },
+      required: ["parentId", "title", "prompt"],
+    },
+  },
 ];
 
 @Injectable()
@@ -98,6 +116,7 @@ export class McpService {
     @Optional() private readonly scheduler?: SchedulerEngineServiceLike,
     @Optional() private readonly supervisor?: SupervisorService,
     @Optional() private readonly alerts?: EngineAlertService,
+    @Optional() private readonly delegation?: DelegationService,
     @Optional() private readonly pollDelayMs?: number,
   ) {}
 
@@ -201,6 +220,31 @@ export class McpService {
           stepCount: terminal.stepCount,
           totalTokens: terminal.totalTokens ?? null,
           costUSD: terminal.costUSD ?? null,
+        };
+      }
+      case "constellation.delegate_task": {
+        if (!this.delegation) {
+          return { isError: true, content: [{ type: "text", text: "Delegation unavailable in this build." }] };
+        }
+        const parentId = typeof args.parentId === "string" ? args.parentId : "";
+        const child = await this.delegation.spawnChild(parentId, {
+          title: typeof args.title === "string" ? args.title : "delegated task",
+          prompt: typeof args.prompt === "string" ? args.prompt : "",
+          model: typeof args.model === "string" ? args.model : undefined,
+          maxSteps: typeof args.maxSteps === "number" ? args.maxSteps : undefined,
+        });
+        if (!child) {
+          return {
+            isError: true,
+            content: [{ type: "text", text: `Could not delegate under "${parentId}" — parent missing or terminal.` }],
+          };
+        }
+        const waitMs = typeof args.waitMs === "number" ? args.waitMs : 120_000;
+        const summary = await this.delegation.waitForChildren(parentId, { timeoutMs: waitMs });
+        return {
+          ok: true,
+          task: child,
+          summary,
         };
       }
       case "constellation.engine_health": {

@@ -29,10 +29,15 @@ against, and the graph needed the docs-mode build to exist.
 - Live build (real extraction logs): 258 code files AST-extracted + 11 docs
   detected; with 1.5b every docs chunk bisected into "hollow response" failures
   (model can't emit graph JSON); switched to qwen2.5-coder:7b (already warm).
-  Final graph.json materialization was STILL RUNNING at close (7b semantic pass
-  on CPU — a background job); check `graphify-out/graph.json` size, then
-  `/api/brain/stats` (available:true) and the remember() → rebuild → node-appears
-  round-trip once it lands.
+  **FINAL MATERIALIZATION VERIFIED (close pass):** graphify-out/graph.json =
+  **2,490,148 bytes** (2274 nodes, 4269 edges, `links` shape accepted by
+  normalizeGraph); `/api/brain/stats` → **available:true, nodes 2274, edges
+  4269, lastBuiltAt 2026-08-05T05:30:26Z**; `/api/brain/query` returned a REAL
+  grounded answer ("From the knowledge graph (2274 nodes, 4269 edges)…"
+  ModelRouterHealth etc.); `POST /api/brain/remember` ({title, body}) →
+  ok:true, note appended to `brain/notes/` — the rebuild → node-appears leg
+  lands via the graphify watch on the corpus (incremental rebuild runs at
+  close; brain/notes committed with the round).
 
 ## Gates
 web typecheck + lint clean (17 pre-existing warnings) · api suite unchanged in

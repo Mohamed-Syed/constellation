@@ -1,0 +1,18 @@
+{
+    "ok": true,
+    "task": {
+        "id": "cmsfpve2j0009xkfxh0kf456q",
+        "title": "sub-agent-a",
+        "status": "queued",
+        "provider": null,
+        "model": null,
+        "actorId": "cmsf38z600002r4fxublnkbhg",
+        "stepCount": 0,
+        "totalTokens": null,
+        "costUSD": null,
+        "parentTaskId": null,
+        "teamId": null,
+        "createdAt": "2026-08-05T06:39:23.131Z",
+        "completedAt": null
+    }
+}

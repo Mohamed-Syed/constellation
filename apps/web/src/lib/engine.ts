@@ -471,3 +471,54 @@ function fallbackJson(value: unknown): string {
     return "—";
   }
 }
+
+/** Crews round (4.1): one node of the delegation tree. */
+export interface DelegationTreeNode {
+  id: string;
+  title: string;
+  status: string;
+  provider: string | null;
+  model: string | null;
+  stepCount: number;
+  totalTokens: number | null;
+  costUSD: number | null;
+  createdAt: string;
+  completedAt: string | null;
+  children: DelegationTreeNode[];
+}
+
+/** GET /engine/tasks/:id/tree — the full delegation tree under a task. */
+export async function fetchTaskTree(token: string | null, id: string): Promise<DelegationTreeNode | null> {
+  try {
+    const res = await fetch(`${API_BASE}/engine/tasks/${encodeURIComponent(id)}/tree`, {
+      cache: "no-store",
+      headers: authHeaders(token),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as DelegationTreeNode;
+  } catch {
+    return null;
+  }
+}
+
+/** POST /engine/tasks/:id/delegate — spawn a sub-agent task under `id`. */
+export async function delegateTask(
+  token: string | null,
+  id: string,
+  input: { title: string; prompt: string; model?: string; maxSteps?: number },
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/engine/tasks/${encodeURIComponent(id)}/delegate`, {
+      method: "POST",
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as { message?: string } | null;
+      return { ok: false, error: body?.message ?? `HTTP ${res.status}` };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}

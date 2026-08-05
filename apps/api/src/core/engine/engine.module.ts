@@ -6,6 +6,7 @@ import { AgentWorkerService } from "./agent-worker.service.js";
 import { DeepSeekModelProvider } from "./deepseek-model-provider.js";
 import { EngineAlertService } from "./engine-alerts.service.js";
 import { EngineAvailabilityService } from "./engine-availability.service.js";
+import { DelegationService } from "./delegation.service.js";
 import { EngineController } from "./engine.controller.js";
 import { MODEL_PROVIDERS } from "./model-provider.js";
 import { ModelRouterService } from "./model-router.service.js";
@@ -44,7 +45,7 @@ import { TaskService } from "./task.service.js";
     SchedulerEngineService,
     SupervisorService,
     EngineAlertService,
-    // Model plane: OllamaModelProvider is the $0 default; OpenRouterModelProvider
+    DelegationService,
     // (Engine v0.3) and DeepSeekModelProvider (2026-08-04) are the OPT-IN cloud
     // providers — unconfigured they report honest health and the router never
     // selects them. ModelRouterService routes between them by canHandleModel
@@ -65,6 +66,6 @@ import { TaskService } from "./task.service.js";
     ModelRouterService,
     EngineAvailabilityService,
   ],
-  exports: [TaskService, TaskQueueService, ScheduledTaskService, SchedulerEngineService, SupervisorService, EngineAlertService, EngineAvailabilityService, ModelRouterService],
+  exports: [TaskService, TaskQueueService, ScheduledTaskService, SchedulerEngineService, SupervisorService, EngineAlertService, EngineAvailabilityService, ModelRouterService, DelegationService],
 })
 export class EngineModule {}
