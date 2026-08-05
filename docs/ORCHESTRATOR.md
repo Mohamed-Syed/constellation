@@ -5,7 +5,7 @@
 > over the driver's seat, this file plus `MASTER_PLAN.md` and `HANDOFF.md` are everything
 > you need. Nothing here is secret; everything is grounded in what actually shipped.
 >
-> **Author:** Polaris (lead orchestrator). **Last updated:** 2026-08-05, at commit `4b426f8` — **Phase 3.0**: team-spaces API (3.7 slice 1) `418c0d8` (portal page + live proof = next round), workflow trigger wiring `ee5b304`+`4b426f8`, notification channels (3.5 remainder) `88944b7`, multi-model compare (3.6) `f2afda4`, notification center (3.4) `35a76fe`, visual workflow builder (`9e05c7a` + typecheck fixup `6d23314`), plugin marketplace (`6e596af`), /engine task UI (`b6e379f`); Phase 2.0 COMPLETE; 678 tests.
+> **Author:** Polaris (lead orchestrator). **Last updated:** 2026-08-05, at commit `70e81a1` — **PHASE 3.0 COMPLETE** (team spaces portal `7216f45`, SMTP channel `359ece8`, + earlier rounds); **Phase 4.0 slices**: MCP server `609da8a`, compliance export `518a5b3`, brain UX + docs-mode RAG `70e81a1`; 695 tests.
 
 ---
 
@@ -59,7 +59,7 @@ Do not import Looper code or reference it in this repo; it is a different codeba
 
 ---
 
-## 2. Where the project is right now (2026-08-05, commit `4b426f8`)
+## 2. Where the project is right now (2026-08-05, commit `70e81a1`)
 
 The **platform layer is strong and the agentic engine is real and proven.** Condensed; full
 per-round evidence with SHAs lives in `MASTER_PLAN.md §9`.
@@ -108,19 +108,20 @@ per-round evidence with SHAs lives in `MASTER_PLAN.md §9`.
   bearer flow untouched); **proven LIVE** — cookie-only `/api/auth/me` works, viewer gets 403 on
   admin-only routes.
 
-**Gates at `4b426f8`:** lint/build/typecheck all green; **678 tests** (api 554, browser-use 47,
+**Gates at `70e81a1`:** lint/build/typecheck all green; **695 tests** (api 571, browser-use 47,
 graphify 40, sdk 21, cli 16). Tree clean. **Nothing has ever been pushed. No cloud. ≈$0.00004
 spent** (the DeepSeek live proofs). **PHASE 2.0 COMPLETE** (migrations + metrics `ac2cf11`,
 CLI `e8fe871`, OTel/Tempo `8d29e3f`, /health dashboard `0647666`, SSO round-trip `4d55928`,
 DeepSeek provider `2d813de`, plugin sandboxing `5f268f3`, worker as separate process
 `3b37129`, Grafana dashboard + engine-metrics wiring `0127ce1` — all live-proven). **PHASE 3.0
-IN PROGRESS** — /engine task UI (3.1) `b6e379f`, plugin marketplace (3.2) `6e596af`,
+COMPLETE** — /engine task UI (3.1) `b6e379f`, plugin marketplace (3.2) `6e596af`,
 visual workflow builder (3.3) `9e05c7a` + `6d23314`, notification center (3.4) `35a76fe`,
-notification channels (3.5 remainder) `88944b7`, multi-model compare (3.6) `f2afda4`,
-workflow trigger wiring `ee5b304` + `4b426f8` (autonomous incident-response pattern),
-**team spaces API (3.7 slice 1) `418c0d8` — portal /teams page + live proof next.**
-**Next: team-spaces portal page + live proof → email/SMTP channel → Phase 4.0 slices
-(MCP server, compliance/audit export, brain-page UX fixes, docs-mode RAG).**
+notification channels + SMTP (3.5) `88944b7` + `359ece8`, multi-model compare (3.6) `f2afda4`,
+workflow trigger wiring `ee5b304` + `4b426f8` (autonomous incident-response primitive),
+team spaces (3.7) `418c0d8` + `7216f45` — all live-proven. **Phase 4.0 slices**: MCP server
+`609da8a`, compliance export `518a5b3`, brain-page UX + docs-mode RAG `70e81a1`.
+**Next: multi-agent crews (4.1), skill marketplace (4.4), federated mesh (4.6), MCP client
+side, pgvector/Chroma retrieval, PDF reports.**
 
 **Maturity, honestly:** platform ≈ 3.6/5, agentic engine now ≈ 2.8/5 (was 0.7 before these
 rounds). See `SUPER_SESSION_SUMMARY.md` for the full independent review that kicked off the
@@ -148,10 +149,9 @@ In priority order. A new driver should generally continue from here unless the u
    handling, supervisor for stuck tasks, event-based alerting. Proven LIVE (stale task recovered;
    re-stale task became a `stalled` dead letter). 505 tests.
 4. **Phase 2.0 — Production Foundation (COMPLETE as of `0127ce1`):** migrations ✅ (`ac2cf11`), OTel tracing ✅ (`8d29e3f`), Prometheus `/api/metrics` ✅ (`ac2cf11`), CLI ops ✅ (`e8fe871`), portal `/health` dashboard ✅ (`0647666`, browser-proven), real SSO round-trip ✅ (`4d55928`), plugin sandboxing ✅ (`5f268f3`), worker as separate process ✅ (`3b37129`), **Grafana dashboard JSON + engine-metrics wiring ✅ (`0127ce1`)**.
-5. **Phase 3.0 — Platform as a Product (IN PROGRESS as of `4b426f8`):** **portal full `/engine` task UI (3.1, P0) ✅ (`b6e379f`)**; **plugin marketplace (3.2) ✅ (`6e596af` — browse/install/uninstall with hot-reload, browser-proven)**; **visual workflow builder (3.3) ✅ (`9e05c7a` + typecheck fixup `6d23314` — Workflow/WorkflowRun + migration, definition validator + {{steps.<id>.result|error}} templating, run executor over engine queue + plugin invoke, drag-reorder builder UI with live run trail, browser-proven)**; **notification center (3.4) ✅ (`35a76fe` — durable event feed from engine alerts + NEW scheduler emissions, REST list/read/dismiss, portal /notifications + sidebar unread badge + admin audit-log tab; all 5 event topics LIVE-PROVEN + browser-proven)**; **notification channels (3.5 remainder) ✅ (`88944b7` — webhook channels generic/Slack/Discord/Teams + per-kind filters + Test, NEW engine.task.completed/paused events, portal Channels tab; LIVE-PROVEN against a local listener)**; **multi-model compare (3.6) ✅ (`f2afda4` — usage/cost persisted per task + portal /compare, LIVE-PROVEN ollama vs deepseek)**; **workflow trigger wiring ✅ (`ee5b304`+`4b426f8` — cron/event triggers actually fire workflows; = autonomous incident-response primitive, LIVE-PROVEN)**; **team spaces (3.7) 🚧 API SHIPPED (`418c0d8` — Org/Team/TeamMember + /api/teams RBAC + /me teams + AgentTask.teamId scoping); portal /teams page + live proof = NEXT ROUND**. **Deployment** — VPS via Coolify. **BLOCKED on the user**: provider + monthly budget (D1). Prove everything locally first; no cloud without explicit approval + confirmed cost.
+5. **Phase 3.0 — Platform as a Product (COMPLETE as of `7216f45`):** **portal full `/engine` task UI (3.1, P0) ✅ (`b6e379f`)**; **plugin marketplace (3.2) ✅ (`6e596af` — browse/install/uninstall with hot-reload, browser-proven)**; **visual workflow builder (3.3) ✅ (`9e05c7a` + typecheck fixup `6d23314` — Workflow/WorkflowRun + migration, definition validator + {{steps.<id>.result|error}} templating, run executor over engine queue + plugin invoke, drag-reorder builder UI with live run trail, browser-proven)**; **notification center (3.4) ✅ (`35a76fe` — durable event feed from engine alerts + NEW scheduler emissions, REST list/read/dismiss, portal /notifications + sidebar unread badge + admin audit-log tab; all 5 event topics LIVE-PROVEN + browser-proven)**; **notification channels + email (3.5) ✅ (`88944b7` webhooks + `359ece8` SMTP — envelopes, per-kind filters, Test, completed/paused events, portal Channels tab; LIVE-PROVEN vs local listener + SMTP stub)**; **multi-model compare (3.6) ✅ (`f2afda4` — usage/cost persisted per task + portal /compare, LIVE-PROVEN ollama vs deepseek)**; **workflow trigger wiring ✅ (`ee5b304`+`4b426f8` — cron/event triggers actually fire workflows; = autonomous incident-response primitive, LIVE-PROVEN)**; **team spaces (3.7) ✅ COMPLETE (`418c0d8` API + `7216f45` portal — Org/Team/TeamMember + /api/teams RBAC + /me teams + AgentTask.teamId scoping + /teams page, browser-proven)**. **Deployment** — VPS via Coolify. **BLOCKED on the user**: provider + monthly budget (D1). Prove everything locally first; no cloud without explicit approval + confirmed cost.
 
-Known non-blocker gaps carried in `HANDOFF.md §8/§11`: checkpoint O(n²) write volume (raw-SQL fix
-noted); Orion's Brain-page fixes diagnosed-but-unwritten; docs-mode brain indexing unrun;
+Known non-blocker gaps carried in `HANDOFF.md §8/§11`: checkpoint O(n²) write volume (DECIDED-KEEP, raw-SQL fix noted); **brain-page fixes — DONE this pass (`70e81a1`)**; **docs-mode brain indexing — DONE this pass (`70e81a1`)**;
 open-webui/langflow tiles never booted; 17 pre-existing web lint warnings; mid-invoke at-least-once
 window (by design).
 

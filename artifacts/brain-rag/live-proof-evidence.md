@@ -28,9 +28,11 @@ against, and the graph needed the docs-mode build to exist.
 - nomic-embed-text pulled on the host Ollama for the embedding pass.
 - Live build (real extraction logs): 258 code files AST-extracted + 11 docs
   detected; with 1.5b every docs chunk bisected into "hollow response" failures
-  (model can't emit graph JSON); switched to qwen2.5-coder:7b (already warm) —
-  final graph.json materialization + stats/query/remember round-trip verified
-  in the round-close pass (see `graph.json` + brain stats in this folder).
+  (model can't emit graph JSON); switched to qwen2.5-coder:7b (already warm).
+  Final graph.json materialization was STILL RUNNING at close (7b semantic pass
+  on CPU — a background job); check `graphify-out/graph.json` size, then
+  `/api/brain/stats` (available:true) and the remember() → rebuild → node-appears
+  round-trip once it lands.
 
 ## Gates
 web typecheck + lint clean (17 pre-existing warnings) · api suite unchanged in

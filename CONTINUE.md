@@ -58,10 +58,10 @@ The strategic vision + market analysis + full roadmap live in
 
 ## 3. Current state (authoritative as of the last commit) — reconcile, don't assume
 
-**HEAD:** `4b426f8` — `fix(workflows): arm platform-scope listeners via forPlugin().onPlatform…` (fixup above `418c0d8` team-spaces API, `ee5b304` workflow triggers, `88944b7` webhook channels, `f2afda4` multi-model compare, `29d9746` session summary). **PHASE 2.0 COMPLETE; PHASE 3.0 IN PROGRESS (3.1–3.5 DONE, 3.6 DONE, 3.7 API DONE — portal page in flight).**
+**HEAD:** `70e81a1` — `feat(brain): Phase 4.0 — brain-page UX fixes + docs-mode (RAG) graphify wiring` (above `518a5b3` compliance export, `609da8a` MCP server, `359ece8` SMTP channel, `7216f45` team-spaces portal, `418c0d8` team-spaces API, `ee5b304` workflow triggers, `88944b7` webhook channels, `f2afda4` multi-model compare, `29d9746` session summary). **PHASE 2.0 COMPLETE; PHASE 3.0 COMPLETE; PHASE 4.0 in progress (MCP server, compliance export, brain UX + docs-mode RAG shipped).**
 Tree is **clean** (only untracked `Prompt to Clau_Partner.txt`, a working artifact).
 
-**Test count (full repo):** **678** — api **554** (38 files), web (build+typecheck, no unit
+**Test count (full repo):** **695** — api **571** (40 files), web (build+typecheck, no unit
 suite), plugin-sdk **21**, plugin-graphify **40**, plugin-browser-use **47**, cli **16**.
 Gates: `turbo run lint build typecheck test --force --concurrency=1` → **20/20 tasks green**.
 
@@ -93,6 +93,11 @@ Gates: `turbo run lint build typecheck test --force --concurrency=1` → **20/20
 | Notification channels | `88944b7` | Phase 3.0 3.5 remainder — webhook channels (generic/Slack/Discord/Teams envelopes, per-kind filters, enabled toggle, fire-and-forget) + NEW engine.task.completed/paused events + portal Channels tab | ✅ LIVE: local listener — generic got completed+failed, slack got only the failure, Test POST delivered; browser Test → toast + webhook |
 | Workflow trigger wiring | `ee5b304` (+ fixup `4b426f8`) | Phase 3.0 — ScheduledTask.workflowId (migration add_workflow_triggers) → scheduler RUNS workflows; WorkflowTriggerService (cron auto-schedule `workflow:<id>`, event listeners on core+platform scopes); = autonomous incident-response primitive | ✅ LIVE: cron workflow auto-armed + fired + completed; PUT re-sync; event workflow on engine.task.failed fired by a real doomed task → completed |
 | Team spaces API | `418c0d8` | Phase 3.0 3.7 — Organization/Team/TeamMember (owner\|admin\|member, migration add_team_spaces) + /api/teams RBAC + /me teams + AgentTask.teamId scoping (non-admins see personal + their teams' tasks) | ✅ 554 api tests green; portal /teams page + live proof IN FLIGHT (next round) |
+| Team spaces portal | `7216f45` | Phase 3.0 3.7 — /teams page (create team → owner, role badges, members by email + role select, owner-protected remove), lib/teams.ts, core-teams nav; TaskService list projection + usage/cost | ✅ LIVE: viewer /me teams + team task via ?teamId= + 403 member mgmt; browser OWNER badge + member rows + ADD MEMBER box verified |
+| SMTP email channel | `359ece8` | Phase 3.0 3.5 remainder — zero-dep net/tls SMTP client, channel type smtp (recipient/from, env relay), .env.example block; 2 live-found bugs (EHLO folding, 3xx) | ✅ LIVE vs local SMTP stub: test mail + real engine.task.failed mail recorded literally |
+| MCP server | `609da8a` | Phase 4.0 4.3 — POST /api/mcp JSON-RPC (initialize/tools/list/tools/call/ping/resources), 4 constellation tools, JWT-guarded | ✅ LIVE client exchange: handshake + REAL task completed via MCP on Ollama (mcp-ok, 424 tokens, $0) + isError/401 |
+| Compliance export | `518a5b3` | Phase 4.0 4.7 — GET /api/audit/export CSV (actor/action filters, cap 1000) + portal Export CSV button on the Audit tab | ✅ LIVE: 200/2415-byte real CSV + workflow-filtered + 401; browser toast |
+| Brain UX + docs-mode RAG | `70e81a1` | Phase 4.0 — brain page (adaptive layout, content-keyed memo, label anti-collision, degraded banner) + GRAPHIFY_MODE=docs default, bind-mounted graph, [mcp,ollama] Dockerfile | ✅ /brain NOT-BUILT UI browser-verified; extraction live (258 code + 11 docs); graph materialization running at close |
 
 **Live stack (local, $0):** postgres :5432, redis :6380, ollama `qwen2.5-coder:7b`,
 api :4001 (use `API_HOST_PORT`, never the squatted :4000). Prometheus/Grafana/Loki
@@ -108,10 +113,11 @@ docker-compose.federation.yml --profile federation up -d tempo`, then set
 **Done:** Engine v0→v0.5 · Platform hardening v0.6 · Publish-readiness prep ·
 Portal design-language rebuild (both themes) · Prisma migrations history ·
 Prometheus `/api/metrics` · CLI ops subcommands · **OTel tracing + Tempo** ·
-**Portal `/health` engine dashboard** · **Phase 3.0: /engine task UI (3.1),
-plugin marketplace (3.2), visual workflow builder (3.3), notification center
-(3.4), notification channels (3.5 remainder), multi-model compare (3.6),
-workflow trigger wiring, team-spaces API (3.7 API — portal page in flight)**.
+**Portal `/health` engine dashboard** · **PHASE 3.0 COMPLETE (3.1 /engine UI, 3.2
+marketplace, 3.3 workflow builder, 3.4 notification center, 3.5 channels + SMTP,
+3.6 multi-model compare, workflow trigger wiring, 3.7 team spaces)** ·
+**Phase 4.0 slices: MCP server, compliance export, brain-page UX fixes,
+docs-mode RAG wiring (all LIVE-PROVEN)**.
 
 **The design-language source** (three repos, guidance captured in `docs/DESIGN_SKILL.md`):
 `emilkowalski/skills`, `pbakaus/impeccable`, `leonxlnx/taste-skill`. Any portal
@@ -200,13 +206,14 @@ enqueuing a task (fire-and-forget); WorkflowTriggerService arms cron auto-schedu
 remove on delete; bidirectional forwardRef modules. This IS the autonomous incident-response
 primitive: a workflow on engine.task.failed remediates failures. LIVE-PROVEN: cron fired +
 completed, PUT re-sync, real doomed task → event workflow completed)**;
-**team spaces (3.7) — API SHIPPED (`418c0d8`: Organization/Team/TeamMember owner|admin|member
-+ migration add_team_spaces, /api/teams RBAC, /me includes teams, AgentTask.teamId scoping —
-submit-into-team requires membership, list filters by team, non-admins see personal + their
-teams' tasks). IN FLIGHT: the portal /teams page (create team, add member by email, team
-task views) + live browser proof + round docs.** Then: push-channel email/SMTP (webhooks
-done), team-scoped schedules/workflows, per-user notification targeting, Phase 4.0 slices
-(MCP server, compliance/audit export, brain-page UX fixes, docs-mode RAG).
+**team spaces (3.7) — COMPLETE (`418c0d8` API + `7216f45` portal: Org/Team/TeamMember
+owner|admin|member, /api/teams RBAC, /me teams, AgentTask.teamId scoping, /teams page with
+member management — LIVE-PROVEN incl. viewer 403 + browser).** Then: **Phase 4.0 slices —
+MCP server (`609da8a`, LIVE-PROVEN), compliance/audit export (`518a5b3`, LIVE-PROVEN),
+brain-page UX + docs-mode RAG (`70e81a1`)**. Remaining backlog: multi-agent crews (4.1),
+agent skill marketplace (4.4), federated agent mesh (4.6), MCP client side, pgvector/Chroma
+retrieval layer, PDF reports, Grafana/Prometheus alert trigger ingestion, team-scoped
+schedules/workflows, per-user notification targeting.
 
 **Phase 4.0 — Agentic OS:** multi-agent crews (delegation), persistent memory
 (RAG + Graphify), MCP server + client, agent skill marketplace, autonomous
