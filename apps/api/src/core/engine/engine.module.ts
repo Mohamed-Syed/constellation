@@ -9,6 +9,8 @@ import { EngineAvailabilityService } from "./engine-availability.service.js";
 import { DelegationService } from "./delegation.service.js";
 import { McpClientService } from "./mcp-client.service.js";
 import { EngineController } from "./engine.controller.js";
+import { AlertsController } from "./alerts.controller.js";
+import { AlertWebhookService } from "./alert-webhook.service.js";
 import { MODEL_PROVIDERS } from "./model-provider.js";
 import { ModelRouterService } from "./model-router.service.js";
 import { OllamaModelProvider } from "./ollama-model-provider.js";
@@ -37,7 +39,7 @@ import { TaskService } from "./task.service.js";
  */
 @Module({
   imports: [PluginsModule, forwardRef(() => WorkflowsModule), TeamsModule],
-  controllers: [EngineController, SchedulerController],
+  controllers: [EngineController, SchedulerController, AlertsController],
   providers: [
     TaskService,
     TaskQueueService,
@@ -48,6 +50,7 @@ import { TaskService } from "./task.service.js";
     EngineAlertService,
     DelegationService,
     McpClientService,
+    AlertWebhookService,
     // (Engine v0.3) and DeepSeekModelProvider (2026-08-04) are the OPT-IN cloud
     // providers — unconfigured they report honest health and the router never
     // selects them. ModelRouterService routes between them by canHandleModel

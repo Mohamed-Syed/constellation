@@ -1,0 +1,1 @@
+{"ok":true,"ingested":[{"alertname":"HighCPU","status":"firing","severity":"critical","instance":"node-1","summary":"CPU above 90% for 10m","at":"2026-08-05T12:00:00Z"},{"alertname":"DiskFull","status":"firing","severity":"warning","instance":"prometheus","summary":"disk at 95%","at":"2026-08-05T11:55:00Z"}]}
