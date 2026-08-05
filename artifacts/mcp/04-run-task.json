@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\"ok\":true,\"id\":\"cmsfi4zaq00034gfx85clm0ps\",\"status\":\"completed\",\"provider\":\"ollama\",\"error\":null,\"result\":{\"summary\":\"mcp-ok\"},\"stepCount\":1,\"totalTokens\":424,\"costUSD\":0}"}],"isError":false}}

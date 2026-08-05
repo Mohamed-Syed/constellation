@@ -65,6 +65,6 @@ import { TaskService } from "./task.service.js";
     ModelRouterService,
     EngineAvailabilityService,
   ],
-  exports: [TaskService, TaskQueueService, ScheduledTaskService, SchedulerEngineService, SupervisorService, EngineAlertService],
+  exports: [TaskService, TaskQueueService, ScheduledTaskService, SchedulerEngineService, SupervisorService, EngineAlertService, EngineAvailabilityService, ModelRouterService],
 })
 export class EngineModule {}
