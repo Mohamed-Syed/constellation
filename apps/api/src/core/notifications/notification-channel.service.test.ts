@@ -22,8 +22,8 @@ function makeDb(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function svcWith(db: Record<string, unknown>): NotificationChannelService {
-  return new NotificationChannelService({ db } as unknown as PrismaService);
+function svcWith(db: Record<string, unknown>, sender?: unknown): NotificationChannelService {
+  return new NotificationChannelService({ db } as unknown as PrismaService, sender as never);
 }
 
 describe("buildEnvelope — webhook dialect mapping", () => {
@@ -143,5 +143,81 @@ describe("NotificationChannelService — CRUD + delivery", () => {
     const result = await svc.sendTest(ch);
     expect(result).toEqual({ ok: true, status: 200 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("NotificationChannelService — SMTP channels (3.5 remainder)", () => {
+  const OLD = { host: process.env.SMTP_HOST, port: process.env.SMTP_PORT, from: process.env.SMTP_FROM };
+  afterEach(() => {
+    process.env.SMTP_HOST = OLD.host;
+    process.env.SMTP_PORT = OLD.port;
+    process.env.SMTP_FROM = OLD.from;
+  });
+
+  it("persists an smtp channel; sendTest delivers through the injected sender", async () => {
+    process.env.SMTP_HOST = "127.0.0.1";
+    process.env.SMTP_PORT = "9025";
+    process.env.SMTP_FROM = "constellation@localhost";
+    const sender = vi.fn(async () => ({ ok: true }));
+    const db = makeDb();
+    const svc = svcWith(db, sender);
+    const ch = await svc.upsert({ name: "mail-ops", type: "smtp", to: "ops@corp.com", from: "constellation@corp.com", kinds: [] });
+    expect(ch?.type).toBe("smtp");
+    expect(ch?.to).toBe("ops@corp.com");
+    expect(sender).not.toHaveBeenCalled();
+    await svc.sendTest(ch);
+    expect(sender).toHaveBeenCalledWith(
+      expect.objectContaining({
+        host: "127.0.0.1",
+        port: 9025,
+        from: "constellation@corp.com",
+        to: "ops@corp.com",
+        subject: expect.stringContaining("Constellation"),
+        text: expect.stringContaining("wired up correctly"),
+      }),
+    );
+  });
+
+  it("refuses an smtp channel without a recipient", async () => {
+    const db = makeDb();
+    const svc = svcWith(db);
+    await expect(svc.upsert({ name: "bad", type: "smtp", kinds: [] })).resolves.toBeNull();
+  });
+
+  it("delivers real events to an smtp channel through the sender; kinds filter applies", async () => {
+    process.env.SMTP_HOST = "127.0.0.1";
+    process.env.SMTP_PORT = "9025";
+    const sender = vi.fn(async () => ({ ok: true }));
+    const db = makeDb();
+    const svc = svcWith(db, sender);
+    const ch = await svc.upsert({ name: "mail-ops", type: "smtp", to: "ops@corp.com", kinds: ["engine.task.failed"] });
+    db.setting.findUnique.mockResolvedValue({ value: [ch] });
+    await svc.dispatch("engine.task.completed", PAYLOAD); // kind mismatch -> no mail
+    expect(sender).not.toHaveBeenCalled();
+    await svc.dispatch("engine.task.failed", PAYLOAD);
+    expect(sender).toHaveBeenCalledTimes(1);
+    expect(sender.mock.calls[0]?.[0]).toMatchObject({ to: "ops@corp.com", subject: expect.stringContaining("Task failed"), text: expect.stringContaining("Kind: engine.task.failed") });
+  });
+
+  it("degrades honestly when SMTP_HOST is unset (channel still persists, sendTest reports the error)", async () => {
+    delete process.env.SMTP_HOST;
+    const db = makeDb();
+    const svc = svcWith(db);
+    const ch = await svc.upsert({ name: "mail-ops", type: "smtp", to: "ops@corp.com", kinds: [] });
+    expect(ch?.type).toBe("smtp");
+    const result = await svc.sendTest(ch);
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("SMTP_HOST");
+  });
+
+  it("never throws when the sender fails (fire-and-forget)", async () => {
+    process.env.SMTP_HOST = "127.0.0.1";
+    process.env.SMTP_PORT = "9025";
+    const sender = vi.fn(async () => ({ ok: false, error: "relay refused" }));
+    const db = makeDb();
+    const svc = svcWith(db, sender);
+    const ch = await svc.upsert({ name: "mail-ops", type: "smtp", to: "ops@corp.com", kinds: [] });
+    db.setting.findUnique.mockResolvedValue({ value: [ch] });
+    await expect(svc.dispatch("engine.task.failed", PAYLOAD)).resolves.toBeUndefined();
   });
 });

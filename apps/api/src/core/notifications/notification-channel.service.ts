@@ -1,20 +1,27 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Optional } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../database/prisma.service.js";
+import { sendSmtpMessage, type SmtpOptions, type SmtpResult } from "./smtp-send.js";
 
-/** A configured outbound notification channel (webhook family today). */
+/** A configured outbound notification channel (webhook or SMTP). */
 export interface NotificationChannel {
   id: string;
   name: string;
-  type: "webhook";
-  /** Target URL (http/https). */
-  url: string;
-  /** Envelope shape: slack | discord | teams | generic. */
-  format: "slack" | "discord" | "teams" | "generic";
+  type: "webhook" | "smtp";
+  /** Target URL (http/https) — webhook channels only. */
+  url?: string;
+  /** Envelope shape: slack | discord | teams | generic — webhook channels only. */
+  format?: "slack" | "discord" | "teams" | "generic";
+  /** Recipient email — SMTP channels only. */
+  to?: string;
+  /** Sender email (defaults to SMTP_FROM / constellation@localhost). */
+  from?: string;
   /** Notification kinds this channel receives; empty = ALL kinds. */
   kinds: string[];
   enabled: boolean;
 }
+
+export type NotificationChannelInput = Omit<NotificationChannel, "id"> & { id?: string };
 
 export const CHANNEL_FORMATS = ["slack", "discord", "teams", "generic"] as const;
 
@@ -60,7 +67,12 @@ export class NotificationChannelService {
   private readonly logger = new Logger(NotificationChannelService.name);
   private warnedNoDb = false;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // SMTP round — injectable sender (tests hand-wire a fake; production
+    // defaults to the zero-dep net/tls client in smtp-send.ts).
+    @Optional() private readonly smtpSender?: (opts: SmtpOptions) => Promise<SmtpResult>,
+  ) {}
 
   /** The configured channels (cached read of the JSON setting). */
   async list(): Promise<NotificationChannel[]> {
@@ -88,8 +100,10 @@ export class NotificationChannelService {
     id?: string;
     name: string;
     type?: string;
-    url: string;
+    url?: string;
     format?: string;
+    to?: string;
+    from?: string;
     kinds?: string[];
     enabled?: boolean;
   }): Promise<NotificationChannel | null> {
@@ -98,14 +112,26 @@ export class NotificationChannelService {
       this.warnNoDbOnce();
       return null;
     }
+    const type = input.type === "smtp" ? "smtp" : "webhook";
+    if (type === "smtp" && !input.to?.trim()) return null;
+    if (type === "webhook" && !input.url?.trim()) return null;
     const channels = await this.list();
     const existing = input.id ? channels.find((c) => c.id === input.id) : undefined;
     const channel: NotificationChannel = {
       id: existing?.id ?? newId(),
       name: input.name.trim(),
-      type: "webhook",
-      url: input.url.trim(),
-      format: (CHANNEL_FORMATS as readonly string[]).includes(input.format ?? "") ? (input.format as NotificationChannel["format"]) : "generic",
+      type,
+      ...(type === "webhook"
+        ? {
+            url: input.url!.trim(),
+            format: (CHANNEL_FORMATS as readonly string[]).includes(input.format ?? "")
+              ? (input.format as NotificationChannel["format"])
+              : "generic",
+          }
+        : {
+            to: input.to!.trim(),
+            from: input.from?.trim() || undefined,
+          }),
       kinds: Array.isArray(input.kinds) ? input.kinds.filter((k) => typeof k === "string") : [],
       enabled: input.enabled ?? true,
     };
@@ -159,11 +185,14 @@ export class NotificationChannelService {
     }
   }
 
-  /** POST the envelope for one channel; resolves the outcome, never throws. */
+  /** POST the envelope (webhook) or send the mail (SMTP) for one channel; resolves the outcome, never throws. */
   private async deliver(
     channel: NotificationChannel,
     payload: ChannelEventPayload,
   ): Promise<{ ok: boolean; status?: number; error?: string }> {
+    if (channel.type === "smtp") {
+      return this.deliverSmtp(channel, payload);
+    }
     let body: unknown;
     try {
       body = buildEnvelope(channel.format, payload);
@@ -171,13 +200,49 @@ export class NotificationChannelService {
       return { ok: false, error: asMessage(err) };
     }
     try {
-      const res = await fetch(channel.url, {
+      const res = await fetch(channel.url!, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
       });
       return { ok: res.ok, status: res.status };
+    } catch (err) {
+      return { ok: false, error: asMessage(err) };
+    }
+  }
+
+  /** SMTP round: deliver via the (injectable) SMTP sender; env-configured relay. */
+  private async deliverSmtp(
+    channel: NotificationChannel,
+    payload: ChannelEventPayload,
+  ): Promise<{ ok: boolean; error?: string }> {
+    const host = process.env.SMTP_HOST;
+    const port = Number(process.env.SMTP_PORT ?? (host ? 25 : 0));
+    if (!host) {
+      return { ok: false, error: "SMTP not configured (set SMTP_HOST in .env)" };
+    }
+    const from = channel.from ?? process.env.SMTP_FROM ?? "constellation@localhost";
+    const subject = `[Constellation] ${payload.severity.toUpperCase()} — ${payload.title}`;
+    const text =
+      `${payload.title}\n\n${payload.message ?? ""}\n\n` +
+      `Kind: ${payload.kind} · Severity: ${payload.severity}` +
+      (payload.refId ? `\nReference: ${payload.refType ?? "task"} ${payload.refId}` : "") +
+      `\nSent by Constellation (${new Date().toISOString()})`;
+    try {
+      const sender = this.smtpSender ?? sendSmtpMessage;
+      const result = await sender({
+        host,
+        port,
+        user: process.env.SMTP_USER || undefined,
+        pass: process.env.SMTP_PASS || undefined,
+        secure: process.env.SMTP_SECURE === "true",
+        from,
+        to: channel.to ?? "",
+        subject,
+        text,
+      });
+      return result.ok ? { ok: true } : { ok: false, error: result.error };
     } catch (err) {
       return { ok: false, error: asMessage(err) };
     }
@@ -251,9 +316,11 @@ export function buildEnvelope(
 function isChannel(value: unknown): value is NotificationChannel {
   if (typeof value !== "object" || value === null) return false;
   const c = value as Record<string, unknown>;
+  if (typeof c.id !== "string" || typeof c.name !== "string" || !Array.isArray(c.kinds)) return false;
+  if (c.type === "smtp") {
+    return typeof c.to === "string" && typeof c.enabled === "boolean";
+  }
   return (
-    typeof c.id === "string" &&
-    typeof c.name === "string" &&
     c.type === "webhook" &&
     typeof c.url === "string" &&
     (CHANNEL_FORMATS as readonly string[]).includes(c.format as string) &&

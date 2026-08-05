@@ -94,7 +94,7 @@ python - "$OUT/team-task-final.json" <<'PY'
 import json,sys
 r = json.load(open(sys.argv[1]))
 t = r[0]
-print(f"team task final: status={t.get('status')} provider={t.get('provider')} tokens={t.get('totalTokens')} cost={t.get('estimatedCost')}")
+print(f"team task final: status={t.get('status')} provider={t.get('provider')} tokens={t.get('totalTokens')} cost={t.get('costUSD')}")
 PY
 
 echo

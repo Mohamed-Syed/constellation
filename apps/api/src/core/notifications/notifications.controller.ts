@@ -86,19 +86,27 @@ export class NotificationsController {
   @ApiOkResponse({ description: "Create or update an outbound notification channel." })
   async upsertChannel(@Body() body: Record<string, unknown>) {
     const name = typeof body.name === "string" ? body.name : "";
+    const type = body.type === "smtp" ? "smtp" : "webhook";
     const url = typeof body.url === "string" ? body.url : "";
+    const to = typeof body.to === "string" ? body.to : "";
+    const from = typeof body.from === "string" ? body.from : undefined;
     if (!name.trim()) throw new BadRequestException("Channel name is required.");
-    if (!/^https?:\/\//.test(url.trim())) throw new BadRequestException("Channel url must start with http:// or https://.");
-    const format = typeof body.format === "string" ? body.format : "generic";
-    if (!(CHANNEL_FORMATS as readonly string[]).includes(format)) {
-      throw new BadRequestException(`Channel format must be one of: ${CHANNEL_FORMATS.join(", ")}.`);
+    if (type === "smtp") {
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to.trim())) {
+        throw new BadRequestException("SMTP channels need a valid recipient email in `to`.");
+      }
+    } else {
+      if (!/^https?:\/\//.test(url.trim())) throw new BadRequestException("Channel url must start with http:// or https://.");
+      const format = typeof body.format === "string" ? body.format : "generic";
+      if (!(CHANNEL_FORMATS as readonly string[]).includes(format)) {
+        throw new BadRequestException(`Channel format must be one of: ${CHANNEL_FORMATS.join(", ")}.`);
+      }
     }
     const channel = await this.channels.upsert({
       id: typeof body.id === "string" ? body.id : undefined,
       name,
-      type: "webhook",
-      url,
-      format,
+      type,
+      ...(type === "smtp" ? { to, from } : { url, format: typeof body.format === "string" ? body.format : "generic" }),
       kinds: Array.isArray(body.kinds) ? body.kinds.filter((k): k is string => typeof k === "string") : [],
       enabled: body.enabled === undefined ? true : body.enabled === true,
     });

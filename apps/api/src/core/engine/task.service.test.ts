@@ -134,7 +134,7 @@ describe("TaskService — findAll", () => {
       inputTokens: true,
       outputTokens: true,
       totalTokens: true,
-      estimatedCost: true,
+      costUSD: true,
       createdAt: true,
       updatedAt: true,
       startedAt: true,

@@ -84,7 +84,7 @@ export class TaskService {
       select: {
         id: true, title: true, status: true, model: true, provider: true,
         stepCount: true, maxSteps: true, maxTokens: true, actorId: true, teamId: true,
-        inputTokens: true, outputTokens: true, totalTokens: true, estimatedCost: true,
+        inputTokens: true, outputTokens: true, totalTokens: true, costUSD: true,
         createdAt: true, updatedAt: true, startedAt: true, completedAt: true, error: true,
       },
     });
