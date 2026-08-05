@@ -1,0 +1,18 @@
+[
+ { "act": "goto", "url": "http://localhost:3005/login" },
+ { "act": "wait", "expr": "document.querySelector('input[type=email]') !== null", "wait": 60000 },
+ { "act": "type", "selector": "input[type=email]", "t": "admin@constellation.local" },
+ { "act": "type", "selector": "input[type=password]", "t": "changeme" },
+ { "act": "sleep", "ms": 1200 },
+ { "act": "eval", "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => /sign in|log in|submit/i.test(x.textContent || '')); if (b) { b.click(); return 'clicked login'; } return 'no login button'; })()" },
+ { "act": "sleep", "ms": 10000 },
+ { "act": "goto", "url": "http://localhost:3005/notifications" },
+ { "act": "wait", "expr": "(document.body && document.body.innerText).includes('Audit log')", "wait": 30000 },
+ { "act": "eval", "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => (x.textContent || '').trim() === 'Audit log'); if (!b) return 'no audit tab'; b.click(); return 'opened audit'; })()" },
+ { "act": "wait", "expr": "(document.body && document.body.innerText).includes('Export CSV')", "wait": 20000 },
+ { "act": "eval", "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => (x.textContent || '').includes('Export CSV')); if (!b) return 'no export btn'; b.click(); return 'clicked export'; })()" },
+ { "act": "sleep", "ms": 3500 },
+ { "act": "eval", "expr": "(() => { const t = document.body.innerText; return 'toast=' + (t.includes('Audit CSV downloaded.') ? 'yes' : 'no') + ';rows=' + (t.includes('auth.login') ? 'yes' : 'no'); })()" },
+ { "act": "shot", "shot": "audit-export" },
+ { "act": "text" }
+]

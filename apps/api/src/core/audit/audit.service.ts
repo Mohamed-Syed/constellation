@@ -70,8 +70,57 @@ export class AuditService {
       take: Math.min(Math.max(limit, 1), 500),
     });
   }
+
+  /**
+   * Compliance-export query (Phase 4.0): optional actor/action substring
+   * filters, newest first, capped at 1000 rows for a sane CSV.
+   */
+  async listForExport(opts: { limit?: number; actor?: string; action?: string } = {}): Promise<AuditEntry[]> {
+    const db = this.prisma.db;
+    if (!db) return [];
+    const where: Record<string, unknown> = {};
+    if (opts.actor) where.actorId = { contains: opts.actor };
+    if (opts.action) where.action = { contains: opts.action };
+    return db.auditLog.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: Math.min(Math.max(opts.limit ?? 1000, 1), 1000),
+    });
+  }
 }
 
 function asMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+/** One audit row as the API returns it (the Prisma row's scalar shape). */
+export interface AuditEntry {
+  id: string;
+  pluginId: string;
+  actorId: string | null;
+  action: string;
+  metadata: unknown;
+  createdAt: Date;
+}
+
+/**
+ * Phase 4.0 — compliance export: audit rows → RFC-4180 CSV (header + rows,
+ * quoting fields containing commas, quotes or newlines; metadata JSON-encoded).
+ * Pure function, unit tested; the controller streams the result as a download.
+ */
+export function auditToCsv(rows: AuditEntry[]): string {
+  const escape = (value: string | null | undefined): string => {
+    const s = value ?? "";
+    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const header = "createdAt,actorId,action,metadata";
+  const lines = rows.map((r) =>
+    [
+      r.createdAt.toISOString(),
+      escape(r.actorId),
+      escape(r.action),
+      escape(r.metadata === undefined || r.metadata === null ? null : JSON.stringify(r.metadata)),
+    ].join(","),
+  );
+  return [header, ...lines].join("\r\n") + "\r\n";
 }

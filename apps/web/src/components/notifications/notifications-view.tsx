@@ -2,12 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import {
   AlertCircle,
   AlertTriangle,
   Bell,
   CheckCheck,
   CheckCircle2,
+  Download,
   Info,
   Loader2,
   ShieldCheck,
@@ -24,6 +26,7 @@ import { formatRelativeTime } from "@/lib/engine";
 import { ChannelsPanel } from "./channels-panel";
 import {
   dismissNotification,
+  exportAuditCsv,
   fetchAuditEntries,
   fetchNotifications,
   markAllNotificationsRead,
@@ -91,6 +94,25 @@ export function NotificationsView() {
   const canReadAudit = hasPermission(permissions, "core:audit:read");
   const canManageChannels = hasPermission(permissions, "platform:admin");
 
+  // Compliance export (Phase 4.0): fetch the CSV, then trigger a download.
+  const handleExport = async () => {
+    setExporting(true);
+    const result = await exportAuditCsv(token);
+    setExporting(false);
+    if (!result.ok || !result.csv) {
+      toast.error(`Export failed: ${result.error ?? "no data"}`);
+      return;
+    }
+    const blob = new Blob([result.csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `constellation-audit-${new Date().toISOString().replace(/[:.]/g, "-")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Audit CSV downloaded.");
+  };
+
   const [tab, setTab] = React.useState<string>("feed");
   const [filter, setFilter] = React.useState<FilterId>("all");
   const [result, setResult] = React.useState<NotificationListResult | null>(null);
@@ -101,6 +123,7 @@ export function NotificationsView() {
   const [audit, setAudit] = React.useState<AuditEntry[] | null>(null);
   const [auditLoading, setAuditLoading] = React.useState(false);
   const [auditForbidden, setAuditForbidden] = React.useState(false);
+  const [exporting, setExporting] = React.useState(false);
 
   // Feed: poll the durable event feed (keeps the unread count honest too).
   React.useEffect(() => {
@@ -278,8 +301,18 @@ export function NotificationsView() {
               <CardTitle className="flex items-center gap-2">
                 <ShieldCheck className="size-4 text-neutral-400" /> Audit log
               </CardTitle>
-              <CardDescription>
-                Accountable trail of platform actions, newest first (admin only).
+              <CardDescription className="flex items-center justify-between gap-3">
+                <span>Accountable trail of platform actions, newest first (admin only).</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleExport()}
+                  disabled={exporting}
+                  className="shrink-0"
+                >
+                  {exporting ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+                  Export CSV
+                </Button>
               </CardDescription>
             </CardHeader>
             <CardContent>

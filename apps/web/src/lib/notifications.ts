@@ -173,3 +173,24 @@ export function testNotificationChannel(
     method: "POST",
   });
 }
+
+/** GET /api/audit/export?actor=&action= — compliance CSV download (admin). */
+export async function exportAuditCsv(
+  token: string | null,
+  filters: { actor?: string; action?: string } = {},
+): Promise<{ ok: boolean; csv?: string; error?: string }> {
+  const qs = new URLSearchParams();
+  if (filters.actor) qs.set("actor", filters.actor);
+  if (filters.action) qs.set("action", filters.action);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  try {
+    const res = await fetch(`${API_BASE}/audit/export${suffix}`, {
+      cache: "no-store",
+      headers: authHeaders(token),
+    });
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    return { ok: true, csv: await res.text() };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
