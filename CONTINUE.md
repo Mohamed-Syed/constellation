@@ -58,10 +58,10 @@ The strategic vision + market analysis + full roadmap live in
 
 ## 3. Current state (authoritative as of the last commit) — reconcile, don't assume
 
-**HEAD:** `70e81a1` — `feat(brain): Phase 4.0 — brain-page UX fixes + docs-mode (RAG) graphify wiring` (above `518a5b3` compliance export, `609da8a` MCP server, `359ece8` SMTP channel, `7216f45` team-spaces portal, `418c0d8` team-spaces API, `ee5b304` workflow triggers, `88944b7` webhook channels, `f2afda4` multi-model compare, `29d9746` session summary). **PHASE 2.0 COMPLETE; PHASE 3.0 COMPLETE; PHASE 4.0 in progress (MCP server, compliance export, brain UX + docs-mode RAG shipped).**
+**HEAD:** `b77e4ff` — `feat(crews): Phase 4.0 4.1 — task delegation (AgentTask.parentTaskId + REST + MCP + portal tree)` (above `70e81a1` brain+RAG, `518a5b3` compliance export, `609da8a` MCP server, `359ece8` SMTP channel, `7216f45` team-spaces portal, `418c0d8` team-spaces API, `ee5b304` workflow triggers, `88944b7` webhook channels, `f2afda4` multi-model compare, `29d9746` session summary). **PHASE 2.0 COMPLETE; PHASE 3.0 COMPLETE; PHASE 4.0 in progress (crews 4.1, MCP server, compliance export, brain UX + docs-mode RAG — graph VERIFIED — shipped).**
 Tree is **clean** (only untracked `Prompt to Clau_Partner.txt`, a working artifact).
 
-**Test count (full repo):** **695** — api **571** (40 files), web (build+typecheck, no unit
+**Test count (full repo):** **703** — api **579** (41 files), web (build+typecheck, no unit
 suite), plugin-sdk **21**, plugin-graphify **40**, plugin-browser-use **47**, cli **16**.
 Gates: `turbo run lint build typecheck test --force --concurrency=1` → **20/20 tasks green**.
 
@@ -97,7 +97,8 @@ Gates: `turbo run lint build typecheck test --force --concurrency=1` → **20/20
 | SMTP email channel | `359ece8` | Phase 3.0 3.5 remainder — zero-dep net/tls SMTP client, channel type smtp (recipient/from, env relay), .env.example block; 2 live-found bugs (EHLO folding, 3xx) | ✅ LIVE vs local SMTP stub: test mail + real engine.task.failed mail recorded literally |
 | MCP server | `609da8a` | Phase 4.0 4.3 — POST /api/mcp JSON-RPC (initialize/tools/list/tools/call/ping/resources), 4 constellation tools, JWT-guarded | ✅ LIVE client exchange: handshake + REAL task completed via MCP on Ollama (mcp-ok, 424 tokens, $0) + isError/401 |
 | Compliance export | `518a5b3` | Phase 4.0 4.7 — GET /api/audit/export CSV (actor/action filters, cap 1000) + portal Export CSV button on the Audit tab | ✅ LIVE: 200/2415-byte real CSV + workflow-filtered + 401; browser toast |
-| Brain UX + docs-mode RAG | `70e81a1` | Phase 4.0 — brain page (adaptive layout, content-keyed memo, label anti-collision, degraded banner) + GRAPHIFY_MODE=docs default, bind-mounted graph, [mcp,ollama] Dockerfile | ✅ /brain NOT-BUILT UI browser-verified; extraction live (258 code + 11 docs); graph materialization running at close |
+| Brain UX + docs-mode RAG | `70e81a1` | Phase 4.0 — brain page (adaptive layout, content-keyed memo, label anti-collision, degraded banner) + GRAPHIFY_MODE=docs default, bind-mounted graph, [mcp,ollama] Dockerfile | ✅ /brain NOT-BUILT UI browser-verified; **graph materialized 2.49MB (2274 nodes/4269 edges), stats available:true, query grounded, remember appends brain/notes/** |
+| Crews / task delegation | `b77e4ff` | Phase 4.0 4.1 — AgentTask.parentTaskId (migration add_task_delegation), DelegationService (spawnChild/childrenOf/tree/waitForChildren), REST /delegate + /children + /tree (RBAC → 403), MCP constellation.delegate_task, portal Delegation section in the task detail dialog | ✅ LIVE: parent + 2 REST children + 1 MCP child all completed on Ollama; viewer delegate 403; browser tree (4 tasks) + form vision-verified |
 
 **Live stack (local, $0):** postgres :5432, redis :6380, ollama `qwen2.5-coder:7b`,
 api :4001 (use `API_HOST_PORT`, never the squatted :4000). Prometheus/Grafana/Loki
@@ -116,8 +117,9 @@ Prometheus `/api/metrics` · CLI ops subcommands · **OTel tracing + Tempo** ·
 **Portal `/health` engine dashboard** · **PHASE 3.0 COMPLETE (3.1 /engine UI, 3.2
 marketplace, 3.3 workflow builder, 3.4 notification center, 3.5 channels + SMTP,
 3.6 multi-model compare, workflow trigger wiring, 3.7 team spaces)** ·
-**Phase 4.0 slices: MCP server, compliance export, brain-page UX fixes,
-docs-mode RAG wiring (all LIVE-PROVEN)**.
+**Phase 4.0: crews/delegation (4.1), MCP server, compliance export, brain-page UX
+fixes, docs-mode RAG — graph materialized + query/remember VERIFIED (all
+LIVE-PROVEN)**.
 
 **The design-language source** (three repos, guidance captured in `docs/DESIGN_SKILL.md`):
 `emilkowalski/skills`, `pbakaus/impeccable`, `leonxlnx/taste-skill`. Any portal
@@ -208,12 +210,13 @@ primitive: a workflow on engine.task.failed remediates failures. LIVE-PROVEN: cr
 completed, PUT re-sync, real doomed task → event workflow completed)**;
 **team spaces (3.7) — COMPLETE (`418c0d8` API + `7216f45` portal: Org/Team/TeamMember
 owner|admin|member, /api/teams RBAC, /me teams, AgentTask.teamId scoping, /teams page with
-member management — LIVE-PROVEN incl. viewer 403 + browser).** Then: **Phase 4.0 slices —
-MCP server (`609da8a`, LIVE-PROVEN), compliance/audit export (`518a5b3`, LIVE-PROVEN),
-brain-page UX + docs-mode RAG (`70e81a1`)**. Remaining backlog: multi-agent crews (4.1),
-agent skill marketplace (4.4), federated agent mesh (4.6), MCP client side, pgvector/Chroma
+member management — LIVE-PROVEN incl. viewer 403 + browser).** Then: **Phase 4.0 — MCP server
+(`609da8a`, LIVE-PROVEN), compliance/audit export (`518a5b3`, LIVE-PROVEN), brain-page UX +
+docs-mode RAG (`70e81a1` — graph VERIFIED: 2274 nodes/4269 edges, query grounded, remember
+works), crews/delegation (`b77e4ff`, LIVE-PROVEN)**. Remaining backlog: agent skill
+marketplace (4.4), federated agent mesh (4.6), MCP client side, pgvector/Chroma
 retrieval layer, PDF reports, Grafana/Prometheus alert trigger ingestion, team-scoped
-schedules/workflows, per-user notification targeting.
+schedules/workflows, per-user notification targeting, crews budget flow-down.
 
 **Phase 4.0 — Agentic OS:** multi-agent crews (delegation), persistent memory
 (RAG + Graphify), MCP server + client, agent skill marketplace, autonomous
