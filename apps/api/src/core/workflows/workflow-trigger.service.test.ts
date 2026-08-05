@@ -25,8 +25,11 @@ function makeBus() {
   const coreOn: Array<[string, (payload: unknown) => void]> = [];
   const platformOn: Array<[string, (payload: unknown) => void]> = [];
   const bus = {
-    forPlugin: () => ({ on: (t: string, h: (p: unknown) => void) => void coreOn.push([t, h]), emit: vi.fn(), onPlatform: vi.fn() }),
-    onPlatform: (t: string, h: (p: unknown) => void) => void platformOn.push([t, h]),
+    forPlugin: () => ({
+      on: (t: string, h: (p: unknown) => void) => void coreOn.push([t, h]),
+      onPlatform: (t: string, h: (p: unknown) => void) => void platformOn.push([t, h]),
+      emit: vi.fn(),
+    }),
     emitPlatform: vi.fn(),
   } as unknown as EventBusService;
   return { bus, coreOn, platformOn };

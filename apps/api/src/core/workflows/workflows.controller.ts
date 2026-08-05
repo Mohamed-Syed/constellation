@@ -19,7 +19,7 @@ import { PermissionsGuard } from "../rbac/permissions.guard.js";
 import { RequirePermissions } from "../rbac/require-permissions.decorator.js";
 import { WorkflowService } from "./workflow.service.js";
 import { WorkflowRunService } from "./workflow-run.service.js";
-import { WorkflowTriggerService } from "./workflow-trigger.service.js";
+import { WorkflowTriggerService, type WorkflowTriggerInput } from "./workflow-trigger.service.js";
 
 /**
  * Phase 3.0 — visual workflow builder: REST surface for stored workflow
@@ -50,7 +50,7 @@ export class WorkflowsController {
       definition: body.definition,
     });
     // Workflow triggers round: arm the cron schedule / event listener.
-    await this.triggers.sync(row);
+    await this.triggers.sync(row as unknown as WorkflowTriggerInput);
     return row;
   }
 
@@ -90,7 +90,7 @@ export class WorkflowsController {
     });
     if (!row) throw new NotFoundException(`Workflow "${id}" not found`);
     // Workflow triggers round: re-arm the schedule / listener to the new trigger.
-    await this.triggers.sync(row);
+    await this.triggers.sync(row as unknown as WorkflowTriggerInput);
     return row;
   }
 

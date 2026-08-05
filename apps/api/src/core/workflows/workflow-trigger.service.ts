@@ -113,14 +113,14 @@ export class WorkflowTriggerService {
       );
     };
     // Both scopes: core:<event> (engine events — incident response) and
-    // platform:<event> (plugin lifecycle events).
+    // platform:<event> (plugin lifecycle events, via forPlugin().onPlatform).
     try {
       this.eventBus.forPlugin("core").on(event, handler);
     } catch (err) {
       this.logger.warn(`Could not arm core listener for "${event}": ${asMessage(err)}`);
     }
     try {
-      this.eventBus.onPlatform(event, handler);
+      this.eventBus.forPlugin("core").onPlatform(event, handler);
     } catch (err) {
       this.logger.warn(`Could not arm platform listener for "${event}": ${asMessage(err)}`);
     }
