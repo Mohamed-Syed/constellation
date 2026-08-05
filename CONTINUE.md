@@ -58,10 +58,10 @@ The strategic vision + market analysis + full roadmap live in
 
 ## 3. Current state (authoritative as of the last commit) — reconcile, don't assume
 
-**HEAD:** `b77e4ff` — `feat(crews): Phase 4.0 4.1 — task delegation (AgentTask.parentTaskId + REST + MCP + portal tree)` (above `70e81a1` brain+RAG, `518a5b3` compliance export, `609da8a` MCP server, `359ece8` SMTP channel, `7216f45` team-spaces portal, `418c0d8` team-spaces API, `ee5b304` workflow triggers, `88944b7` webhook channels, `f2afda4` multi-model compare, `29d9746` session summary). **PHASE 2.0 COMPLETE; PHASE 3.0 COMPLETE; PHASE 4.0 in progress (crews 4.1, MCP server, compliance export, brain UX + docs-mode RAG — graph VERIFIED — shipped).**
+**HEAD:** `86c61e0` — `feat(crews-followup): Phase 4.0 — budget flow-down + sub-agent result merging` (above `ebef6dc` alerts, `095234e` audit PDF, `97d2383` brain search, `7e56229` MCP client, `0803ddd` skills, `70e81a1` brain+RAG, `518a5b3` compliance, `609da8a` MCP server, `359ece8` SMTP, `7216f45` teams portal, `418c0d8` teams API, `ee5b304` workflow triggers, `88944b7` webhook channels, `f2afda4` multi-model compare, `29d9746` session summary). **PHASE 2.0 COMPLETE; PHASE 3.0 COMPLETE; PHASE 4.0 largely SHIPPED (crews + budget/merge, MCP server+client, skills, semantic retrieval, CSV+PDF compliance, alert ingestion, brain UX+RAG).**
 Tree is **clean** (only untracked `Prompt to Clau_Partner.txt`, a working artifact).
 
-**Test count (full repo):** **703** — api **579** (41 files), web (build+typecheck, no unit
+**Test count (full repo):** **728** — api **604** (45 files), web (build+typecheck, no unit
 suite), plugin-sdk **21**, plugin-graphify **40**, plugin-browser-use **47**, cli **16**.
 Gates: `turbo run lint build typecheck test --force --concurrency=1` → **20/20 tasks green**.
 
@@ -99,6 +99,12 @@ Gates: `turbo run lint build typecheck test --force --concurrency=1` → **20/20
 | Compliance export | `518a5b3` | Phase 4.0 4.7 — GET /api/audit/export CSV (actor/action filters, cap 1000) + portal Export CSV button on the Audit tab | ✅ LIVE: 200/2415-byte real CSV + workflow-filtered + 401; browser toast |
 | Brain UX + docs-mode RAG | `70e81a1` | Phase 4.0 — brain page (adaptive layout, content-keyed memo, label anti-collision, degraded banner) + GRAPHIFY_MODE=docs default, bind-mounted graph, [mcp,ollama] Dockerfile | ✅ /brain NOT-BUILT UI browser-verified; **graph materialized 2.49MB (2274 nodes/4269 edges), stats available:true, query grounded, remember appends brain/notes/** |
 | Crews / task delegation | `b77e4ff` | Phase 4.0 4.1 — AgentTask.parentTaskId (migration add_task_delegation), DelegationService (spawnChild/childrenOf/tree/waitForChildren), REST /delegate + /children + /tree (RBAC → 403), MCP constellation.delegate_task, portal Delegation section in the task detail dialog | ✅ LIVE: parent + 2 REST children + 1 MCP child all completed on Ollama; viewer delegate 403; browser tree (4 tasks) + form vision-verified |
+| Skill marketplace | `0803ddd` | Phase 4.0 4.4 — 7-skill catalog, install = skill:<id> cron schedule, REST /api/skills (admin-gated), portal /skills card grid | ✅ LIVE: 2 installs → real schedules (correct crons), toggle → paused, uninstall, viewer 403; browser catalog vision-verified |
+| MCP client side | `7e56229` | Phase 4.0 4.3 tail — McpClientService (MCP_CLIENT_URLS/HEADERS), external tools surfaced as plugin=mcp tool=alias.name, worker proxying | ✅ LIVE: agent called test.echo on an external MCP server → echoed result, task completed |
+| Semantic retrieval | `97d2383` | Phase 4.0 4.2 tail — BrainService.search: vault notes + graph labels embedded via Ollama nomic-embed-text, cosine rank, zero new infra; POST /api/brain/search | ✅ LIVE: delegation query → remembered vault note TOP hit (RAG loop closed) |
+| PDF compliance reports | `095234e` | Phase 4.0 4.7 tail — zero-dep PDF writer, /api/audit/export?format=pdf (multi-page audit table) | ✅ LIVE: 200 / 10,788 bytes, %PDF-1.4, 2 pages for 50 rows, real auth.login rows |
+| Alert-trigger ingestion | `ebef6dc` | Phase 4.0 4.5 tail — AlertWebhookService: Alertmanager → engine.alert.fired events + audit; POST /api/alerts/webhook (shared-secret) | ✅ LIVE: alert-remediation workflow armed + ran on a real webhook (run 1 completed); wrong secret 401 |
+| Crews follow-up (budget + merge) | `86c61e0` | Phase 4.0 — tree aggregates descendants' tokens/cost; mergeResults folds children's outcomes into the parent's result; POST /engine/tasks/:id/merge; portal budget badge + Merge button | ✅ LIVE: tree aggregation (1 child, 1347 tok, $0) + merge wrote children payload into parent's result |
 
 **Live stack (local, $0):** postgres :5432, redis :6380, ollama `qwen2.5-coder:7b`,
 api :4001 (use `API_HOST_PORT`, never the squatted :4000). Prometheus/Grafana/Loki
@@ -117,8 +123,9 @@ Prometheus `/api/metrics` · CLI ops subcommands · **OTel tracing + Tempo** ·
 **Portal `/health` engine dashboard** · **PHASE 3.0 COMPLETE (3.1 /engine UI, 3.2
 marketplace, 3.3 workflow builder, 3.4 notification center, 3.5 channels + SMTP,
 3.6 multi-model compare, workflow trigger wiring, 3.7 team spaces)** ·
-**Phase 4.0: crews/delegation (4.1), MCP server, compliance export, brain-page UX
-fixes, docs-mode RAG — graph materialized + query/remember VERIFIED (all
+**Phase 4.0: crews + budget/merge, MCP server AND client, skill marketplace,
+semantic retrieval, CSV+PDF compliance, alert ingestion → incident workflow,
+brain UX + docs-mode RAG — graph materialized + query/remember VERIFIED (all
 LIVE-PROVEN)**.
 
 **The design-language source** (three repos, guidance captured in `docs/DESIGN_SKILL.md`):
@@ -210,13 +217,14 @@ primitive: a workflow on engine.task.failed remediates failures. LIVE-PROVEN: cr
 completed, PUT re-sync, real doomed task → event workflow completed)**;
 **team spaces (3.7) — COMPLETE (`418c0d8` API + `7216f45` portal: Org/Team/TeamMember
 owner|admin|member, /api/teams RBAC, /me teams, AgentTask.teamId scoping, /teams page with
-member management — LIVE-PROVEN incl. viewer 403 + browser).** Then: **Phase 4.0 — MCP server
-(`609da8a`, LIVE-PROVEN), compliance/audit export (`518a5b3`, LIVE-PROVEN), brain-page UX +
-docs-mode RAG (`70e81a1` — graph VERIFIED: 2274 nodes/4269 edges, query grounded, remember
-works), crews/delegation (`b77e4ff`, LIVE-PROVEN)**. Remaining backlog: agent skill
-marketplace (4.4), federated agent mesh (4.6), MCP client side, pgvector/Chroma
-retrieval layer, PDF reports, Grafana/Prometheus alert trigger ingestion, team-scoped
-schedules/workflows, per-user notification targeting, crews budget flow-down.
+member management — LIVE-PROVEN incl. viewer 403 + browser).** Then: **Phase 4.0 — crews +
+budget flow-down + result merging (`b77e4ff`+`86c61e0`), MCP server AND client
+(`609da8a`+`7e56229`), skill marketplace (`0803ddd`), semantic retrieval (`97d2383`),
+CSV+PDF compliance (`518a5b3`+`095234e`), alert ingestion → incident workflow (`ebef6dc`),
+brain UX + docs-mode RAG (`70e81a1` — graph VERIFIED: 2274 nodes/4269 edges, query grounded,
+remember works)**. Remaining backlog: federated agent mesh (4.6), portal-wide delegation
+view, scheduled PDF report delivery, team-scoped schedules/workflows, per-user notification
+targeting, per-task notification config, /compare quality scoring.
 
 **Phase 4.0 — Agentic OS:** multi-agent crews (delegation), persistent memory
 (RAG + Graphify), MCP server + client, agent skill marketplace, autonomous
