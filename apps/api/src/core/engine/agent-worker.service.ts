@@ -8,6 +8,7 @@ import type { ChatMessage } from "./model-router.service.js";
 import { ModelRouterService } from "./model-router.service.js";
 import { EngineAvailabilityService } from "./engine-availability.service.js";
 import { EngineAlertService } from "./engine-alerts.service.js";
+import { McpClientService } from "./mcp-client.service.js";
 import { engineLoopsRunHere } from "./engine-worker-role.js";
 import type { FailureClassification } from "./dead-letter.js";
 import { buildRedisConnectionOptions } from "./redis-connection.js";
@@ -76,6 +77,7 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
     private readonly availability: EngineAvailabilityService,
     private readonly alerts: EngineAlertService,
     @Optional() @Inject(TracingService) private readonly tracing?: TracingService,
+    @Optional() private readonly mcpClient?: McpClientService,
   ) {
     this.connection = buildRedisConnectionOptions(config.get("REDIS_URL", "redis://localhost:6379"));
     this.approveAll = config.get("ENGINE_REQUIRE_APPROVAL_ALL", "false") === "true";
@@ -172,7 +174,7 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
       stepIndex = checkpoint.stepIndex;
     } else {
       messages = [
-        { role: "system", content: this.buildSystemPrompt() },
+        { role: "system", content: await this.buildSystemPrompt() },
         { role: "user", content: task.prompt },
       ];
       stepIndex = 0;
@@ -417,7 +419,10 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
       await this.taskService.saveCheckpoint(taskId, messages, stepIndex + 1);
     }
 
-    const invocation = await this.pluginTool.invoke(plugin, tool, args, ENGINE_AGENT_PERMISSIONS);
+    const invocation =
+      plugin === "mcp"
+        ? await this.invokeMcpTool(tool, args)
+        : await this.pluginTool.invoke(plugin, tool, args, ENGINE_AGENT_PERMISSIONS);
 
     const toolResult =
       invocation.outcome === "completed"
@@ -437,6 +442,16 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
     });
 
     return resultIndex + 1;
+  }
+
+  /** MCP client side: proxy an external MCP tool call in the same shape as pluginTool.invoke. */
+  private async invokeMcpTool(
+    tool: string,
+    args: Record<string, unknown>,
+  ): Promise<{ outcome: "completed" | "error"; result?: unknown; message?: string }> {
+    if (!this.mcpClient) return { outcome: "error", message: "MCP client not configured." };
+    const res = await this.mcpClient.call(tool, args ?? {});
+    return res.ok ? { outcome: "completed", result: res.result } : { outcome: "error", message: res.error ?? "MCP call failed" };
   }
 
   /**
@@ -484,6 +499,7 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
    */
   private requiresApproval(pluginId: string, toolName: string): boolean {
     if (this.approveAll) return true;
+    if (pluginId === "mcp") return false; // external MCP tools have no per-tool approval flag
     const tool = this.registry.get(pluginId)?.manifest.tools.find((t) => t.name === toolName);
     return tool?.requiresApproval === true;
   }
@@ -511,7 +527,7 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
     return { type: "thought", thought: raw };
   }
 
-  private buildSystemPrompt(): string {
+  private async buildSystemPrompt(): Promise<string> {
     const plugins = this.registry.all().filter((p) => p.state === "enabled");
     const toolLines = plugins.flatMap((p) =>
       (p.manifest.tools ?? []).map(
@@ -519,9 +535,14 @@ export class AgentWorkerService implements OnModuleInit, OnModuleDestroy {
       ),
     );
 
+    // MCP client side (Phase 4.0): external MCP servers surface as
+    // plugin="mcp" tool="<alias>.<name>" — discovered live from tools/list.
+    const mcpLines = this.mcpClient ? await this.mcpClient.promptLines() : [];
+
+    const allLines = [...toolLines, ...mcpLines];
     const toolSection =
-      toolLines.length > 0
-        ? `Available tools:\n${toolLines.join("\n")}`
+      allLines.length > 0
+        ? `Available tools:\n${allLines.join("\n")}`
         : "No plugin tools are currently available.";
 
     return `You are an autonomous agent for the Constellation platform.
