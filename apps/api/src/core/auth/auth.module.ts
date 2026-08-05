@@ -1,6 +1,7 @@
 import { Logger, Module } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
 import { JwtModule, type JwtModuleOptions } from "@nestjs/jwt";
+import { TeamsModule } from "../teams/teams.module.js";
 import { AdminSeedService } from "./admin-seed.service.js";
 import { AuthController } from "./auth.controller.js";
 import { AuthService } from "./auth.service.js";
@@ -29,6 +30,7 @@ if (!process.env.JWT_SECRET) {
  */
 @Module({
   imports: [
+    TeamsModule,
     JwtModule.register({
       global: false,
       secret: process.env.JWT_SECRET ?? DEV_JWT_SECRET_FALLBACK,

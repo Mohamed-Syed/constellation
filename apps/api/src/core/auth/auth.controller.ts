@@ -7,11 +7,15 @@ import { CurrentUser } from "./current-user.decorator.js";
 import { LoginDto } from "./dto/login.dto.js";
 import { Public } from "./public.decorator.js";
 import type { AuthPrincipal } from "./token-verifier.js";
+import { TeamService } from "../teams/team.service.js";
 
 @ApiTags("auth")
 @Controller("auth")
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly teams: TeamService,
+  ) {}
 
   @Public()
   @Post("login")
@@ -32,8 +36,10 @@ export class AuthController {
   @Get("me")
   @ApiBearerAuth()
   @ApiOkResponse({ description: "The authenticated user's identity, roles, and effective permissions." })
-  me(@CurrentUser() user: AuthPrincipal) {
-    return this.auth.me(user);
+  async me(@CurrentUser() user: AuthPrincipal) {
+    // Team spaces round: augment the principal with the caller's teams.
+    const teams = await this.teams.listForUser(user.id);
+    return { ...this.auth.me(user), teams };
   }
 
   @Public()

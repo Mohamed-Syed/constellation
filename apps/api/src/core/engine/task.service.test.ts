@@ -119,6 +119,7 @@ describe("TaskService — findAll", () => {
     const args = db.agentTask.findMany.mock.calls[0]![0]!;
     expect(args.orderBy).toEqual({ createdAt: "desc" });
     expect(args.take).toBe(100);
+    expect(args.where).toEqual({});
     expect(args.select).toEqual({
       id: true,
       title: true,
@@ -129,6 +130,7 @@ describe("TaskService — findAll", () => {
       maxSteps: true,
       maxTokens: true,
       actorId: true,
+      teamId: true,
       createdAt: true,
       updatedAt: true,
       startedAt: true,
@@ -453,5 +455,46 @@ describe("TaskService — isCancelled", () => {
       db.agentTask.findUnique.mockResolvedValue({ status });
       await expect(svc.isCancelled("t1")).resolves.toBe(expected);
     }
+  });
+});
+
+describe("TaskService — team scoping (team spaces round)", () => {
+  it("create persists teamId when provided", async () => {
+    const { svc, db } = serviceWith(makeDb());
+    db.agentTask.create.mockResolvedValue({ id: "t1" });
+    await svc.create({ title: "t", prompt: "p", teamId: "team-1" } as CreateTaskDto, "user-1");
+    expect(db.agentTask.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ teamId: "team-1", actorId: "user-1" }) }),
+    );
+  });
+
+  it("create leaves teamId null when omitted", async () => {
+    const { svc, db } = serviceWith(makeDb());
+    db.agentTask.create.mockResolvedValue({ id: "t1" });
+    await svc.create({ title: "t", prompt: "p" } as CreateTaskDto, "user-1");
+    const data = (db.agentTask.create.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data;
+    expect(data.teamId).toBeNull();
+  });
+
+  it("findAll filters by teamId when requested", async () => {
+    const { svc, db } = serviceWith(makeDb());
+    db.agentTask.findMany.mockResolvedValue([]);
+    await svc.findAll({ teamId: "team-1" });
+    expect(db.agentTask.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { teamId: "team-1" } }));
+  });
+
+  it("findAll builds the non-admin union (personal OR my teams) when scoped", async () => {
+    const { svc, db } = serviceWith(makeDb());
+    db.agentTask.findMany.mockResolvedValue([]);
+    await svc.findAll({ actorId: "user-1", teamIds: ["team-1", "team-2"] });
+    const arg = db.agentTask.findMany.mock.calls[0]?.[0] as { where: { OR: unknown[] } };
+    expect(arg.where.OR).toEqual([{ actorId: "user-1" }, { teamId: "team-1" }, { teamId: "team-2" }]);
+  });
+
+  it("findAll stays unscoped (all tasks) for plain admin calls", async () => {
+    const { svc, db } = serviceWith(makeDb());
+    db.agentTask.findMany.mockResolvedValue([]);
+    await svc.findAll();
+    expect(db.agentTask.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: {} }));
   });
 });

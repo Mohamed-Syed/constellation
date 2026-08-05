@@ -15,6 +15,7 @@ import { PluginsModule } from "./core/plugins/plugins.module.js";
 import { WorkflowsModule } from "./core/workflows/workflows.module.js";
 import { RbacModule } from "./core/rbac/rbac.module.js";
 import { SettingsModule } from "./core/settings/settings.module.js";
+import { TeamsModule } from "./core/teams/teams.module.js";
 
 /**
  * The core platform module. It stays deliberately small: config, logging,
@@ -53,6 +54,7 @@ import { SettingsModule } from "./core/settings/settings.module.js";
     WorkflowsModule,
     EngineModule,
     NotificationsModule,
+    TeamsModule,
     ObservabilityModule,
   ],
 })

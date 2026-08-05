@@ -94,6 +94,7 @@ model User {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   roles        UserRole[]
+  teamMemberships TeamMember[]
 
   @@unique([authProvider, externalId])
   @@map("users")
@@ -128,6 +129,49 @@ model UserRole {
 
   @@unique([userId, roleId])
   @@map("user_roles")
+  @@schema("core")
+}
+
+// ── Phase 3.0 — team spaces (multi-tenancy foundation) ─────────────────────
+// Organization → Team → User with inherited roles. A user's effective scope:
+//   - platform roles (global, e.g. platform:admin)
+//   - org/team memberships (TeamMember.role = owner | admin | member)
+// Team-scoped resources (AgentTask.teamId) are visible to the team's members
+// and to platform admins; member management is owner/admin-only.
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  teams     Team[]
+
+  @@map("organizations")
+  @@schema("core")
+}
+
+model Team {
+  id        String        @id @default(cuid())
+  orgId     String
+  org       Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime      @default(now())
+  members   TeamMember[]
+
+  @@map("teams")
+  @@schema("core")
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// "owner" | "admin" | "member" — owner/admin can manage members.
+  role      String   @default("member")
+  createdAt DateTime @default(now())
+
+  @@unique([teamId, userId])
+  @@map("team_members")
   @@schema("core")
 }
 
@@ -176,6 +220,10 @@ model AgentTask {
   maxTokens   Int?
   /// User who submitted the task (null = system-initiated).
   actorId     String?
+  /// Team spaces round: the team this task belongs to (null = personal /
+  /// platform-wide). Team members + platform admins can see it; access is
+  /// enforced on the list/submit routes.
+  teamId      String?
   /// Final summary / output written on completion.
   result      Json?
   /// Error message when status = "failed".

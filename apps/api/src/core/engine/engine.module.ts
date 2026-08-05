@@ -1,5 +1,6 @@
 import { Module, forwardRef } from "@nestjs/common";
 import { PluginsModule } from "../plugins/plugins.module.js";
+import { TeamsModule } from "../teams/teams.module.js";
 import { WorkflowsModule } from "../workflows/workflows.module.js";
 import { AgentWorkerService } from "./agent-worker.service.js";
 import { DeepSeekModelProvider } from "./deepseek-model-provider.js";
@@ -33,7 +34,7 @@ import { TaskService } from "./task.service.js";
  * Activation: add EngineModule to AppModule.imports (after PluginsModule).
  */
 @Module({
-  imports: [PluginsModule, forwardRef(() => WorkflowsModule)],
+  imports: [PluginsModule, forwardRef(() => WorkflowsModule), TeamsModule],
   controllers: [EngineController, SchedulerController],
   providers: [
     TaskService,

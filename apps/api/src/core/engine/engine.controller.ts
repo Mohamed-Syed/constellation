@@ -2,17 +2,20 @@ import {
   BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Logger,
   NotFoundException,
   Param,
   Post,
+  Query,
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { Public } from "../auth/public.decorator.js";
 import { CurrentUser } from "../auth/current-user.decorator.js";
 import type { AuthPrincipal } from "../auth/token-verifier.js";
 import { AuditService } from "../audit/audit.service.js";
+import { TeamService } from "../teams/team.service.js";
 import { EngineAlertService } from "./engine-alerts.service.js";
 import { DEAD_LETTER_LIMIT } from "./dead-letter.js";
 import { CreateTaskDto } from "./dto/create-task.dto.js";
@@ -59,6 +62,7 @@ export class EngineController {
     private readonly scheduler: SchedulerEngineService,
     private readonly supervisor: SupervisorService,
     private readonly alerts: EngineAlertService,
+    private readonly teams: TeamService,
   ) {}
 
   @Post("tasks")
@@ -66,6 +70,10 @@ export class EngineController {
     @Body() dto: CreateTaskDto,
     @CurrentUser() user: AuthPrincipal,
   ) {
+    // Team spaces round: submitting INTO a team requires membership (or admin).
+    if (dto.teamId && !(await this.canAccessTeam(user, dto.teamId))) {
+      throw new ForbiddenException("You are not a member of this team.");
+    }
     // Fail fast when the engine backend is down — before creating a DB row
     // that would be stuck in "queued" forever.
     if (!this.availability.isEnabled) {
@@ -91,8 +99,25 @@ export class EngineController {
   }
 
   @Get("tasks")
-  async listTasks() {
-    return this.tasks.findAll();
+  async listTasks(@CurrentUser() user: AuthPrincipal, @Query("teamId") teamId?: string) {
+    // Team spaces round: a team filter requires membership (or admin); a
+    // non-admin without a filter sees only their PERSONAL tasks.
+    if (teamId && !(await this.canAccessTeam(user, teamId))) {
+      throw new ForbiddenException("You are not a member of this team.");
+    }
+    const isAdmin = user?.permissions?.includes("platform:admin") ?? false;
+    if (!isAdmin) {
+      // Non-admins: personal tasks (actorId = me), plus their teams' tasks.
+      const myTeams = (await this.teams.listForUser(user?.id ?? null)).map((t) => t.id);
+      return this.tasks.findAll({ teamId: teamId ?? undefined, actorId: user?.id ?? null, teamIds: myTeams });
+    }
+    return this.tasks.findAll({ teamId: teamId ?? undefined });
+  }
+
+  /** Members + platform admins may access a team's tasks. */
+  private async canAccessTeam(user: AuthPrincipal | undefined, teamId: string): Promise<boolean> {
+    if (user?.permissions?.includes("platform:admin")) return true;
+    return this.teams.isMember(user?.id ?? null, teamId);
   }
 
   /**

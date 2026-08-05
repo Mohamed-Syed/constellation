@@ -106,6 +106,7 @@ function makeController(
   scheduler = makeSchedulerStub(),
   supervisor = makeSupervisorStub(),
   alerts = makeAlertsStub(),
+  teams = { isMember: vi.fn(async () => true), listForUser: vi.fn(async () => []) },
 ) {
   const controller = new EngineController(
     tasks as never,
@@ -116,8 +117,9 @@ function makeController(
     scheduler as never,
     supervisor as never,
     alerts as never,
+    teams as never,
   );
-  return { controller, tasks, queue, model, availability, audit, scheduler, supervisor, alerts };
+  return { controller, tasks, queue, model, availability, audit, scheduler, supervisor, alerts, teams };
 }
 
 const user: AuthPrincipal = { id: "user-1", email: "a@b.c", roles: ["admin"], permissions: ["platform:admin"] };

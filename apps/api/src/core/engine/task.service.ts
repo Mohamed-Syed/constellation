@@ -50,6 +50,7 @@ export class TaskService {
         maxSteps: dto.maxSteps ?? 20,
         maxTokens: dto.maxTokens,
         actorId,
+        teamId: dto.teamId ?? null,
         status: "queued",
       },
     });
@@ -57,16 +58,33 @@ export class TaskService {
     return task;
   }
 
-  async findAll() {
+  /**
+   * List tasks, newest first. Team spaces round — optional scoping:
+   *   teamId   → only that team's tasks (caller must be a member/admin)
+   *   actorId  → only the caller's personal tasks (non-admin default)
+   *   teamIds  → include those teams' tasks too (non-admin union view)
+   */
+  async findAll(opts: { teamId?: string; actorId?: string | null; teamIds?: string[] } = {}) {
     const db = this.prisma.db;
     if (!db) return [];
+    const where: Record<string, unknown> = {};
+    if (opts.teamId) {
+      where.teamId = opts.teamId;
+    } else if (opts.actorId !== undefined || (opts.teamIds && opts.teamIds.length > 0)) {
+      // Non-admin union: personal tasks OR tasks in any of my teams.
+      where.OR = [
+        { actorId: opts.actorId ?? null },
+        ...(opts.teamIds && opts.teamIds.length > 0 ? opts.teamIds.map((teamId) => ({ teamId })) : []),
+      ];
+    }
     return db.agentTask.findMany({
+      where,
       orderBy: { createdAt: "desc" },
       take: 100,
       select: {
         id: true, title: true, status: true, model: true, provider: true,
-        stepCount: true, maxSteps: true, maxTokens: true, actorId: true, createdAt: true,
-        updatedAt: true, startedAt: true, completedAt: true, error: true,
+        stepCount: true, maxSteps: true, maxTokens: true, actorId: true, teamId: true,
+        createdAt: true, updatedAt: true, startedAt: true, completedAt: true, error: true,
       },
     });
   }

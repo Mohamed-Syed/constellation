@@ -22,4 +22,9 @@ export class CreateTaskDto {
   @IsInt()
   @Min(1)
   maxTokens?: number;
+
+  /** Team spaces round: the team this task belongs to (null = personal). */
+  @IsOptional()
+  @IsString()
+  teamId?: string;
 }
