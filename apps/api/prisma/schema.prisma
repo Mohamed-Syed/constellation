@@ -1,0 +1,471 @@
+// Constellation — core Prisma schema.
+//
+// This file owns ONLY the platform's `core` Postgres schema. Per C8 (locked
+// decision), every plugin owns its OWN Postgres schema and runs its OWN
+// migrations against it — this schema must never grow plugin-specific
+// tables. See `apps/api/src/core/database/README.md` for the full
+// per-plugin schema/migration story.
+//
+// `multiSchema` (preview since Prisma 4.3, stable in later releases) lets a
+// single Prisma schema map models onto multiple Postgres schemas. Today only
+// `core` is declared here; a plugin using Prisma for its own schema owns a
+// wholly separate `schema.prisma` + migration history under its own package.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Prisma 7: the connection URL is no longer declared here. The CLI reads
+  // it from `prisma.config.ts`; the running app resolves its own connection
+  // in `core/database/prisma.service.ts` (fails soft with no DB).
+  // Every Postgres schema Prisma is allowed to see. Only `core` is modeled
+  // by this file; the rest are created/owned by individual plugins.
+  schemas = ["core"]
+}
+
+/// A plugin's install record: identity, version, lifecycle state, and
+/// enable/disable toggle. The plugin loader's in-memory registry is the
+/// source of truth for a running process; this table is the durable record
+/// that survives restarts and drives "should this plugin even be loaded".
+model PluginInstallation {
+  id          String   @id @default(cuid())
+  pluginId    String   @unique
+  version     String
+  /// Mirrors the SDK's `PluginState` union (validated | registered | enabled
+  /// | disabled | failed), kept as a plain string here so this table never
+  /// needs a migration when the SDK adds a state.
+  state       String
+  enabled     Boolean  @default(false)
+  installedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("plugin_installations")
+  @@schema("core")
+}
+
+/// A single settings value, namespaced per plugin (pluginId = "core" for
+/// platform-level settings). Backs `SettingsService` / the SDK's
+/// `PluginConfig.get`. Falls back to the plugin manifest's declared
+/// `settings[].default` when no row exists — see SettingsService.
+model Setting {
+  id        String   @id @default(cuid())
+  pluginId  String
+  key       String
+  /// Stored as JSON so any manifest-declared setting type (string, number,
+  /// boolean, secret, select, json) round-trips without a schema change.
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@unique([pluginId, key])
+  @@map("settings")
+  @@schema("core")
+}
+
+/// A feature flag override, namespaced per plugin. Backs `FeatureFlagService`
+/// / the SDK's `PluginConfig.isFeatureEnabled`. Falls back to the manifest's
+/// `featureFlags[].default` when no row exists.
+model FeatureFlag {
+  id        String   @id @default(cuid())
+  pluginId  String
+  key       String
+  enabled   Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+
+  @@unique([pluginId, key])
+  @@map("feature_flags")
+  @@schema("core")
+}
+
+/// A platform user. Local password auth today (bcrypt hash); the `authProvider`
+/// + `externalId` pair is reserved so an OIDC/SSO login can later attach to
+/// (or create) the same user record without a schema change — see
+/// `core/auth/token-verifier.ts` for the pluggable verification seam this
+/// backs.
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  /// bcrypt hash. Null for a user provisioned purely via an external IdP
+  /// (no local password login for that account).
+  passwordHash String?
+  authProvider String     @default("local")
+  externalId   String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  roles        UserRole[]
+  teamMemberships TeamMember[]
+
+  @@unique([authProvider, externalId])
+  @@map("users")
+  @@schema("core")
+}
+
+/// A named bundle of permission strings (see the SDK's `permissions.ts` for
+/// the colon-scoped format + wildcard matching). Roles are assigned to users
+/// via `UserRole`; a user's effective permissions are the union of all their
+/// roles' `permissions`.
+model Role {
+  id          String     @id @default(cuid())
+  name        String     @unique
+  description String?
+  permissions String[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  users       UserRole[]
+
+  @@map("roles")
+  @@schema("core")
+}
+
+/// User <-> Role many-to-many join.
+model UserRole {
+  id        String   @id @default(cuid())
+  userId    String
+  roleId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, roleId])
+  @@map("user_roles")
+  @@schema("core")
+}
+
+// ── Phase 3.0 — team spaces (multi-tenancy foundation) ─────────────────────
+// Organization → Team → User with inherited roles. A user's effective scope:
+//   - platform roles (global, e.g. platform:admin)
+//   - org/team memberships (TeamMember.role = owner | admin | member)
+// Team-scoped resources (AgentTask.teamId) are visible to the team's members
+// and to platform admins; member management is owner/admin-only.
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  teams     Team[]
+
+  @@map("organizations")
+  @@schema("core")
+}
+
+model Team {
+  id        String        @id @default(cuid())
+  orgId     String
+  org       Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime      @default(now())
+  members   TeamMember[]
+
+  @@map("teams")
+  @@schema("core")
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// "owner" | "admin" | "member" — owner/admin can manage members.
+  role      String   @default("member")
+  createdAt DateTime @default(now())
+
+  @@unique([teamId, userId])
+  @@map("team_members")
+  @@schema("core")
+}
+
+/// Immutable-by-convention audit trail. Nothing in the app updates or
+/// deletes rows here (enforcement lands with the RBAC/audit workstream in
+/// P2); for now this is the write target for anything worth recording.
+model AuditLog {
+  id         String   @id @default(cuid())
+  /// Plugin that produced the event, or "core" for platform actions.
+  pluginId   String
+  /// Actor's user id, if any (system/background actions leave this null).
+  actorId    String?
+  action     String
+  /// Free-form structured detail about what happened.
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([pluginId, createdAt])
+  @@map("audit_logs")
+  @@schema("core")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Engine v0 — Durable Task Runtime
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A unit of autonomous work queued to the agent engine. The BullMQ queue
+/// holds the job reference; this table is the durable record that survives
+/// API restarts and provides the audit/history trail.
+model AgentTask {
+  id          String    @id @default(cuid())
+  title       String
+  /// The instruction passed to the agent as the user message.
+  prompt      String
+  /// queued | running | paused | completed | failed | cancelled
+  status      String    @default("queued")
+  /// Model identifier forwarded to the model router. Null = use platform default.
+  model       String?
+  /// Provider that actually served the task, written on first step.
+  provider    String?
+  stepCount   Int       @default(0)
+  maxSteps    Int       @default(20)
+  /// Hard per-task token ceiling (Engine v0.1 Task 3). Null = platform
+  /// default (ENGINE_MAX_TOKENS_PER_TASK). The worker fails the task when
+  /// the cumulative model usage crosses it.
+  maxTokens   Int?
+  /// User who submitted the task (null = system-initiated).
+  actorId     String?
+  /// Team spaces round: the team this task belongs to (null = personal /
+  /// platform-wide). Team members + platform admins can see it; access is
+  /// enforced on the list/submit routes.
+  teamId      String?
+  /// Final summary / output written on completion.
+  result      Json?
+  /// Error message when status = "failed".
+  error       String?
+  /// Engine v0.5 dead-letter classification when status = "failed":
+  /// "terminal" | "transient_exhausted" | "stalled" | "rejected".
+  /// Enables the structured dead-letter view (GET /api/engine/deadletters).
+  failureClassification String?
+  /// Engine v0.5 supervisor resume-once marker: set true when the supervisor
+  /// re-enqueues a stalled task a FIRST time; if it goes stale again it is
+  /// marked failed ("stalled") instead of being resumed forever.
+  stallRetried Boolean    @default(false)
+  /// Multi-model compare round (Phase 3.0 3.6): cumulative model usage across
+  /// the task's calls, persisted at the end (or on failure) so the portal can
+  /// compare latency/tokens/cost per model. Null until the task terminates.
+  inputTokens  Int?
+  outputTokens Int?
+  totalTokens  Int?
+  costUSD      Float?
+  /// Crews round (Phase 4.0 4.1): the parent task this task was delegated
+  /// from (null = top-level). Parent/child links form the delegation tree —
+  /// an orchestrator task can spawn sub-agents and wait for their results.
+  parentTaskId String?
+
+  parent   AgentTask?    @relation("TaskDelegation", fields: [parentTaskId], references: [id], onDelete: SetNull)
+  children AgentTask[]   @relation("TaskDelegation")
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  steps       TaskStep[]
+  checkpoint  TaskCheckpoint?
+
+  @@index([status, createdAt])
+  @@index([parentTaskId])
+  @@map("agent_tasks")
+  @@schema("core")
+}
+
+/// One step in an agent task's conversation history.
+/// type is one of: "thought" | "tool_call" | "tool_result" | "done" | "error"
+model TaskStep {
+  id         String    @id @default(cuid())
+  taskId     String
+  stepIndex  Int
+  type       String
+  /// Full step payload (LLM thought, tool call args, tool result, etc.).
+  content    Json
+  createdAt  DateTime  @default(now())
+
+  task       AgentTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, stepIndex])
+  @@map("task_steps")
+  @@schema("core")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Engine v0.4 — Scheduler / Autonomous Triggers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A recurring or event-triggered task schedule (Engine v0.4). Each row holds
+/// a task TEMPLATE (title/prompt/model/maxSteps/maxTokens, mirrored from
+/// AgentTask's submit fields) plus the trigger spec, so the scheduler engine
+/// can auto-enqueue a task on a cron cadence or when a platform event fires.
+///
+/// `kind` is "cron" (fired by the poll loop once `nextRunAt` elapses) or
+/// "event" (fired only when the named event occurs on the EventBus; the poll
+/// loop skips these). The remaining trigger columns are a Json bag so future
+/// trigger types can extend without a migration:
+///   - cron schedules:  `spec.cron    = "<5-field crontab expr>"` optional
+///                      `spec.timezone = "<IANA tz>"` (defaults to the server tz)
+///   - event schedules: `spec.event   = "<platform event topic>"` e.g. "scheduler.ping"
+model ScheduledTask {
+  id        String    @id @default(cuid())
+  /// Human-friendly display name for the schedule.
+  name      String
+  /// Task template enqueued when this schedule fires.
+  title     String
+  prompt    String
+  /// Model identifier forwarded to the model router. Null = platform default.
+  model     String?
+  maxSteps  Int       @default(20)
+  maxTokens Int?
+  /// "cron" | "event". Event schedules fire on an EventBus event, not the clock.
+  kind      String    @default("cron")
+  /// Trigger spec: { cron?, timezone? } for kind="cron"; { event? } for kind="event".
+  spec      Json
+  /// Workflow triggers round: when set, firing this schedule RUNS the workflow
+  /// (WorkflowRunService.run) instead of enqueuing an engine task. The task
+  /// template fields above are then ignored. Auto-managed by
+  /// WorkflowTriggerService (name = `workflow:<id>`).
+  workflowId String?
+  /// Team spaces follow-up (Phase 4.0 backlog #3): team scope. When set, only
+  /// the team's members (or platform admins) may view/manage/run this schedule.
+  teamId    String?
+  /// Actor id of the creator (for ownership scoping in the delegation view).
+  createdBy String?
+  enabled   Boolean   @default(true)
+  /// When the poll loop last ran this schedule (and when the next run is due).
+  nextRunAt DateTime?
+  lastRunAt DateTime?
+  /// Number of times the schedule has fired.
+  runCount  Int       @default(0)
+  /// Last enqueue/parse error (cleared on the next successful run).
+  lastError String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([enabled, kind])
+  @@index([enabled, nextRunAt])
+  @@map("scheduled_tasks")
+  @@schema("core")
+}
+
+/// The last known conversation state for a running/paused task.
+/// Written after every step so the worker can resume from here on restart.
+model TaskCheckpoint {
+  id         String    @id @default(cuid())
+  taskId     String    @unique
+  /// Full messages array at the time of checkpointing.
+  messages   Json
+  stepIndex  Int
+  /// Engine v0.1 approval gate: set when the task is paused for a
+  /// human-in-the-loop decision — { plugin, tool, args, stepIndex } of the
+  /// tool call awaiting approval. Null when no approval is pending.
+  pendingApproval Json?
+  /// Set by POST /api/engine/tasks/:id/approve to the pending tool call's
+  /// stepIndex; the worker honours it ONCE (executes the approved call
+  /// without re-gating) and clears it with pendingApproval.
+  approvedStepIndex Int?
+  updatedAt  DateTime  @updatedAt
+
+  task       AgentTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@map("task_checkpoints")
+  @@schema("core")
+}
+
+// ── Phase 3.0 — visual workflow builder ─────────────────────────────────────
+// A workflow is a stored, versioned definition (trigger + ordered steps) that
+// the WorkflowRunService executes: "agent" steps enqueue an engine task and
+// wait for it, "tool" steps invoke a plugin tool directly. Steps can reference
+// prior steps' results via {{steps.<id>.result}} / {{steps.<id>.error}}.
+model Workflow {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  /// WorkflowDefinition JSON: { trigger: {type, cron?, event?}, steps: [...] }
+  definition  Json
+  /// Team spaces follow-up (Phase 4.0 backlog #3): team scope. When set, only
+  /// the team's members (or platform admins) may view/manage/run this workflow.
+  teamId      String?
+  /// Actor id of the creator (ownership scoping).
+  createdBy   String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  runs        WorkflowRun[]
+
+  @@map("workflows")
+  @@schema("core")
+}
+
+model WorkflowRun {
+  id          String    @id @default(cuid())
+  workflowId  String
+  workflow    Workflow  @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  /// queued | running | completed | failed
+  status      String    @default("running")
+  /// Per-step outcomes [{id, kind, label, ok, result?, error?}] appended as
+  /// each step finishes, so a failed run shows exactly where it stopped.
+  stepsResult Json?
+  error       String?
+  createdAt   DateTime  @default(now())
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@map("workflow_runs")
+  @@schema("core")
+}
+
+// ── Phase 3.0 — notification center ─────────────────────────────────────────
+// Durable, queryable notification feed fed by the platform EventBus: engine
+// alerts (task failed / stale / recovered), scheduler events (schedule fired /
+// error), and any future core topic. Written by NotificationService on every
+// bus event; read / mark-read / dismiss via GET·POST·DELETE /api/notifications.
+model Notification {
+  id        String   @id @default(cuid())
+  /// Semantic topic the notification came from, e.g. "engine.task.failed" or
+  /// "scheduler.schedule.fired" (mirrors the EventBus topic it was born from).
+  kind      String
+  /// info | success | warning | error — drives the portal's icon/colour.
+  severity  String
+  /// Short human summary, e.g. "Task failed".
+  title     String
+  /// Detail line (error text, stale duration, schedule name...).
+  message   String?
+  /// What the notification refers to: "task" | "schedule" | null.
+  refType   String?
+  /// Id of the referenced entity (task id, schedule id...).
+  refId     String?
+  /// Per-user targeting (Phase 4.0 backlog #4): when set, only this user
+  /// (id) sees the notification; when null, it is global (everyone sees it).
+  recipientId String?
+  /// Read state — unread drives the portal sidebar badge.
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([read])
+  @@index([createdAt])
+  @@index([recipientId])
+  @@map("notifications")
+  @@schema("core")
+}
+
+// ── Phase 4.0 4.6 — federated agent mesh ────────────────────────────────────
+// Multiple Constellation instances (dev / staging / prod / edge sites) form a
+// mesh. Each peer is registered here (only a SHA-256 hash of its API key is
+// ever stored); the mesh prober polls GET <baseUrl>/api/health and maintains
+// `status` + `lastSeen`. Cross-instance task routing (delegating a task to the
+// right peer by locality/capability/load) is the explicit NEXT step — this
+// model deliberately stops at registry + probe + topology.
+model MeshPeer {
+  id           String    @id @default(cuid())
+  /// Human-friendly, unique name (e.g. "dev", "staging", "edge-site-1").
+  name         String    @unique
+  /// Base URL of the peer instance, e.g. https://constellation.example.com.
+  baseUrl      String
+  /// SHA-256 hex of the peer's API key — the raw key is never stored.
+  apiKeyHash   String?
+  /// unknown (never probed yet) | up | down — maintained by the health prober.
+  status       String    @default("unknown")
+  /// Last time a probe succeeded (a 2xx from the peer's /api/health).
+  lastSeen     DateTime?
+  /// Last probe failure detail (honest diagnostics for the topology view).
+  lastError    String?
+  lastProbedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("mesh_peers")
+  @@schema("core")
+}

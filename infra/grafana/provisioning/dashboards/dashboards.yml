@@ -1,0 +1,17 @@
+# Grafana dashboard provisioning — the Constellation platform dashboard
+# (engine, model plane, plugins, HTTP, scheduler/supervision) is provisioned
+# automatically from this folder on first boot. The JSON is the
+# Phase 2.0 2.3 deliverable: a pre-built dashboard over the real
+# /api/metrics Prometheus metrics (constellation_*).
+apiVersion: 1
+
+providers:
+  - name: constellation
+    orgId: 1
+    folder: ""
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/provisioning/dashboards

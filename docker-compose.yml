@@ -1,0 +1,326 @@
+# ---------------------------------------------------------------------------
+# Constellation — local full-stack Compose.
+#
+# Brings up the whole platform with REAL infrastructure:
+#   postgres -> redis -> api (NestJS core) -> web (Next.js portal)
+#
+# Everything is .env-driven with safe defaults, so `docker compose up -d`
+# works on a fresh clone with no .env file at all. Copy `.env.example` to
+# `.env` to override (that file is git-ignored — never commit secrets).
+#
+# This is also the deploy foundation for the 24/7 VPS: Coolify consumes a
+# Compose file directly, so what runs locally is what runs in production.
+# ---------------------------------------------------------------------------
+
+name: constellation
+
+services:
+  # --- PostgreSQL: the platform's system of record ----------------------
+  # Per C8 each plugin owns its own schema inside this one database; the
+  # core owns only the `core` schema (see apps/api/prisma/schema.prisma).
+  postgres:
+    image: postgres:16-alpine
+    container_name: constellation-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-constellation}
+      POSTGRES_USER: ${POSTGRES_USER:-constellation}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-constellation}
+      # Deterministic initdb regardless of the host locale.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    ports:
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # `pg_isready` alone returns true during initdb's temporary startup,
+      # so scope it to the real user+db to avoid a false "healthy".
+      test:
+        ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-constellation} -d ${POSTGRES_DB:-constellation} -q"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    networks: [constellation]
+
+  # --- Redis: cache / queue backbone (wired by later phases) ------------
+  redis:
+    image: redis:7-alpine
+    container_name: constellation-redis
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    ports:
+      - "${REDIS_HOST_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    networks: [constellation]
+
+  # --- API: the NestJS core (auth, plugin loader, settings, health) -----
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: constellation-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      API_PORT: 4000
+      API_GLOBAL_PREFIX: ${API_GLOBAL_PREFIX:-api}
+      # Browser-origin of the portal, not the internal service name.
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      # `?schema=core` matches the multiSchema datasource; Prisma also needs
+      # the schema to exist, which the entrypoint's migrate step handles.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-constellation}:${POSTGRES_PASSWORD:-constellation}@postgres:5432/${POSTGRES_DB:-constellation}?schema=core
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
+      # --- P3 SSO (OIDC). ALL OPTIONAL and empty by default: with
+      # OIDC_ISSUER_URL unset the OidcJwtVerifier reports itself disabled and
+      # CompositeTokenVerifier logs "SSO not configured — local JWT
+      # verification only", exactly as before SSO existed.
+      #
+      # These were previously MISSING from this service block, which meant
+      # setting them in .env had no effect inside the container and SSO could
+      # never actually be turned on for the containerised api.
+      #
+      # NOTE on the two URLs: OIDC_ISSUER_URL must match the `iss` claim the
+      # BROWSER-issued token carries (http://localhost:8081/... or the proxy
+      # origin), but the api resolves JWKS from INSIDE the compose network
+      # where "localhost" is the api container itself. Hence the explicit
+      # OIDC_JWKS_URI override pointing at the service name.
+      OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:-}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-}
+      OIDC_JWKS_URI: ${OIDC_JWKS_URI:-}
+      OIDC_ROLES_CLAIM: ${OIDC_ROLES_CLAIM:-roles}
+      OIDC_PERMISSIONS_CLAIM: ${OIDC_PERMISSIONS_CLAIM:-permissions}
+      OIDC_EMAIL_CLAIM: ${OIDC_EMAIL_CLAIM:-email}
+      OIDC_CLOCK_SKEW_SEC: ${OIDC_CLOCK_SKEW_SEC:-60}
+      PLUGINS_DIR: /app/plugins
+      # --- Brain (Graphify) — OPTIONAL. The api must boot fine with the
+      # sidecar down, so there is no depends_on here: core/memory reads the
+      # graph off the shared volume and degrades to "brain not built yet".
+      GRAPHIFY_GRAPH_PATH: /brain/graph.json
+      # Left UNSET on purpose. Verified in graphify.adapter.ts: once an MCP URL
+      # is configured, query()/explain() go MCP-only and return null if the
+      # sidecar is unreachable — no graph.json fallback. An always-on default
+      # would therefore BREAK query when the brain profile is down. Opt in with
+      # `GRAPHIFY_MCP_URL=http://graphify:8791/mcp` (or set it in .env) when
+      # running `make brain`; unset, the api reads the graph off the volume.
+      GRAPHIFY_MCP_URL: ${GRAPHIFY_MCP_URL:-}
+      BRAIN_VAULT_DIR: /app/brain
+
+      # --- Engine v0 (Ollama model router) --------------------------------
+      # Default here is the compose `ollama` service name, which exists ONLY
+      # under the `engine` profile (full containerized stack, started with
+      # `docker compose --profile engine up`). Profile inactive → no such
+      # service → the engine honestly reports the model router unreachable,
+      # exactly as if Ollama were absent locally; the rest of the stack is
+      # unaffected. To point the CONTAINERIZED api at the HOST's native
+      # Ollama install instead, set OLLAMA_BASE_URL=http://host.docker.internal:11434
+      # in .env. Native host runs of the api (node dist/main.js) read .env
+      # directly and never see this line.
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+
+      # --- OpenTelemetry tracing (Phase 2.0) — OPTIONAL, fully additive ---
+      # Unset = the tracer no-ops (zero overhead). Set to an OTLP/HTTP
+      # receiver (e.g. the federation overlay's Tempo at
+      # http://tempo:4318 or the host's http://host.docker.internal:4318).
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-constellation-api}
+      OTEL_TRACES_ENABLED: ${OTEL_TRACES_ENABLED:-}
+
+      # --- Capability plugin backends (agent plane) -----------------------
+      # These are read by the PLUGINS (plugins/browser-use, plugins/graphify)
+      # as an env fallback behind their per-plugin settings. Distinct from
+      # GRAPHIFY_MCP_URL above, which is the core/memory brain's own transport
+      # — keep the two decoupled (see the note on GRAPHIFY_MCP_URL).
+      # Unset by default: every plugin must stay unconfigured-safe.
+      #   $0 local wiring: BROWSER_USE_BACKEND=steel with a Steel Browser
+      #   container, and GRAPHIFY_URL pointed at the brain sidecar's MCP port.
+      BROWSER_USE_BACKEND: ${BROWSER_USE_BACKEND:-}
+      BROWSER_USE_URL: ${BROWSER_USE_URL:-}
+      BROWSER_USE_API_KEY: ${BROWSER_USE_API_KEY:-}
+      GRAPHIFY_URL: ${GRAPHIFY_URL:-}
+      GRAPHIFY_PLUGIN_MCP_URL: ${GRAPHIFY_PLUGIN_MCP_URL:-}
+      GRAPHIFY_API_KEY: ${GRAPHIFY_API_KEY:-}
+    volumes:
+      # Read-only: the api consumes the graph, only the sidecar writes it.
+      - graphify-out:/brain:ro
+      # Writable: `POST /api/brain/remember` appends markdown here; the
+      # Graphify sidecar watches the same host folder read-only as corpus.
+      - ./brain:/app/brain
+    ports:
+      - "${API_HOST_PORT:-4000}:4000"
+    healthcheck:
+      # Node 22 ships global fetch — no curl/wget needed in a slim image.
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks: [constellation]
+
+  # --- Web: the Next.js portal (single pane of glass) -------------------
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # Baked in at build time: NEXT_PUBLIC_* is inlined into the client
+        # bundle by Next, so it must be the URL the BROWSER can reach.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api}
+    container_name: constellation-web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      # Server Components fetch over the internal network instead of the
+      # published host port, so the portal renders even if 4000 is remapped.
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api}
+      INTERNAL_API_URL: http://api:4000/api
+    ports:
+      - "${WEB_HOST_PORT:-3000}:3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks: [constellation]
+
+  # --- Graphify: the Brain sidecar (knowledge graph + MCP server) --------
+  # See docs/BRAIN.md. Fully OPTIONAL infrastructure: nothing depends_on it,
+  # it publishes its own port, and the api mounts its output read-only. If
+  # this container is stopped, absent, or crash-looping the rest of the
+  # stack boots and serves exactly as before.
+  #
+  # Keyless by default (GRAPHIFY_MODE=code-only → local tree-sitter AST, no
+  # LLM). Set GRAPHIFY_MODE=docs to index markdown too; that uses a LOCAL
+  # Ollama backend (GRAPHIFY_BACKEND=ollama) so it stays $0 and offline.
+  graphify:
+    profiles: ["brain"]
+    build:
+      context: .
+      dockerfile: infra/graphify/Dockerfile
+    container_name: constellation-graphify
+    restart: unless-stopped
+    environment:
+      GRAPHIFY_CORPUS: /corpus
+      GRAPHIFY_MCP_PORT: 8791
+      # code-only (keyless, default) | docs (markdown+PDF via local Ollama)
+      # RAG round (2026-08-05): the DEFAULT is now docs — the platform brain is
+      # built over docs/ + brain/ with local Ollama embeddings (nomic-embed-text).
+      GRAPHIFY_MODE: ${GRAPHIFY_MODE:-docs}
+      GRAPHIFY_BACKEND: ${GRAPHIFY_BACKEND:-ollama}
+      # 7b (not 1.5b): the docs semantic extraction demands JSON-shaped graph
+      # output; the small coder model produced "hollow" unparseable responses
+      # and every chunk bisected into failure. Verified 2026-08-05.
+      GRAPHIFY_MODEL: ${GRAPHIFY_MODEL:-qwen2.5-coder:7b}
+      # Reach a host-installed Ollama from inside the container.
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
+      # The graphify CLI requires this env to be SET even for a local Ollama
+      # backend (it treats the key as auth for the OpenAI-compatible endpoint).
+      # "local" is a placeholder — the key is never sent to host.docker.internal.
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-local}
+      GRAPHIFY_WATCH: ${GRAPHIFY_WATCH:-1}
+      GRAPHIFY_API_KEY: ${GRAPHIFY_API_KEY:-}
+    volumes:
+      # The corpus: this repo's docs + the agent-written brain/ vault, plus
+      # the source the graph is actually about. All READ-ONLY — the brain
+      # can never mutate the repo.
+      - ./docs:/corpus/docs:ro
+      - ./brain:/corpus/brain:ro
+      - ./apps/api/src:/corpus/apps-api:ro
+      - ./apps/web/src:/corpus/apps-web:ro
+      - ./packages:/corpus/packages:ro
+      - ./plugins:/corpus/plugins:ro
+      # The only writable path: graphify always writes <corpus>/graphify-out.
+      # BOUND to the host (was a named volume) so the HOST-run api's core/memory
+      # reads graph.json from ./graphify-out — the RAG round's fix (the named
+      # volume silently hid the built graph from the api).
+      - ./graphify-out:/corpus/graphify-out
+    ports:
+      # Bound to loopback: an unauthenticated MCP server should not be on the
+      # LAN. Set GRAPHIFY_API_KEY before changing this.
+      - "127.0.0.1:${GRAPHIFY_MCP_HOST_PORT:-8791}:8791"
+    healthcheck:
+      # graph.json present = the brain is usable, even mid-rebuild.
+      test: ["CMD-SHELL", "test -s /corpus/graphify-out/graph.json"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      # First run installs nothing at runtime but the initial AST build over
+      # the whole repo takes a while — don't flap during it.
+      start_period: 300s
+    networks: [constellation]
+
+  # --- Ollama: local LLM runtime (ENGINE profile — OPTIONAL) --------------
+  # ⚠️ DISTINCT FROM THE HOST INSTALL: the user also runs Ollama natively on
+  # the host for everyday local dev (ollama pull llama3.2, the .env ENGINE
+  # section, native `node dist/main.js` runs) — that is NOT this container.
+  # This service exists ONLY for the FULL containerized stack, started with:
+  #   docker compose --profile engine up
+  # With the profile active the api reaches THIS service at
+  # http://ollama:11434 (see the api env block); profile inactive, no service
+  # exists and the api's engine honestly reports the model router unreachable.
+  # Pulled models persist in the named `ollama-data` volume across restarts.
+  ollama:
+    profiles: ["engine"]
+    image: ollama/ollama
+    container_name: constellation-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama-data:/root/.ollama
+    ports:
+      - "${OLLAMA_HOST_PORT:-11434}:11434"
+    healthcheck:
+      # The brief asked for GET /api/tags, but the official ollama/ollama
+      # image (ubuntu:24.04 runtime) ships NO curl/wget — only ca-certificates
+      # + GPU libs (verified against the upstream Dockerfile). `ollama list`
+      # issues the same local API call (/api/tags) via the bundled binary and
+      # is the probe ollama's own docs recommend; it exits non-zero while the
+      # server is down, so the container stays "starting" until the API is up.
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks: [constellation]
+
+networks:
+  constellation:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  # Shared brain output. Written by `graphify`, read-only-mounted at /brain
+  # in the api. Canonical graph path for core/memory: /brain/graph.json
+  graphify-out:
+  # Engine profile: pulled Ollama models persist across restarts.
+  ollama-data:

@@ -1,0 +1,11 @@
+[
+  { "act": "goto", "url": "http://localhost:3005/login" },
+  { "act": "wait", "expr": "document.querySelector('input[type=password]') !== null", "wait": 30000 },
+  { "act": "fill", "selector": "input[type=email]", "t": "admin@constellation.local" },
+  { "act": "fill", "selector": "input[type=password]", "t": "changeme" },
+  { "act": "click", "selector": "button[type=submit]" },
+  { "act": "sleep", "ms": 8000 },
+  { "act": "eval", "expr": "({ path: location.pathname, body: document.body.innerText.slice(0, 500) })" },
+  { "act": "shot", "shot": "login-after-submit" },
+  { "act": "text" }
+]

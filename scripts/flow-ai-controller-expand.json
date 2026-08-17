@@ -1,0 +1,22 @@
+[
+ { "act": "goto", "url": "http://127.0.0.1:3005/login" },
+ { "act": "wait", "expr": "document.querySelector('input[type=email]') !== null", "wait": 30000 },
+ { "act": "sleep", "ms": 1500 },
+ { "act": "type", "selector": "input[type=email]", "t": "admin@constellation.local" },
+ { "act": "type", "selector": "input[type=password]", "t": "changeme" },
+ { "act": "sleep", "ms": 800 },
+ { "act": "eval", "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => /sign in|log in|submit/i.test(x.textContent || '')); if (!b) return 'no button'; b.click(); return 'clicked'; })()" },
+ { "act": "wait", "expr": "location.pathname !== '/login' || (document.body && document.body.innerText.includes('Invalid'))", "wait": 20000 },
+ { "act": "goto", "url": "http://127.0.0.1:3005/ai-controller" },
+ { "act": "wait", "expr": "(document.body && document.body.innerText).includes('AI Controller')", "wait": 20000 },
+ { "act": "sleep", "ms": 3500 },
+ { "act": "eval", "expr": "(() => { const row = Array.from(document.querySelectorAll('button[aria-expanded]')).find(b => (b.textContent||'').includes('Plugin(s) degraded')); if (!row) return 'no info row'; const before = row.getAttribute('aria-expanded'); row.click(); return 'clicked info row, before=' + before; })()" },
+ { "act": "sleep", "ms": 700 },
+ { "act": "eval", "expr": "(() => { const t = document.body.innerText || ''; const row = Array.from(document.querySelectorAll('button[aria-expanded]')).find(b => (b.textContent||'').includes('Plugin(s) degraded')); return JSON.stringify({ detailVisible: t.includes('enabled but not usable'), ariaExpanded: row ? row.getAttribute('aria-expanded') : null }); })()" },
+ { "act": "shot", "shot": "ai-controller-finding-expanded" },
+ { "act": "eval", "expr": "(() => { const row = Array.from(document.querySelectorAll('button[aria-expanded]')).find(b => (b.textContent||'').includes('Plugin(s) degraded')); if (!row) return 'gone'; row.click(); return 'collapsed'; })()" },
+ { "act": "sleep", "ms": 700 },
+ { "act": "eval", "expr": "(() => { const t = document.body.innerText || ''; return 'detailHiddenAfterCollapse=' + !t.includes('enabled but not usable'); })()" },
+ { "act": "shot", "shot": "ai-controller-finding-collapsed" },
+ { "act": "text" }
+]

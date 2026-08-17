@@ -1,0 +1,12 @@
+[
+  { "act": "headers", "headers": { "Authorization": "Basic YWRtaW46Y2hhbmdlbWU=" } },
+  { "act": "goto", "url": "http://localhost:8090/tools/grafana/d/constellation/constellation-platform?orgId=1&from=now-30m&to=now&refresh=15s" },
+  { "act": "wait", "expr": "document.body.innerText.includes('Queue waiting')", "wait": 45000 },
+  { "act": "sleep", "ms": 10000 },
+  {
+    "act": "eval",
+    "expr": "(() => { const t = document.body.innerText; const panelTitles = ['Queue waiting','Queue active','Queue failed','Task lifecycle rate','Model calls by provider','Tokens by kind','Model spend (USD)','Model latency p95','Plugin tool calls','HTTP requests by status','Schedule runs by outcome','Supervisor events'].filter(x => t.includes(x)); return { path: location.pathname, panelTitlesFound: panelTitles.length, panelTitles, noData: t.includes('No data'), hasNumeric: /[0-9]/.test(t) }; })()"
+  },
+  { "act": "shot", "shot": "grafana-constellation-dashboard" },
+  { "act": "text" }
+]

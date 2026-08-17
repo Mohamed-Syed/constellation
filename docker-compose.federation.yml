@@ -1,0 +1,255 @@
+# ---------------------------------------------------------------------------
+# Constellation — P3 portal-federation overlay.
+#
+# The heavyweight tools the platform FEDERATES rather than reimplements
+# (decisions C5/C7), plus the SSO provider and the reverse proxy that puts
+# everything on one origin.
+#
+# Kept as a SEPARATE overlay rather than merged into docker-compose.yml so the
+# verified 4-service base stack stays exactly as it was — `docker compose up`
+# is unchanged, and federation is strictly opt-in:
+#
+#   make fed-up     # or:
+#   docker compose -f docker-compose.yml -f docker-compose.federation.yml up -d
+#
+# Every service also carries `profiles: [federation]`, so even when both files
+# are passed, nothing here starts unless the profile is enabled. That double
+# gate is deliberate — accidentally launching Keycloak + Grafana + Loki +
+# Langflow on a laptop is a bad afternoon (several GB of RAM).
+#
+# COST: $0. Every image is free/OSS and runs locally.
+#
+# ⚠️ NOT PRODUCTION-HARDENED. Dev-only defaults live here: Keycloak in `start-dev`
+# with an H2 in-memory database, no TLS, and default credentials sourced from
+# `.env`. Do not expose this to a network you do not control.
+# ---------------------------------------------------------------------------
+
+services:
+  # --- Reverse proxy: one origin for portal + API + tools ---
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: constellation-caddy
+    profiles: [federation]
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+      web:
+        condition: service_started
+    ports:
+      - "${PROXY_HOST_PORT:-8080}:80"
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:80/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [constellation]
+
+  # --- SSO / identity provider ---
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: constellation-keycloak
+    profiles: [federation]
+    restart: unless-stopped
+    # `start-dev` = H2 in-memory, no TLS. Realm config does NOT survive a
+    # `down`. Fine for proving the SSO seam; swap to `start` + the Postgres
+    # datasource before anything real.
+    # The realm is IMPORTED declaratively from infra/keycloak/ on every boot
+    # (--import-realm), so the SSO proof is reproducible after a recreate
+    # instead of depending on hand-clicked runtime state that vanishes.
+    command: ["start-dev", "--http-relative-path=/auth", "--health-enabled=true", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-changeme}
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+      KC_PROXY_HEADERS: xforwarded
+    volumes:
+      - ./infra/keycloak:/opt/keycloak/data/import:ro
+    ports:
+      - "${KEYCLOAK_HOST_PORT:-8081}:8080"
+    healthcheck:
+      # The 26.x images are distroless — no curl/wget. Keycloak exposes its
+      # health endpoints on the management port (9000); probe with bash's
+      # /dev/tcp, which is all that's available in the container.
+      # NOTE: `--http-relative-path=/auth` ALSO prefixes the management
+      # endpoints, so the path is /auth/health/ready — bare /health/ready
+      # returns 404 and the container never goes healthy.
+      # Verified 2026-08-02: this probe only takes effect after the container
+      # is RECREATED (`up -d --force-recreate keycloak`); editing the compose
+      # file alone leaves the old healthcheck baked into the running container.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && echo -e 'GET /auth/health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '\"status\": \"UP\"'"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    networks: [constellation]
+
+  # --- Observability: metrics ---
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: constellation-prometheus
+    profiles: [federation]
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --web.enable-lifecycle
+      # Required because the proxy serves it under /tools/prometheus.
+      - --web.external-url=http://localhost:${PROXY_HOST_PORT:-8080}/tools/prometheus
+      - --web.route-prefix=/
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "${PROMETHEUS_HOST_PORT:-9090}:9090"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [constellation]
+
+  # --- Observability: logs ---
+  loki:
+    image: grafana/loki:3.2.1
+    container_name: constellation-loki
+    profiles: [federation]
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/loki-config.yml"]
+    volumes:
+      - ./infra/loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki-data:/loki
+    ports:
+      - "${LOKI_HOST_PORT:-3100}:3100"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3100/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    networks: [constellation]
+
+  # --- Observability: dashboards (the portal tile) ---
+  grafana:
+    image: grafana/grafana:11.3.1
+    container_name: constellation-grafana
+    profiles: [federation]
+    restart: unless-stopped
+    depends_on:
+      prometheus:
+        condition: service_started
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-changeme}
+      # Embedding is what makes it a portal TILE rather than a link-out.
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      GF_SECURITY_COOKIE_SAMESITE: none
+      # Served under a sub-path by the proxy — Grafana must know its root URL
+      # or every asset/redirect it generates will 404.
+      GF_SERVER_ROOT_URL: http://localhost:${PROXY_HOST_PORT:-8080}/tools/grafana/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "${GRAFANA_HOST_PORT:-3001}:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks: [constellation]
+
+  # --- Tracing backend (Phase 2.0 — OTel): receives OTLP from the api when
+  # OTEL_EXPORTER_OTLP_ENDPOINT is set; Grafana (above) gets a Tempo
+  # datasource automatically via infra/grafana/provisioning.
+  tempo:
+    image: grafana/tempo:2.7.1
+    container_name: constellation-tempo
+    profiles: [federation]
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./infra/tempo/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "${TEMPO_OTLP_GRPC_HOST_PORT:-4317}:4317" # OTLP gRPC
+      - "${TEMPO_OTLP_HTTP_HOST_PORT:-4318}:4318" # OTLP HTTP
+      - "${TEMPO_HOST_PORT:-3200}:3200"           # Tempo query API
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:3200/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    networks: [constellation]
+
+  # --- Chat federation (C7: keep Open WebUI alongside an in-house chat) ---
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: constellation-open-webui
+    profiles: [federation]
+    restart: unless-stopped
+    environment:
+      WEBUI_URL: http://localhost:${PROXY_HOST_PORT:-8080}/tools/chat
+      # Points at a host-side Ollama if one is running; harmless when absent.
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      WEBUI_AUTH: ${OPEN_WEBUI_AUTH:-true}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - open-webui-data:/app/backend/data
+    ports:
+      - "${OPEN_WEBUI_HOST_PORT:-3002}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/health || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
+    networks: [constellation]
+
+  # --- Visual flow builder; published flows become agent tools ---
+  langflow:
+    image: langflowai/langflow:1.1.1
+    container_name: constellation-langflow
+    profiles: [federation]
+    restart: unless-stopped
+    environment:
+      LANGFLOW_AUTO_LOGIN: ${LANGFLOW_AUTO_LOGIN:-true}
+      LANGFLOW_SUPERUSER: ${LANGFLOW_SUPERUSER:-admin}
+      LANGFLOW_SUPERUSER_PASSWORD: ${LANGFLOW_SUPERUSER_PASSWORD:-changeme}
+      # SQLite by default; point at Postgres for anything persistent.
+      LANGFLOW_DATABASE_URL: ${LANGFLOW_DATABASE_URL:-sqlite:////app/langflow/langflow.db}
+    volumes:
+      - langflow-data:/app/langflow
+    ports:
+      - "${LANGFLOW_HOST_PORT:-7860}:7860"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:7860/health').status==200 else 1)\" || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 20
+      start_period: 90s
+    networks: [constellation]
+
+volumes:
+  caddy-data:
+  caddy-config:
+  prometheus-data:
+  loki-data:
+  grafana-data:
+  tempo-data:
+  open-webui-data:
+  langflow-data:

@@ -1,0 +1,90 @@
+[
+ {
+  "act": "goto",
+  "url": "http://localhost:3005/login"
+ },
+ {
+  "act": "wait",
+  "expr": "document.querySelector('input[type=email]') !== null",
+  "wait": 60000
+ },
+ {
+  "act": "type",
+  "selector": "input[type=email]",
+  "t": "admin@constellation.local"
+ },
+ {
+  "act": "type",
+  "selector": "input[type=password]",
+  "t": "changeme"
+ },
+ {
+  "act": "sleep",
+  "ms": 800
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => /sign in|log in|submit/i.test(x.textContent || '')); if (b) { b.click(); return 'clicked login'; } return 'no login button'; })()"
+ },
+ {
+  "act": "sleep",
+  "ms": 8000
+ },
+ {
+  "act": "goto",
+  "url": "http://localhost:3005/mesh"
+ },
+ {
+  "act": "wait",
+  "expr": "(document.body && document.body.innerText).includes('Agent Mesh')",
+  "wait": 45000
+ },
+ {
+  "act": "sleep",
+  "ms": 3000
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const t = document.body.innerText; return 'title=' + t.includes('Agent Mesh') + ';edgeSim=' + t.includes('edge-sim') + ';darkSite=' + t.includes('dark-site') + ';upBadge=' + (t.match(/UP/g) || []).length + ';downBadge=' + (t.match(/DOWN/g) || []).length + ';counts=' + (t.includes('TOTAL') && t.includes('UNKNOWN')) + ';hashedKeyIcon=' + t.includes('API key registered') ; })()"
+ },
+ {
+  "act": "shot",
+  "shot": "mesh-topology"
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const i = document.querySelector('input[aria-label=\"Peer name\"]'); if (!i) return 'name input missing'; const set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set; set.call(i, 'staging'); i.dispatchEvent(new Event('input', { bubbles: true })); return 'name set to staging'; })()"
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const i = document.querySelector('input[aria-label=\"Peer base URL\"]'); if (!i) return 'url input missing'; const set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set; set.call(i, 'http://localhost:4999'); i.dispatchEvent(new Event('input', { bubbles: true })); return 'url set'; })()"
+ },
+ {
+  "act": "sleep",
+  "ms": 500
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => (x.textContent || '').trim().includes('Add peer')); if (!b) return 'add button missing'; b.click(); return 'clicked Add peer'; })()"
+ },
+ {
+  "act": "wait",
+  "expr": "(document.body && document.body.innerText).includes('staging')",
+  "wait": 20000
+ },
+ {
+  "act": "sleep",
+  "ms": 1500
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const t = document.body.innerText; return 'stagingRow=' + t.includes('staging') + ';stagingDown=' + t.includes('DOWN') + ';toast=' + (t.includes('registered') ? 'yes' : 'no'); })()"
+ },
+ {
+  "act": "shot",
+  "shot": "mesh-after-add"
+ },
+ {
+  "act": "text"
+ }
+]

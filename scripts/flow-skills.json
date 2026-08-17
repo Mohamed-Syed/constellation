@@ -1,0 +1,15 @@
+[
+ { "act": "goto", "url": "http://localhost:3005/login" },
+ { "act": "wait", "expr": "document.querySelector('input[type=email]') !== null", "wait": 60000 },
+ { "act": "type", "selector": "input[type=email]", "t": "admin@constellation.local" },
+ { "act": "type", "selector": "input[type=password]", "t": "changeme" },
+ { "act": "sleep", "ms": 1200 },
+ { "act": "eval", "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => /sign in|log in|submit/i.test(x.textContent || '')); if (b) { b.click(); return 'clicked login'; } return 'no login button'; })()" },
+ { "act": "sleep", "ms": 10000 },
+ { "act": "goto", "url": "http://localhost:3005/skills" },
+ { "act": "wait", "expr": "(document.body.innerText).toLowerCase().includes('daily github pr triage')", "wait": 40000 },
+ { "act": "sleep", "ms": 4000 },
+ { "act": "eval", "expr": "(() => { const t = document.body.innerText.toLowerCase(); const cards = (t.match(/daily github pr triage|weekly dependency audit|ssl certificate expiry monitor|nightly platform health check/g) || []).length; const active = t.includes('active'); const paused = t.includes('paused'); return 'cards=' + cards + ';active=' + active + ';paused=' + paused + ';installBtns=' + document.querySelectorAll('button[aria-label*=install i]').length; })()" },
+ { "act": "shot", "shot": "skills-catalog" },
+ { "act": "text" }
+]

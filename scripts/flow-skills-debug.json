@@ -1,0 +1,5 @@
+[
+ { "act": "goto", "url": "http://localhost:3005/skills" },
+ { "act": "sleep", "ms": 10000 },
+ { "act": "eval", "expr": "(() => { const t = document.body ? document.body.innerText : 'NO BODY'; return 'URL=' + location.href + ';;' + t.slice(0, 400).replace(/\\n/g, ' | '); })()" }
+]

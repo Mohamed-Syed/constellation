@@ -1,0 +1,19 @@
+[
+  { "act": "goto", "url": "http://localhost:3005/login" },
+  { "act": "wait", "expr": "document.querySelector('input[type=email]') !== null", "wait": 60000 },
+  { "act": "type", "selector": "input[type=email]", "t": "admin@constellation.local" },
+  { "act": "type", "selector": "input[type=password]", "t": "changeme" },
+  { "act": "sleep", "ms": 1000 },
+  { "act": "eval", "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => /sign in|log in|submit/i.test(x.textContent || '')); if (b) { b.click(); return 'clicked'; } return 'no button'; })()" },
+  { "act": "sleep", "ms": 8000 },
+  { "act": "goto", "url": "http://localhost:3005/workflows" },
+  { "act": "wait", "expr": "document.body && document.body.innerText.includes('Untitled workflowBrowser')", "wait": 60000 },
+  { "act": "sleep", "ms": 3000 },
+  { "act": "eval", "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => (x.textContent || '').includes('Untitled workflowBrowser')); if (b) { b.click(); return 'opened'; } return 'not found'; })()" },
+  { "act": "wait", "expr": "document.body && document.body.innerText.includes('RECENT RUNS')", "wait": 30000 },
+  { "act": "wait", "expr": "document.body && (document.body.innerText.includes('completed') || document.body.innerText.includes('failed'))", "wait": 60000 },
+  { "act": "sleep", "ms": 3000 },
+  { "act": "eval", "expr": "(() => { const t = document.body.innerText; return 'runStatus=' + (t.includes('failed') ? 'failed' : 'completed') + ' | okBadges=' + (t.match(/\\bok\\b/g) || []).length + ' | trailSteps=' + document.querySelectorAll('[role=dialog], ol li').length; })()" },
+  { "act": "shot", "shot": "workflow-builder-run" },
+  { "act": "text" }
+]

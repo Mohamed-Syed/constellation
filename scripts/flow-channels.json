@@ -1,0 +1,82 @@
+[
+ {
+  "act": "goto",
+  "url": "http://localhost:3005/login"
+ },
+ {
+  "act": "wait",
+  "expr": "document.querySelector('input[type=email]') !== null",
+  "wait": 60000
+ },
+ {
+  "act": "type",
+  "selector": "input[type=email]",
+  "t": "admin@constellation.local"
+ },
+ {
+  "act": "type",
+  "selector": "input[type=password]",
+  "t": "changeme"
+ },
+ {
+  "act": "sleep",
+  "ms": 1000
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => /sign in|log in|submit/i.test(x.textContent || '')); if (b) { b.click(); return 'clicked login'; } return 'no login button'; })()"
+ },
+ {
+  "act": "sleep",
+  "ms": 8000
+ },
+ {
+  "act": "goto",
+  "url": "http://localhost:3005/notifications"
+ },
+ {
+  "act": "wait",
+  "expr": "(document.body && document.body.innerText).includes('Channels')",
+  "wait": 30000
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => (x.textContent || '').trim() === 'Channels'); if (!b) return 'no channels tab'; b.click(); return 'opened channels tab'; })()"
+ },
+ {
+  "act": "wait",
+  "expr": "(document.body && document.body.innerText).includes('generic-proof')",
+  "wait": 20000
+ },
+ {
+  "act": "sleep",
+  "ms": 1500
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const t = document.body.innerText; return 'channelsTab=' + (t.includes('Add webhook') && t.includes('Configured channels')) + ';generic=' + t.includes('generic-proof') + ';slack=' + t.includes('slack-proof') + ';formats=' + (t.includes('generic') && t.includes('slack')); })()"
+ },
+ {
+  "act": "shot",
+  "shot": "channels-panel"
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const rows = Array.from(document.querySelectorAll('li')); const target = rows.find(r => (r.innerText||'').includes('generic-proof')); if (!target) return 'row not found'; const b = Array.from(target.querySelectorAll('button')).find(x => (x.textContent||'').includes('Test')); if (!b) return 'no test button'; b.click(); return 'clicked Test on generic-proof'; })()"
+ },
+ {
+  "act": "sleep",
+  "ms": 2500
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const t = document.body.innerText; return 'toast=' + (t.includes('Test message delivered') ? 'yes' : 'no'); })()"
+ },
+ {
+  "act": "shot",
+  "shot": "channels-test-toast"
+ },
+ {
+  "act": "text"
+ }
+]

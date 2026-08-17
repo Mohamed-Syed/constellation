@@ -1,0 +1,22 @@
+[
+ { "act": "goto", "url": "http://127.0.0.1:3005/login" },
+ { "act": "wait", "expr": "document.querySelector('input[type=email]') !== null", "wait": 30000 },
+ { "act": "sleep", "ms": 1500 },
+ { "act": "type", "selector": "input[type=email]", "t": "admin@constellation.local" },
+ { "act": "type", "selector": "input[type=password]", "t": "changeme" },
+ { "act": "sleep", "ms": 800 },
+ { "act": "eval", "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => /sign in|log in|submit/i.test(x.textContent || '')); if (!b) return 'no button'; b.click(); return 'clicked'; })()" },
+ { "act": "wait", "expr": "location.pathname !== '/login' || (document.body && document.body.innerText.includes('Invalid'))", "wait": 20000 },
+ { "act": "eval", "expr": "(() => { const t = document.body.innerText || ''; return 'path=' + location.pathname + ';shell=' + (t.includes('Dashboard') && t.includes('Modules')); })()" },
+ { "act": "shot", "shot": "prod-login-127" },
+ { "act": "goto", "url": "http://127.0.0.1:3005/mesh" },
+ { "act": "wait", "expr": "(document.body && document.body.innerText).includes('Agent Mesh')", "wait": 20000 },
+ { "act": "sleep", "ms": 2500 },
+ { "act": "eval", "expr": "(() => { const t = document.body.innerText; const btn = Array.from(document.querySelectorAll('button')).find(x => (x.textContent||'').includes('Probe')); const cs = btn ? getComputedStyle(btn) : null; const theme = document.documentElement.getAttribute('data-theme'); const font = getComputedStyle(document.body).fontFamily; return 'edge=' + t.includes('edge-sim') + ';dark=' + t.includes('dark-site') + ';upBadges=' + (t.match(/UP/g)||[]).length + ';downBadges=' + (t.match(/DOWN/g)||[]).length + ';btnCursor=' + (cs ? cs.cursor : 'n/a') + ';theme=' + theme + ';fontHasGeist=' + font.includes('Geist') + ';tabular=' + (getComputedStyle(document.querySelector('.stat-value')).fontVariantNumeric || 'n/a'); })()" },
+ { "act": "shot", "shot": "prod-mesh-127" },
+ { "act": "eval", "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => (x.textContent||'').includes('Probe')); if (!b) return 'no probe btn'; b.click(); return 'probe clicked'; })()" },
+ { "act": "sleep", "ms": 2500 },
+ { "act": "eval", "expr": "(() => { const t = document.body.innerText; return 'afterProbe_toast=' + (t.includes('UP') || t.includes('DOWN') ? 'status-visible' : 'none'); })()" },
+ { "act": "shot", "shot": "prod-mesh-after-probe" },
+ { "act": "text" }
+]

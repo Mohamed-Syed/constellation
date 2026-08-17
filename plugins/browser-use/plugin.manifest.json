@@ -1,0 +1,155 @@
+{
+  "manifestVersion": 2,
+  "id": "browser-use",
+  "name": "browser-use",
+  "version": "0.1.0",
+  "description": "Agent-plane capability: LLM-driven browser automation. Exposes navigate/act/extract tools backed by the browser-use task API (cloud or self-hosted).",
+  "author": "Constellation",
+  "repository": "https://github.com/browser-use/browser-use",
+  "license": "UNLICENSED",
+  "minPlatformVersion": "0.1.0",
+  "dependencies": [],
+  "requiredServices": [],
+  "permissions": [
+    "browser:navigate",
+    "browser:act",
+    "browser:extract"
+  ],
+  "navigation": [
+    {
+      "id": "browser-use-home",
+      "label": "Browser",
+      "path": "/browser-use",
+      "order": 100,
+      "requiresPermissions": []
+    }
+  ],
+  "routes": [],
+  "featureFlags": [],
+  "settings": [
+    {
+      "key": "backend",
+      "label": "Backend dialect",
+      "type": "string",
+      "description": "Which wire protocol to speak: 'cloud' (default) = the async browser-use task API at api.browser-use.com, needs an API key; 'steel' = a LOCAL Steel Browser container (ghcr.io/steel-dev/steel-browser, Apache-2.0, $0), needs no key. Falls back to the BROWSER_USE_BACKEND env var, then to 'cloud'. NOTE: this default MUST stay empty — manifest defaults are hydrated into plugin config, so a non-empty default here is always truthy and would shadow the BROWSER_USE_BACKEND env fallback entirely.",
+      "default": ""
+    },
+    {
+      "key": "baseUrl",
+      "label": "browser-use base URL",
+      "type": "string",
+      "description": "Base URL of the browser-use API. Defaults to the hosted cloud (https://api.browser-use.com); point this at a self-hosted server to override. Falls back to the BROWSER_USE_URL env var.",
+      "default": ""
+    },
+    {
+      "key": "apiKey",
+      "label": "browser-use API key",
+      "type": "secret",
+      "description": "Sent as the X-Browser-Use-API-Key header. Prefer the BROWSER_USE_API_KEY env var over storing a secret in settings.",
+      "default": ""
+    },
+    {
+      "key": "timeoutMs",
+      "label": "Task timeout (ms)",
+      "type": "number",
+      "description": "Total budget for a tool call, including polling the task to completion.",
+      "default": 180000
+    },
+    {
+      "key": "pollIntervalMs",
+      "label": "Poll interval (ms)",
+      "type": "number",
+      "description": "How often to poll GET /api/v2/tasks/{id} while a task is running.",
+      "default": 2000
+    }
+  ],
+  "jobs": [],
+  "tools": [
+    {
+      "name": "browser.navigate",
+      "description": "Open a URL in a browser-use session and report the final URL and page title.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Absolute http(s) URL to open (sent as startUrl)."
+          },
+          "then": {
+            "type": "string",
+            "description": "Optional follow-up instruction to perform after the page loads."
+          },
+          "maxSteps": {
+            "type": "number",
+            "description": "Cap on agent steps for this task."
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "additionalProperties": false
+      },
+      "permission": "browser:navigate"
+    },
+    {
+      "name": "browser.act",
+      "description": "Perform a natural-language action in the current browser session (click, type, scroll, submit).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instruction": {
+            "type": "string",
+            "description": "Natural-language action, e.g. \"click the Sign in button\"."
+          },
+          "startUrl": {
+            "type": "string",
+            "description": "Optional URL to start from."
+          },
+          "maxSteps": {
+            "type": "number",
+            "description": "Cap on agent steps for this task."
+          }
+        },
+        "required": [
+          "instruction"
+        ],
+        "additionalProperties": false
+      },
+      "permission": "browser:act",
+      "requiresApproval": true
+    },
+    {
+      "name": "browser.extract",
+      "description": "Extract structured data from the current page given a natural-language query and optional JSON schema.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "What to extract, e.g. \"all product names and prices\"."
+          },
+          "startUrl": {
+            "type": "string",
+            "description": "Optional URL to extract from."
+          },
+          "structuredOutput": {
+            "type": "string",
+            "description": "Optional JSON-schema string the result should conform to."
+          },
+          "maxSteps": {
+            "type": "number",
+            "description": "Cap on agent steps for this task."
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "additionalProperties": false
+      },
+      "permission": "browser:extract"
+    }
+  ],
+  "entry": "dist/index.js",
+  "healthCheck": "/api/v2/me",
+  "translations": []
+}

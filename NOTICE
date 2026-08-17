@@ -1,0 +1,14 @@
+Constellation
+Copyright 2026 Mohamed-Syed and the Constellation contributors
+
+This product includes software developed as an open-source, self-hosted
+enterprise plugin platform with a 24/7 AI-agent engine.
+
+Licensed under the Apache License, Version 2.0 (see the LICENSE file).
+
+This project builds on, integrates with, or federates the following
+open-source projects (each under its own license): NestJS, Next.js, Prisma,
+BullMQ, Ollama, Graphify (github.com/Graphify-Labs/graphify), OpenRouter,
+Keycloak, Grafana, Prometheus, Loki, Tempo, Caddy, and the Model Context
+Protocol. Their names and trademarks belong to their respective owners and
+are used only to describe interoperability.

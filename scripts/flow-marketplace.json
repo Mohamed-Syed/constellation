@@ -1,0 +1,85 @@
+[
+ {
+  "act": "goto",
+  "url": "http://localhost:3005/login"
+ },
+ {
+  "act": "wait",
+  "expr": "document.querySelector('input[type=email]') !== null",
+  "wait": 60000
+ },
+ {
+  "act": "type",
+  "selector": "input[type=email]",
+  "t": "admin@constellation.local"
+ },
+ {
+  "act": "type",
+  "selector": "input[type=password]",
+  "t": "changeme"
+ },
+ {
+  "act": "sleep",
+  "ms": 1000
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => /sign in|log in|submit/i.test(x.textContent || '')); if (b) { b.click(); return 'clicked'; } return 'no button'; })()"
+ },
+ {
+  "act": "sleep",
+  "ms": 8000
+ },
+ {
+  "act": "goto",
+  "url": "http://localhost:3005/modules"
+ },
+ {
+  "act": "wait",
+  "expr": "document.body && document.body.innerText.includes('Plugin marketplace')",
+  "wait": 60000
+ },
+ {
+  "act": "sleep",
+  "ms": 5000
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const t = document.body.innerText; return 'marketplace=' + t.includes('Plugin marketplace') + ' | availableZone=' + t.includes('AVAILABLE IN THE CATALOG') + ' | helloCard=' + t.includes('Hello Catalog') + ' | installBtn=' + Array.from(document.querySelectorAll('button')).some(b => /install/i.test(b.textContent || '')) + ' | installedGrid=' + t.includes('Hello World'); })()"
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => /^install$/i.test((x.textContent || '').trim())); if (b) { b.click(); return 'clicked Install'; } return 'no install btn'; })()"
+ },
+ {
+  "act": "sleep",
+  "ms": 6000
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const t = document.body.innerText; return 'installedZone=' + t.includes('INSTALLED FROM THE MARKETPLACE') + ' | uninstallBtn=' + Array.from(document.querySelectorAll('button')).some(b => /uninstall/i.test(b.textContent || '')) + ' | stillAvailable=' + t.includes('AVAILABLE IN THE CATALOG'); })()"
+ },
+ {
+  "act": "shot",
+  "shot": "marketplace-installed"
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => /uninstall/i.test(x.textContent || '')); if (b) { b.click(); return 'clicked Uninstall'; } return 'no uninstall btn'; })()"
+ },
+ {
+  "act": "sleep",
+  "ms": 6000
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const t = document.body.innerText; return 'backToAvailable=' + t.includes('AVAILABLE IN THE CATALOG') + ' | helloCard=' + t.includes('Hello Catalog') + ' | installedZoneGone=' + !t.includes('INSTALLED FROM THE MARKETPLACE'); })()"
+ },
+ {
+  "act": "shot",
+  "shot": "marketplace-after-uninstall"
+ },
+ {
+  "act": "text"
+ }
+]

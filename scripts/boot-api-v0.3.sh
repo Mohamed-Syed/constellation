@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# Engine v0.3 round boot script — API on :4001 against local infra.
+# Everything comes from the repo-root .env (git-ignored), where the operator
+# pastes secrets. OPENROUTER_API_KEY unset → provider unconfigured → the
+# engine stays $0/local on Ollama (the v0.3 invariant).
+# OPERATOR DECISION 2026-08-05: the engine DEFAULT is DeepSeek (providers[0]
+# in engine.module.ts — the router's default AND failure fallback), and
+# Ollama is stopped on this host. DEFAULT_MODEL below follows the operator.
+set -euo pipefail
+cd "$(dirname "$0")/.."   # repo root
+export API_PORT=4001
+export API_GLOBAL_PREFIX=api
+# Compose-default dev password for the disposable local postgres container
+# (docker-compose.yml defaults POSTGRES_PASSWORD=constellation).
+export DATABASE_URL="${DATABASE_URL:-postgresql://constellation:constellation@localhost:5432/constellation}"
+export JWT_SECRET="$(grep '^JWT_SECRET=' .env | cut -d= -f2-)"
+export REDIS_URL="${REDIS_URL:-redis://localhost:6380}"
+export DEFAULT_MODEL="${DEFAULT_MODEL:-deepseek-v4-flash}"
+export OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://localhost:11434}"
+export GRAPHIFY_PLUGIN_MCP_URL="${GRAPHIFY_PLUGIN_MCP_URL:-http://127.0.0.1:8791/mcp}"
+export ENGINE_MAX_STEPS="${ENGINE_MAX_STEPS:-20}"
+# 7b needs >60s when a large tool result is in context (seen live in v0.2 Task 1).
+export MODEL_TIMEOUT_MS="${MODEL_TIMEOUT_MS:-180000}"
+# Supervised mode: ENGINE_REQUIRE_APPROVAL_ALL=true pauses EVERY tool call.
+export ENGINE_REQUIRE_APPROVAL_ALL="${ENGINE_REQUIRE_APPROVAL_ALL:-false}"
+# Engine v0.4 — Scheduler poll cadence (ms); the autonomous-trigger loop checks
+# due cron schedules every this many ms. 5000 here makes the live proof snappy.
+export SCHEDULER_POLL_INTERVAL_MS="${SCHEDULER_POLL_INTERVAL_MS:-30000}"
+# OPT-IN cloud provider (Engine v0.3): read the key from root .env if set.
+# NEVER commit the key — .env is git-ignored.
+if grep -q '^OPENROUTER_API_KEY=.' .env; then
+  export OPENROUTER_API_KEY="$(grep '^OPENROUTER_API_KEY=' .env | cut -d= -f2-)"
+fi
+# OPT-IN cloud provider (2026-08-04 round): DeepSeek direct API. Same rule —
+# key read from root .env only, never committed. Plus the optional tuning vars.
+if grep -q '^DEEPSEEK_API_KEY=.' .env; then
+  export DEEPSEEK_API_KEY="$(grep '^DEEPSEEK_API_KEY=' .env | cut -d= -f2-)"
+  # Optional tuning vars — ONLY export when non-empty, or the empty string
+  # would override the provider's code default (found live in this round:
+  # an empty DEEPSEEK_DEFAULT_MODEL made health() report model:"").
+  if grep -q '^DEEPSEEK_DEFAULT_MODEL=.' .env; then
+    export DEEPSEEK_DEFAULT_MODEL="$(grep '^DEEPSEEK_DEFAULT_MODEL=' .env | cut -d= -f2-)"
+  fi
+  if grep -q '^DEEPSEEK_THINKING=.' .env; then
+    export DEEPSEEK_THINKING="$(grep '^DEEPSEEK_THINKING=' .env | cut -d= -f2-)"
+  fi
+fi
+# OpenTelemetry tracing (Phase 2.0) — OPT-IN, additive: unset endpoint = no
+# tracing at all (zero overhead). Set OTEL_EXPORTER_OTLP_ENDPOINT in .env to
+# export spans (e.g. http://localhost:4318 for the federation Tempo).
+if grep -q '^OTEL_EXPORTER_OTLP_ENDPOINT=.' .env; then
+  export OTEL_EXPORTER_OTLP_ENDPOINT="$(grep '^OTEL_EXPORTER_OTLP_ENDPOINT=' .env | cut -d= -f2-)"
+fi
+if grep -q '^OTEL_SERVICE_NAME=.' .env; then
+  export OTEL_SERVICE_NAME="$(grep '^OTEL_SERVICE_NAME=' .env | cut -d= -f2-)"
+fi
+# Phase 2.0 2.7 — plugin sandboxing (OPT-IN, default off): export from .env
+# when set. Only non-empty values (the empty-string override trap).
+for VAR in PLUGIN_SANDBOX_MODE PLUGIN_SANDBOX_PLUGINS PLUGIN_SANDBOX_TIMEOUT_MS PLUGIN_SANDBOX_MEMORY_MB PLUGIN_SANDBOX_MAX_RESULT_BYTES; do
+  if grep -q "^$VAR=." .env; then
+    export "$VAR"="$(grep "^$VAR=" .env | cut -d= -f2-)"
+  fi
+done
+cd apps/api
+exec node dist/main.js

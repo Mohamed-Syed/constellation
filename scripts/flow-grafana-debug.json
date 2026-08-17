@@ -1,0 +1,10 @@
+[
+  { "act": "goto", "url": "http://localhost:8090/tools/grafana/login" },
+  { "act": "wait", "expr": "document.querySelector('input[name=user]') !== null", "wait": 30000 },
+  { "act": "fill", "selector": "input[name=user]", "t": "admin" },
+  { "act": "fill", "selector": "input[name=password]", "t": "changeme" },
+  { "act": "eval", "expr": "(() => { const f = document.querySelector('form'); if (f) f.requestSubmit(); return 'submitted'; })()" },
+  { "act": "sleep", "ms": 6000 },
+  { "act": "eval", "expr": "({ path: location.pathname, title: document.title, body: document.body.innerText.slice(0, 300) })" },
+  { "act": "text" }
+]

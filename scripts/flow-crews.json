@@ -1,0 +1,18 @@
+[
+ { "act": "goto", "url": "http://localhost:3005/login" },
+ { "act": "wait", "expr": "document.querySelector('input[type=email]') !== null", "wait": 60000 },
+ { "act": "type", "selector": "input[type=email]", "t": "admin@constellation.local" },
+ { "act": "type", "selector": "input[type=password]", "t": "changeme" },
+ { "act": "sleep", "ms": 1200 },
+ { "act": "eval", "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => /sign in|log in|submit/i.test(x.textContent || '')); if (b) { b.click(); return 'clicked login'; } return 'no login button'; })()" },
+ { "act": "sleep", "ms": 10000 },
+ { "act": "goto", "url": "http://localhost:3005/engine" },
+ { "act": "wait", "expr": "(document.body.innerText).toLowerCase().includes('crews-parent')", "wait": 60000 },
+ { "act": "sleep", "ms": 3000 },
+ { "act": "eval", "expr": "(() => { const row = Array.from(document.querySelectorAll('tr, [role=row], li')).find(x => (x.textContent || '').includes('crews-parent')); if (row) { row.click(); return 'clicked parent row'; } return 'no row found'; })()" },
+ { "act": "wait", "expr": "(document.body.innerText).toLowerCase().includes('delegation')", "wait": 30000 },
+ { "act": "sleep", "ms": 5000 },
+ { "act": "eval", "expr": "(() => { const t = document.body.innerText.toLowerCase(); const hasTree = t.includes('sub-agent-a') && t.includes('sub-agent-b'); const hasMcp = t.includes('mcp-sub-agent'); const hasForm = t.includes('delegate a sub-agent task'); return 'tree=' + hasTree + ';mcpChild=' + hasMcp + ';form=' + hasForm; })()" },
+ { "act": "shot", "shot": "crews-detail" },
+ { "act": "text" }
+]

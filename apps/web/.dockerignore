@@ -1,0 +1,23 @@
+# apps/web build-context ignore.
+#
+# NOTE: both Dockerfiles build from the MONOREPO ROOT, so Docker reads the
+# ROOT `.dockerignore` — this file is here for anyone who runs
+# `docker build apps/web` directly, and to keep the rules discoverable next
+# to the Dockerfile. Keep it in sync with the root one.
+
+node_modules
+**/node_modules
+.next
+**/.next
+dist
+out
+.turbo
+**/.turbo
+coverage
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+Dockerfile
+.dockerignore
+*.log

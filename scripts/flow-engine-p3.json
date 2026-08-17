@@ -1,0 +1,87 @@
+[
+ {
+  "act": "goto",
+  "url": "http://localhost:3005/login"
+ },
+ {
+  "act": "wait",
+  "expr": "document.querySelector('input[type=email]') !== null",
+  "wait": 60000
+ },
+ {
+  "act": "type",
+  "selector": "input[type=email]",
+  "t": "admin@constellation.local"
+ },
+ {
+  "act": "type",
+  "selector": "input[type=password]",
+  "t": "changeme"
+ },
+ {
+  "act": "sleep",
+  "ms": 1000
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const b = Array.from(document.querySelectorAll('button')).find(x => /sign in|log in|submit/i.test(x.textContent || '')); if (b) { b.click(); return 'clicked'; } return 'no button'; })()"
+ },
+ {
+  "act": "sleep",
+  "ms": 8000
+ },
+ {
+  "act": "goto",
+  "url": "http://localhost:3005/engine"
+ },
+ {
+  "act": "wait",
+  "expr": "(document.body && document.body.innerText).includes('Engine P3 live proof')",
+  "wait": 30000
+ },
+ {
+  "act": "sleep",
+  "ms": 3000
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const t = document.body.innerText; return { filterTabs: ['All','Queued','Running','Completed','Failed','Cancelled'].filter(x => t.includes(x)), modelDatalist: !!document.getElementById('engine-models') }; })()"
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const rows = Array.from(document.querySelectorAll('tbody tr')); const target = rows.find(r => r.innerText.includes('Engine P3 live proof')); if (!target) return 'row not found: ' + rows.length; const b = target.querySelector('button'); b.click(); return 'clicked P3 row'; })()"
+ },
+ {
+  "act": "wait",
+  "expr": "document.querySelector('[role=dialog]') !== null",
+  "wait": 30000
+ },
+ {
+  "act": "sleep",
+  "ms": 4000
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const t = document.body.innerText; const dlg = document.querySelector('[role=dialog]'); return { dlgOpen: !!dlg, liveBadge: t.includes('live'), stepRows: dlg ? dlg.querySelectorAll('ol li').length : -1 }; })()"
+ },
+ {
+  "act": "wait",
+  "expr": "(document.body && document.body.innerText).includes('Result') && (document.body && document.body.innerText).includes('Copy')",
+  "wait": 150000
+ },
+ {
+  "act": "sleep",
+  "ms": 3000
+ },
+ {
+  "act": "eval",
+  "expr": "(() => { const t = document.body.innerText; return { resultAndCopy: t.includes('Result') && t.includes('Copy'), reRunButton: t.includes('Re-run'), liveGone: !t.includes('live') }; })()"
+ },
+ {
+  "act": "shot",
+  "shot": "engine-p3-dialog-result"
+ },
+ {
+  "act": "text"
+ }
+]

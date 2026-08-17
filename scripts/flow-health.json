@@ -1,0 +1,18 @@
+[
+  { "act": "goto", "url": "http://localhost:3005/login" },
+  { "act": "wait", "expr": "document.querySelector('input[type=password]') !== null", "wait": 20000 },
+  { "act": "fill", "selector": "input[type=email]", "t": "admin@constellation.local" },
+  { "act": "fill", "selector": "input[type=password]", "t": "changeme" },
+  { "act": "click", "selector": "button[type=submit]" },
+  { "act": "wait", "expr": "location.pathname !== '/login'", "wait": 15000 },
+  { "act": "goto", "url": "http://localhost:3005/health" },
+  { "act": "wait", "expr": "document.body.innerText.includes('Engine Health')", "wait": 30000 },
+  { "act": "wait", "expr": "document.body.innerText.includes('Queue depth')", "wait": 30000 },
+  { "act": "sleep", "ms": 3000 },
+  {
+    "act": "eval",
+    "expr": "({ title: document.title, hasEngine: document.body.innerText.includes('Engine available'), hasQueue: document.body.innerText.includes('Queue depth'), hasModel: document.body.innerText.includes('Model providers'), hasScheduler: document.body.innerText.includes('Scheduler'), hasSupervisor: document.body.innerText.includes('Supervisor'), hasAlerts: document.body.innerText.includes('Alert trail'), hasOllama: document.body.innerText.includes('ollama'), navHasHealth: Array.from(document.querySelectorAll('a')).some(a => a.textContent.trim() === 'Health'), waiting: document.body.innerText.match(/Waiting[^0-9]*([0-9]+)/)?.[1], active: document.body.innerText.match(/Active[^0-9]*([0-9]+)/)?.[1], failedTasks: document.body.innerText.match(/Failed tasks[^0-9]*([0-9]+)/)?.[1], lastUpdated: document.body.innerText.match(/Last updated[^\\n]*/)?.[0] })"
+  },
+  { "act": "shot", "shot": "health-dashboard" },
+  { "act": "text" }
+]

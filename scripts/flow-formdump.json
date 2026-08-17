@@ -1,0 +1,5 @@
+[
+  { "act": "goto", "url": "http://localhost:3005/login" },
+  { "act": "wait", "expr": "document.querySelector('input[type=password]') !== null" },
+  { "act": "eval", "expr": "JSON.stringify(Array.from(document.querySelectorAll('input')).map(i => ({type:i.type, name:i.name, id:i.id, ph:i.placeholder, value:i.value})))" }
+]

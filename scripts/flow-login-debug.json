@@ -1,0 +1,16 @@
+[
+  { "act": "goto", "url": "http://localhost:3005/login" },
+  { "act": "wait", "expr": "document.querySelector('#email') !== null" },
+  { "act": "sleep", "ms": 1200 },
+  { "act": "fill", "selector": "#email", "t": "admin@constellation.local" },
+  { "act": "sleep", "ms": 300 },
+  { "act": "eval", "expr": "(() => { const e = document.querySelector('#email'); return 'after-email-fill: emailEl=' + (e ? 'FOUND value=' + JSON.stringify(e.value) : 'NULL') + ' inputs=' + JSON.stringify(Array.from(document.querySelectorAll('input')).map(i => i.id)) + ' path=' + location.pathname; })()" },
+  { "act": "shot", "shot": "04a-after-email" },
+  { "act": "fill", "selector": "#password", "t": "changeme" },
+  { "act": "eval", "expr": "(() => { const e = document.querySelector('#email'); const p = document.querySelector('#password'); return 'after-pw-fill: emailEl=' + (e ? 'FOUND value=' + JSON.stringify(e.value) : 'NULL') + ' pwEl=' + (p ? 'FOUND len=' + p.value.length : 'NULL') + ' inputs=' + JSON.stringify(Array.from(document.querySelectorAll('input')).map(i => i.id)) + ' path=' + location.pathname; })()" },
+  { "act": "shot", "shot": "04b-after-password" },
+  { "act": "click", "selector": "button[type=submit]" },
+  { "act": "sleep", "ms": 5000 },
+  { "act": "eval", "expr": "location.pathname + ' | ' + document.title" },
+  { "act": "shot", "shot": "04c-after-submit" }
+]

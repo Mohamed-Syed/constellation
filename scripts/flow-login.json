@@ -1,0 +1,7 @@
+[
+  { "act": "goto", "url": "http://localhost:3005/login" },
+  { "act": "wait", "expr": "document.querySelector('input[type=email], input[name=email], input[type=text]') !== null" },
+  { "act": "shot", "shot": "01-login" },
+  { "act": "eval", "expr": "Array.from(document.querySelectorAll('input')).map(i => ({type:i.type, name:i.name, placeholder:i.placeholder, id:i.id}))" },
+  { "act": "text" }
+]

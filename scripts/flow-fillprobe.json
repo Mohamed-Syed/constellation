@@ -1,0 +1,8 @@
+[
+  { "act": "goto", "url": "http://localhost:3005/login" },
+  { "act": "wait", "expr": "document.querySelector('#email') !== null" },
+  { "act": "sleep", "ms": 1500 },
+  { "act": "eval", "expr": "(() => { const el = document.querySelector('#email'); const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set; setter.call(el, 'probe@test.local'); el.dispatchEvent(new Event('input', {bubbles:true})); const afterSet = el.value; setTimeout(() => {}, 0); return 'afterSet=' + afterSet; })()" },
+  { "act": "sleep", "ms": 800 },
+  { "act": "eval", "expr": "(() => { const el = document.querySelector('#email'); return 'afterDelay=' + el.value + ' inputs=' + document.querySelectorAll('input').length + ' ids=' + JSON.stringify(Array.from(document.querySelectorAll('input')).map(i => i.id)); })()" }
+]

@@ -1,0 +1,15 @@
+[
+  { "act": "goto", "url": "http://localhost:3005/login" },
+  { "act": "wait", "expr": "document.querySelector('input[type=password]') !== null" },
+  { "act": "fill", "selector": "input[type=email]", "t": "admin@constellation.local" },
+  { "act": "fill", "selector": "input[type=password]", "t": "changeme" },
+  { "act": "click", "selector": "button[type=submit]" },
+  { "act": "wait", "expr": "location.pathname !== '/login'", "wait": 15000 },
+  { "act": "eval", "expr": "location.href + ' | ' + document.title" },
+  { "act": "shot", "shot": "02-after-login" },
+  { "act": "goto", "url": "http://localhost:3005/engine" },
+  { "act": "wait", "expr": "document.body.innerText.length > 100", "wait": 20000 },
+  { "act": "shot", "shot": "03-engine-page" },
+  { "act": "text" },
+  { "act": "eval", "expr": "Array.from(document.querySelectorAll('input,button,textarea,select')).map(e => e.tagName + '#' + (e.id||'') + '.' + Array.from(e.classList).join('.') + '[' + (e.type||'') + ']' + '::' + (e.placeholder||e.textContent||'').slice(0,40)).join('\\n')" }
+]

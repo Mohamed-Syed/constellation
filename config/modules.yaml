@@ -1,0 +1,136 @@
+# ---------------------------------------------------------------------------
+# Constellation — federated module registry (P3 portal federation).
+#
+# Declares the heavyweight tools the portal FEDERATES rather than reimplements
+# (locked decision C5/C7). Each entry becomes a tile in the portal and, when
+# `proxy.path` is set, a route on the reverse proxy so everything is same-origin
+# behind one hostname and one SSO session.
+#
+# This file is DATA, not code. Adding a tool means adding an entry here — the
+# core is never rewritten (the founding principle of the platform).
+#
+# Served by the API as `GET /api/federation/modules`.
+# Nothing here is secret: no passwords/tokens/keys. Credentials belong in `.env`.
+# ---------------------------------------------------------------------------
+
+version: 1
+
+defaults:
+  # Applied to every module unless it overrides them.
+  enabled: true
+  # `sso: true` means the module is expected to accept the platform's OIDC
+  # identity (same Keycloak realm), so the user is not prompted a second time.
+  sso: false
+  # How the portal surfaces it: `tile` (dashboard card + nav entry) or
+  # `hidden` (registered/proxied but not advertised in the UI).
+  display: tile
+
+modules:
+  - id: grafana
+    name: Grafana
+    description: Dashboards and alerting over Prometheus metrics and Loki logs.
+    category: observability
+    icon: activity
+    # Internal address on the compose network (used by the reverse proxy).
+    upstream: http://grafana:3000
+    # Public path on the portal origin. The proxy strips/forwards as configured.
+    proxy:
+      path: /tools/grafana
+      # Grafana is iframe-hostile by default; the compose profile sets
+      # GF_SECURITY_ALLOW_EMBEDDING=true so the portal can embed it.
+      embeddable: true
+    sso: true
+    healthPath: /api/health
+    requiresPermissions:
+      - core:observability:read
+
+  - id: prometheus
+    name: Prometheus
+    description: Metrics collection and PromQL query engine.
+    category: observability
+    icon: bar-chart
+    upstream: http://prometheus:9090
+    proxy:
+      path: /tools/prometheus
+      embeddable: true
+    # Prometheus has no native auth — never expose it publicly without the
+    # proxy in front enforcing the platform session.
+    sso: false
+    display: hidden
+    healthPath: /-/healthy
+    requiresPermissions:
+      - core:observability:read
+
+  - id: loki
+    name: Loki
+    description: Log aggregation queried through Grafana.
+    category: observability
+    icon: scroll-text
+    upstream: http://loki:3100
+    proxy:
+      path: /tools/loki
+      embeddable: false
+    sso: false
+    display: hidden
+    healthPath: /ready
+    requiresPermissions:
+      - core:observability:read
+
+  - id: open-webui
+    name: Open WebUI
+    description: Chat interface over local and hosted models (federated per C7).
+    category: ai
+    icon: message-square
+    upstream: http://open-webui:8080
+    proxy:
+      path: /tools/chat
+      embeddable: true
+    sso: true
+    healthPath: /health
+    requiresPermissions:
+      - core:authenticated
+
+  - id: langflow
+    name: Langflow
+    description: Visual flow builder; published flows become callable agent tools.
+    category: ai
+    icon: workflow
+    upstream: http://langflow:7860
+    proxy:
+      path: /tools/langflow
+      embeddable: true
+    sso: true
+    healthPath: /health
+    requiresPermissions:
+      - core:plugin:manage
+
+  - id: keycloak
+    name: Keycloak
+    description: Identity provider — SSO, users, roles, and OIDC clients.
+    category: platform
+    icon: key-round
+    upstream: http://keycloak:8080
+    proxy:
+      path: /auth
+      embeddable: false
+    sso: false
+    healthPath: /health/ready
+    requiresPermissions:
+      - platform:admin
+
+  - id: coolify
+    name: Coolify
+    description: Self-hosted PaaS that deploys and keeps the stack alive (P5).
+    category: platform
+    icon: rocket
+    # NOT part of the local compose stack — Coolify manages the host itself,
+    # so it runs outside and is addressed by env when it exists.
+    upstream: ${COOLIFY_URL:-http://localhost:8000}
+    proxy:
+      path: /tools/coolify
+      embeddable: false
+    sso: false
+    enabled: false # switched on at P5, once a host exists
+    healthPath: /api/health
+    requiresPermissions:
+      - platform:admin
