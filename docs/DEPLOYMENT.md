@@ -136,8 +136,8 @@ Everything is `.env`-driven with working defaults — a fresh clone needs no `.e
 | `DATABASE_URL` | `postgresql://constellation:constellation@localhost:5432/constellation` | Postgres connection |
 | `REDIS_URL` | `redis://localhost:6379` | Redis for the queue |
 | `JWT_SECRET` | `change-me-in-production` | **Change in production** |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | `admin@constellation.local` / `changeme` | Seeded on first boot with a DB |
-| `VIEWER_EMAIL` / `VIEWER_PASSWORD` | `viewer@constellation.local` / `changeme` | Seeded non-admin (for RBAC testing) |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | `admin@constellation.local` / `changeme` (random + logged if unset) | Seeded on first boot with a DB |
+| `VIEWER_EMAIL` / `VIEWER_PASSWORD` | `viewer@constellation.local` / `changeme` (random + logged if unset) | Seeded non-admin (for RBAC testing) |
 | `PLUGINS_DIR` | `plugins` | Directory scanned for installed plugins |
 
 ### Engine

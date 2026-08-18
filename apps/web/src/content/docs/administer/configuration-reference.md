@@ -12,8 +12,8 @@
 | `REDIS_URL` | `redis://localhost:6380` | Redis connection (note: **6380**, not 6379) |
 | `JWT_SECRET` | — | Signs local JWTs |
 | `CORS_ORIGINS` | `http://localhost:3005,http://127.0.0.1:3005` | Allowed portal origins (both spellings — they are different origins to browsers) |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | `admin@constellation.local` / `changeme` | Seed admin |
-| `VIEWER_EMAIL` / `VIEWER_PASSWORD` | `viewer@constellation.local` / `changeme` | Seed viewer |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | `admin@constellation.local` / `changeme` (random + logged if unset) | Seed admin |
+| `VIEWER_EMAIL` / `VIEWER_PASSWORD` | `viewer@constellation.local` / `changeme` (random + logged if unset) | Seed viewer |
 
 ## Engine
 

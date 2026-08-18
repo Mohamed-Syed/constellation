@@ -1,13 +1,12 @@
 import { Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
+import { randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { CorePermissions } from "@constellation/plugin-sdk";
 import { PrismaService } from "../database/prisma.service.js";
 import { RolesService } from "../rbac/roles.service.js";
 
 const DEFAULT_ADMIN_EMAIL = "admin@constellation.local";
-const DEFAULT_ADMIN_PASSWORD = "changeme";
 const DEFAULT_VIEWER_EMAIL = "viewer@constellation.local";
-const DEFAULT_VIEWER_PASSWORD = "changeme";
 
 /**
  * Seeds the `admin` + `viewer` roles, a default admin user, and a default
@@ -27,6 +26,11 @@ const DEFAULT_VIEWER_PASSWORD = "changeme";
  * A `viewer@constellation.local` login yields a JWT whose permission set is
  * ONLY `core:authenticated`, so an admin-only route (`@RequirePermissions`
  * + `PermissionsGuard`) correctly drops it with a 403 rather than a 401.
+ *
+ * Platform hardening (v0.7): passwords are never seeded from a hard-coded
+ * default. When `ADMIN_PASSWORD` / `VIEWER_PASSWORD` is unset, the first-boot
+ * seed generates a cryptographically random password and logs it once, so a
+ * fresh instance never starts with a publicly-known credential.
  */
 @Injectable()
 export class AdminSeedService implements OnApplicationBootstrap {
@@ -67,14 +71,12 @@ export class AdminSeedService implements OnApplicationBootstrap {
         emailEnv: "ADMIN_EMAIL",
         passwordEnv: "ADMIN_PASSWORD",
         defaultEmail: DEFAULT_ADMIN_EMAIL,
-        defaultPassword: DEFAULT_ADMIN_PASSWORD,
         label: "admin",
       });
       await this.seedRoleUser(viewerRole.id, {
         emailEnv: "VIEWER_EMAIL",
         passwordEnv: "VIEWER_PASSWORD",
         defaultEmail: DEFAULT_VIEWER_EMAIL,
-        defaultPassword: DEFAULT_VIEWER_PASSWORD,
         label: "viewer",
       });
     } catch (err) {
@@ -90,7 +92,6 @@ export class AdminSeedService implements OnApplicationBootstrap {
       emailEnv: string;
       passwordEnv: string;
       defaultEmail: string;
-      defaultPassword: string;
       label: string;
     },
   ): Promise<void> {
@@ -98,7 +99,6 @@ export class AdminSeedService implements OnApplicationBootstrap {
     if (!db) return;
 
     const email = process.env[opts.emailEnv]?.trim() || opts.defaultEmail;
-    const password = process.env[opts.passwordEnv]?.trim() || opts.defaultPassword;
 
     const existing = await db.user.findUnique({ where: { email } });
     if (existing) {
@@ -115,19 +115,26 @@ export class AdminSeedService implements OnApplicationBootstrap {
       return;
     }
 
+    const envPassword = process.env[opts.passwordEnv]?.trim();
+    const password = envPassword || generatePassword();
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await db.user.create({ data: { email, passwordHash } });
     await db.userRole.create({ data: { userId: user.id, roleId } });
 
-    if (!process.env[opts.emailEnv] || !process.env[opts.passwordEnv]) {
-      this.logger.warn(
-        `Seeded ${opts.label} user "${email}" with the DEV DEFAULT password. Set ` +
-          `${opts.emailEnv} / ${opts.passwordEnv} before running anywhere real.`,
-      );
-    } else {
+    if (envPassword) {
       this.logger.log(`Seeded ${opts.label} user "${email}".`);
+    } else {
+      this.logger.warn(
+        `Seeded ${opts.label} user "${email}" with a RANDOM password: ${password}. ` +
+          `Set ${opts.passwordEnv} to a fixed value for a persistent, reproducible login.`,
+      );
     }
   }
+}
+
+function generatePassword(): string {
+  // 16 bytes -> 22 chars of base64url; ample entropy for a first-boot seed.
+  return randomBytes(16).toString("base64url");
 }
 
 function asMessage(err: unknown): string {
